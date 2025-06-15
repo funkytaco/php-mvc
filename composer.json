@@ -3,6 +3,7 @@
     "description": "A modular PHP MVC Framework",
     "keywords": ["template", "seed"],
     "license": "MIT",
+    "version": "0.2",
     "authors": [
         {
             "name": "Luis Gonzalez",
@@ -29,10 +30,8 @@
             "Icarus\\Controllers\\": "app/Controllers/template-manager/",
             "App\\": "app/",
             "Test\\": "test/src/"
-        },
-        "classmap": [
-            "app/Controllers/"
-        ]
+        }
+
     },
     "scripts": {
         "test": "./vendor/bin/phpunit",

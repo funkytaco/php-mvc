@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/var/www:Z
+    depends_on:
+      - db
+
   db:
     build:
       context: ./database
@@ -11,7 +20,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data:Z
 
 volumes:
   postgres_data:
