@@ -6,3 +6,6 @@ app/
 *.xlsx
 **/credentials.json
 .clinerules
+.composer
+data/
+html/
