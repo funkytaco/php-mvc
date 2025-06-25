@@ -5,15 +5,14 @@ $mustache_options =  array('extension' => '.html');
 
 $injector->alias('Main\Renderer\Renderer', 'Main\Renderer\MustacheRenderer');
 $injector->alias('Main\Router\RouteCollector', 'FastRoute\RouteCollector');
-$injector->alias('Main\Router\Dispatcher', 'FastRoute\Dispatcher\GroupCountBased');
 $injector->alias('Main\Router\RouteParser', 'FastRoute\RouteParser\Std');
 $injector->define('FastRoute\RouteParser\Std', []);
 $injector->define('FastRoute\RouteCollector', [
     ':routeParser' => $injector->make('FastRoute\RouteParser\Std'),
     ':dataGenerator' => new \FastRoute\DataGenerator\GroupCountBased()
 ]);
-$injector->delegate('FastRoute\Dispatcher\GroupCountBased', function() use ($injector) {
-    $routeCollector = $injector->make('FastRoute\RouteCollector');
+$injector->delegate('Main\Router\Dispatcher', function() use ($injector) {
+    $routeCollector = $injector->make('Main\Router\RouteCollector');
     return new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
 });
 

@@ -93,10 +93,9 @@
     $renderer = $injector->make('Main\Renderer\Renderer');
 
     /**
-    * Router Dispatcher
+    * Router Setup
     */
     $routeCollector = $injector->make('Main\Router\RouteCollector');
-    $dispatcher = $injector->make('Main\Router\Dispatcher');
 
     /**** end injector includes ***/
 
@@ -122,6 +121,9 @@
         }
     }
 
+    // Create dispatcher after routes are loaded
+    $dispatcher = new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
+
 
 
     // Handle the request using FastRoute
@@ -136,13 +138,13 @@
 
     $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
     switch ($routeInfo[0]) {
-        case \Main\Router\Dispatcher::NOT_FOUND:
+        case \FastRoute\Dispatcher::NOT_FOUND:
             http_response_code(404);
             break;
-        case \Main\Router\Dispatcher::METHOD_NOT_ALLOWED:
+        case \FastRoute\Dispatcher::METHOD_NOT_ALLOWED:
             http_response_code(405);
             break;
-        case \Main\Router\Dispatcher::FOUND:
+        case \FastRoute\Dispatcher::FOUND:
             $handler = $routeInfo[1];
             $vars = $routeInfo[2];
             call_user_func_array($handler, $vars);

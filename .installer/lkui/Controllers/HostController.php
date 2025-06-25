@@ -1,19 +1,17 @@
 <?php
 
-//namespace App\Controllers;
 require_once('ControllerInterface.php');
 
 use Main\Router\RouteCollector;
-//use App\Controllers\ControllerInterface;
 use Main\Renderer\Renderer;
-use Main\Database\Connection;
+use Main\Mock\PDO;
 
-class HostController implements App\Controllers\ControllerInterface
+class HostController implements \App\Controllers\ControllerInterface
 {
     protected $renderer;
     protected $conn;
 
-    public function __construct(Renderer $renderer, Connection $conn)
+    public function __construct(Renderer $renderer, PDO $conn)
     {
         $this->renderer = $renderer;
         $this->conn = $conn;
