@@ -5,11 +5,18 @@
         $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
         
         // Construct file path relative to project root
-        // The file parameter already includes 'assets/' prefix from the route
-        $filepath = __DIR__ . '/../public/' . $file;
+        // The route strips 'assets/' from the URL, so we need to add it back
+        $filepath = __DIR__ . '/../public/assets/' . $file;
         
-        // Normalize the path
-        $filepath = realpath($filepath);
+        // If file doesn't exist, try without the assets prefix (for files directly in public)
+        if (!is_file($filepath)) {
+            $filepath = __DIR__ . '/../public/' . $file;
+        }
+        
+        // Normalize the path only if file exists
+        if (is_file($filepath)) {
+            $filepath = realpath($filepath);
+        }
         
         // Determine mime type based on extension
         $mimetypes = [

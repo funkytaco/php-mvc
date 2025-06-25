@@ -10,8 +10,9 @@
     /*** DO NOT MODIFY - See Bootstrap.php. Put custom routes in CUSTOM_ROUTES_FILE **/
     return [
         // Asset Files - FastRoute compatible patterns with non-capturing groups
-        ['GET', '/assets/{file:.+\.(?:css|eot|js|json|less|jpg|bmp|png|svg|ttf|woff|woff2|md)}', $return_asset_files],
-        ['GET', '/public/{file:.+\.(?:css|eot|js|json|less|jpg|bmp|png|svg|ttf|woff|woff2|md)}', $return_asset_files],
+        // Updated to handle compound extensions like .min.js, .min.css, etc.
+        ['GET', '/assets/{file:.+\.(?:min\.)?(?:css|eot|js|json|less|jpg|bmp|png|svg|ttf|woff|woff2|md|map)}', $return_asset_files],
+        ['GET', '/public/{file:.+\.(?:min\.)?(?:css|eot|js|json|less|jpg|bmp|png|svg|ttf|woff|woff2|md|map)}', $return_asset_files],
         
         // OPTIONS handler
         ['OPTIONS', '/{path:.*}', $forbidden],
