@@ -5,3 +5,4 @@ public/assets/
 app/
 *.xlsx
 **/credentials.json
+.clinerules
