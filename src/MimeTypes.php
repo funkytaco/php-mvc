@@ -1,61 +1,47 @@
 <?php
 
-    $handle_mimetypes = function ($request, $response) {
-
-            $filetype = $request->paramsNamed()[1];
-            $filepath = PUBLIC_DIR . $request->pathname();
-            $mimetype = null;
-
-            switch ($filetype) {
-                case 'css':
-                $mimetype = 'text/css';
-                break;
-
-                case 'eot':
-                $mimetype = 'application/vnd.ms-fontobject';
-                break;
-
-                case 'js':
-                $mimetype = 'application/javascript';
-                break;
-                
-                case 'json':
-                $mimetype = 'application/json';
-                break;
-                
-                case 'less':
-                $mimetype = 'text/plain';
-                break;
-                
-                case 'svg':
-                $mimetype = 'image/svg+xml';
-                break;
-                
-                case 'ttf':
-                $mimetype = 'application/octet-stream';
-                break;
-                
-                case 'woff':
-                $mimetype = 'application/font-woff';
-                break;
-                
-                case 'woff2':
-                $mimetype = 'application/font-woff2';
-                break;
-                
-                case 'md':
-                $mimetype = 'text/plain';
-                break;
-                
-                default:
-                $mimetype = 'text/plain';
-            }
-
-            if (is_file($filepath)) {
-                $response->file($filepath,null, $mimetype);
-            } 
-
-
+    $handle_mimetypes = function ($file) {
+        // Get file extension
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        
+        // Construct file path relative to project root
+        // The file parameter already includes 'assets/' prefix from the route
+        $filepath = __DIR__ . '/../public/' . $file;
+        
+        // Normalize the path
+        $filepath = realpath($filepath);
+        
+        // Determine mime type based on extension
+        $mimetypes = [
+            'css' => 'text/css',
+            'eot' => 'application/vnd.ms-fontobject',
+            'js' => 'application/javascript',
+            'json' => 'application/json',
+            'less' => 'text/plain',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'bmp' => 'image/bmp',
+            'png' => 'image/png',
+            'svg' => 'image/svg+xml',
+            'ttf' => 'application/octet-stream',
+            'woff' => 'application/font-woff',
+            'woff2' => 'application/font-woff2',
+            'md' => 'text/plain',
+        ];
+        
+        $mimetype = $mimetypes[$extension] ?? 'application/octet-stream';
+        
+        // Serve the file if it exists
+        if (is_file($filepath)) {
+            header('Content-Type: ' . $mimetype);
+            header('Content-Length: ' . filesize($filepath));
+            readfile($filepath);
+            exit;
+        } else {
+            http_response_code(404);
+            echo "File not found: " . htmlspecialchars($file);
+            exit;
+        }
     };
 
     return $handle_mimetypes;

@@ -1,8 +1,6 @@
 <?php
 require_once('ControllerInterface.php');
 
-use \Klein\Request;
-use \Klein\Response;
 use \Main\Renderer\Renderer;
 use \Main\Mock\PDO;
 use Main\Modules\Date_Module;
@@ -16,22 +14,25 @@ use Main\Modules\Date_Module;
 
     class ContactController implements ControllerInterface {
 
+        protected $renderer;
+        protected $conn;
+        protected $mod_date;
         private $data;
-        //use DemoData;
 
         public function __construct(
             Renderer $renderer,
-            PDO $conn, Date_Module $mod_date
+            PDO $conn, 
+            Date_Module $mod_date
         ) {
-
             $this->renderer = $renderer;
             $this->conn = $conn;
+            $this->mod_date = $mod_date;
 
             $this->data = [
-                    'appName' => "PHP-MVC Template",
-                    'myDateModule' => $mod_date->getDate(),
-                    'projectList' => self::getLegacyProjects()
-                ];
+                'appName' => "PHP-MVC Template",
+                'myDateModule' => $mod_date->getDate(),
+                'projectList' => $this->getLegacyProjects()
+            ];
         }
 
         public function getLegacyProjects() {
@@ -39,7 +40,7 @@ use Main\Modules\Date_Module;
             if (is_dir('Legacy')) {
                 $paths = scandir('Legacy');
                 foreach ($paths as $path) {
-                    if (is_dir('Legacy' . $path) && $path != '.' && $path != '..') {
+                    if (is_dir('Legacy/' . $path) && $path != '.' && $path != '..') {
                         $projPaths[] = $path;
                     }
                 }
@@ -47,13 +48,11 @@ use Main\Modules\Date_Module;
             return $projPaths;
         }
 
-        public function get(Request $request, Response $response) {
-            $this->data['getVar'] = $request->__get('get');
+        public function get() {
+            // Add GET parameters to data if needed
+            $this->data['getVar'] = $_GET;
+            
             $html = $this->renderer->render('contact', $this->data);
-            $response->body($html);
-            return $response;
-
+            echo $html;
         }
-
-
     }
