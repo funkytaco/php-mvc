@@ -8,6 +8,8 @@ $OrderCtrl = new OrderController($renderer, $conn);
 $TemplatesCtrl = new TemplatesController($renderer, $conn);
 
 return [
+    // Homepage route
+    ['GET', '/', [$HostCtrl, 'showHomepage']],
     // Host routes
     ['GET', '/lkui/api/hosts', [$HostCtrl, 'listHosts']],
     ['POST', '/lkui/api/hosts', [$HostCtrl, 'createHost']],

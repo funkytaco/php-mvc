@@ -51,4 +51,14 @@ class HostController implements \App\Controllers\ControllerInterface
             'status' => 'CSR_GENERATED'
         ];
     }
+
+    public function showHomepage()
+    {
+        return $this->renderer->render('index.html', [
+            'appName' => 'License Key UI',
+            'hosts_count' => 0, // TODO: Implement count
+            'pending_orders_count' => 0, // TODO: Implement count
+            'templates_count' => 0 // TODO: Implement count
+        ]);
+    }
 }
