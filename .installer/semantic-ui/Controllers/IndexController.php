@@ -1,8 +1,6 @@
 <?php
 include('ControllerInterface.php');
 
-use \Klein\Request;
-use \Klein\Response;
 use \Main\Renderer\Renderer;
 use \Main\Mock\PDO;
 use Main\Modules\Date_Module;
@@ -29,7 +27,7 @@ use Main\Modules\Date_Module;
 
             $this->data = [
                     'appName' => "PHP-MVC Template",
-                    'myDateModule' => $mod_date->getDate(),
+                    'date' => $mod_date->getDate(),
                     'projectList' => self::getLegacyProjects()
                 ];
         }
@@ -47,19 +45,18 @@ use Main\Modules\Date_Module;
             return $projPaths;
         }
 
-        public function get(Request $request, Response $response) {
-            $this->data['getVar'] = $request->__get('get');
+        public function get() {
+            $this->data['getVar'] = $_GET;
             $html = $this->renderer->render('index', $this->data);
-            $response->body($html);
-            return $response;
-
+            echo $html;
         }
 
-        public function getAbout(Request $request, Response $response) {
-            return self::get($request, $response);
+        public function getAbout() {
+            return $this->get();
         }
-        public function getContact(Request $request, Response $response) {
-            return self::get($request, $response);
+        
+        public function getContact() {
+            return $this->get();
         }
 
 
