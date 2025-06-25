@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: lkui-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/var/www:Z
+    depends_on:
+      - db
+
+  db:
+    #build:
+      #context: .installer/lkui/database
+      #dockerfile: Containerfile
+    env_file:
+      - .installer/lkui/database/.env
+    # ports:
+    #   - "5432:5432"
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data:Z
+    image: postgres:14
+    container_name: lkui-postgres
+    # environment:
+    #   POSTGRES_USER: lkui
+    #   POSTGRES_PASSWORD: lkui_password
+    #   POSTGRES_DB: lkui
+    volumes:
+      - ./data:/var/lib/postgresql/data:Z
+      - .installer/lkui/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lkui -d lkui"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+volumes:
+  postgres_data:

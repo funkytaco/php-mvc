@@ -1,37 +1,29 @@
-############################################################
-# Dockerfile to build CentOS,Nginx installed  Container
-# Based on CentOS
-############################################################
+FROM composer:latest AS composer
+FROM php:8.2-apache
 
-# Set the base image to Ubuntu
-FROM centos:7
-VOLUME /opt
 USER root
 
-# Add the ngix and PHP dependent repository
-ADD .installer/.docker/nginx.repo /etc/yum.repos.d/nginx.repo
+RUN apt-get update && apt-get install -y \
+    libzip-dev \
+    zip \
+    unzip
 
-# Installing nginx
-RUN yum -y install nginx && yum -y --enablerepo=remi,remi-php56 install php php-fpm php-pdo php-common && yum install -y python-setuptools && easy_install pip && pip install supervisor
+RUN docker-php-ext-install \
+    pdo_mysql \
+    zip
 
-# Adding the configuration file of the nginx
-ADD .installer/.docker/nginx.conf /etc/nginx/nginx.conf
-ADD .installer/.docker/default.conf /etc/nginx/conf.d/default.conf
+    COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 
-# Adding the configuration file of the Supervisor
-ADD .installer/.docker/supervisord.conf /etc/
+COPY . /var/www/
 
-#Add project
-#ADD . /var/
-#ADD . /opt/
-ADD composer.* /opt/
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+RUN sed -i 's/Listen 80/Listen 8080/g' /etc/apache2/ports.conf
+RUN sed -i 's/:80/:8080/g' /etc/apache2/sites-enabled/*
+RUN chown -R www-data:www-data /var/www \
+    && a2enmod rewrite
 
-
-ADD .installer/.docker/composer.phar /usr/local/sbin/composer
-RUN chmod +x /usr/local/sbin/composer && cd /opt/ && php /usr/local/sbin/composer install && /usr/local/sbin/composer install-mvc
-
-# Set the port to 80
-EXPOSE 80
-
-# Executing supervisord
-CMD ["supervisord", "-n"]
+USER www-data
+WORKDIR /var/www/
+RUN ln -s public html && composer install-lkui
+EXPOSE 8080
+CMD ["/bin/sh", "-c", "apache2-foreground"]
