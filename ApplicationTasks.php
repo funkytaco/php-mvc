@@ -40,7 +40,7 @@ class ApplicationTasks {
           'light_gray' => '47',
      );
 
-    private static function ansiFormat($type = 'INFO', $str) {
+    private static function ansiFormat($type, $str = '') {
         $types = array(
 
             'INFO' => self::$foreground['white'],
@@ -143,12 +143,11 @@ class ApplicationTasks {
 
 
     private static function copy_assets_recursive($source, $destination, $event) {
-        echo self::ansiFormat('INFO', 'DESTINATION TYPE: '. is_dir($destination) ? "DIR" : "FILE" );
+        echo self::ansiFormat('INFO', 'DESTINATION TYPE: ' . (is_dir($destination) ? "DIR" : "FILE"));
         echo self::ansiFormat('INFO', 'SOURCE DIR: '. $source);
         echo self::ansiFormat('INFO', 'DESTINATION DIR: '. $destination);
 
-
-        if (!file_exists($source) || $destination ==  __DIR__ . '/public/assets/') {
+        if (!file_exists($source) || $destination == __DIR__ . '/public/assets/') {
             return false;
         }
 
@@ -270,7 +269,12 @@ class ApplicationTasks {
         if (!self::AreComposerPackagesInstalled($event)) exit('Please run composer install first.');
         echo self::ansiFormat('RUNNING>', 'Installing Semantic UI Template...');
         self::copy_extra_assets('semanticui-assets', $event);
+    }
 
+    public static function InstallLkui(Event $event) {
+        if (!self::AreComposerPackagesInstalled($event)) exit('Please run composer install first.');
+        echo self::ansiFormat('RUNNING>', 'Installing LKUI Template...');
+        self::copy_extra_assets('lkui-assets', $event);
     }
 
     public static function copyAssets($source, $destination, $isFile, $event) {

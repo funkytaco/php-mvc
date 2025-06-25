@@ -11,10 +11,10 @@
         }
     ],
     "require": {
-        "php": "^7.4.30",
+        "php": "^8.2",
         "filp/whoops": ">=1.1.3",
         "google/apiclient": "^2.7",
-        "klein/klein": ">=2.1.0",
+        "nikic/fast-route": "^1.3",
         "mustache/mustache": ">=2.7.0",
         "phpoffice/phpspreadsheet": "^1.23",
         "rdlowrey/auryn": ">=0.14.2",
@@ -35,11 +35,11 @@
 
 
     "scripts": {
-
         "serve" : "Tasks\\ApplicationTasks::startDevelopmentWebServer",
         "commit" : "Tasks\\ApplicationTasks::commitToInstallerDirectory",
         "install-mvc" : "Tasks\\ApplicationTasks::InstallMvc",
         "install-semanticui" : "Tasks\\ApplicationTasks::InstallSemanticUi",
+        "install-lkui" : "Tasks\\ApplicationTasks::InstallLkui",
         "unlock" : "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [  "Tasks\\ApplicationTasks::postInstall" ],
         "post-update-cmd": [  "Tasks\\ApplicationTasks::postUpdate",
@@ -49,7 +49,34 @@
 
 
     "extra": {
-
+        "lkui-assets": {
+            "copy-assets": true,
+            "views": {
+                "source": ".installer/lkui/Views",
+                "target": "app/Views",
+                "isFile": false
+            },
+            "controllers": {
+                "source": ".installer/lkui/Controllers",
+                "target": "app/Controllers",
+                "isFile": false
+            },
+            "models": {
+                "source": ".installer/lkui/Models",
+                "target": "app/Models",
+                "isFile": false
+            },
+            "routes": {
+                "source": ".installer/lkui/routes/CustomRoutes.php",
+                "target": "app/CustomRoutes.php",
+                "isFile": true
+            },
+            "config": {
+                "source": ".installer/lkui/app.config.php",
+                "target": "app/app.config.php",
+                "isFile": true
+            }
+        },
         "mvc-assets": {
             "copy-assets" : true,
             "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "public/assets/bootstrap/dist", "isFile": false},

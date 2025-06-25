@@ -18,15 +18,14 @@
 @verticalPadding: @inputVerticalPadding;
 @horizontalPadding: 1.5em;
 
-
 /* Text */
 @textTransform: none;
 @tapColor: transparent;
 @fontFamily: @pageFont;
-@fontWeight: bold;
+@fontWeight: @bold;
 @textColor: rgba(0, 0, 0, 0.6);
 @textShadow: none;
-@invertedTextShadow: none;
+@invertedTextShadow: @textShadow;
 @borderRadius: @defaultBorderRadius;
 @verticalAlign: baseline;
 
@@ -45,7 +44,7 @@
 ;
 
 /* Icon */
-@iconHeight: @relativeSmall;
+@iconHeight: @relativeTiny;
 @iconOpacity: 0.8;
 @iconDistance: @relative6px;
 @iconColor: '';
@@ -98,6 +97,10 @@
 @focusColor: @hoveredTextColor;
 @iconFocusOpacity: 0.85;
 
+/* Disabled */
+@disabledBackgroundImage: none;
+@disabledBoxShadow: none;
+
 /* Pressed Down */
 @downBackgroundColor: #BABBBC;
 @downBackgroundImage: '';
@@ -149,8 +152,8 @@
 
 @orBackgroundColor: @white;
 @orTextShadow: @invertedTextShadow;
-@orTextStyle: normal;
-@orTextWeight: bold;
+@orTextStyle: @normal;
+@orTextWeight: @bold;
 @orTextColor: @lightTextColor;
 
 
@@ -159,6 +162,17 @@
 
 /* Icon */
 @iconButtonOpacity: 0.9;
+@loadingIconDuration: 2s;
+
+/* Labeled */
+@labeledLabelFontSize: @medium;
+@labeledLabelAlign: center;
+@labeledLabelPadding: '';
+@labeledLabelFontSize: @relativeMedium;
+@labeledLabelBorderColor: @borderColor;
+@labeledLabelBorderOffset: -@borderBoxShadowWidth;
+@labeledTagLabelSize: 1.85em; /* hypotenuse of triangle */
+@labeledIconMargin: 0em;
 
 /* Labeled Icon */
 @labeledIconWidth: 1em + (@verticalPadding * 2);
@@ -169,6 +183,7 @@
 
 @labeledIconLeftShadow: -1px 0px 0px 0px @labeledIconBorder inset;
 @labeledIconRightShadow: 1px 0px 0px 0px @labeledIconBorder inset;
+
 
 /* Inverted */
 @invertedBorderSize: 2px;
@@ -181,10 +196,10 @@
 @basicBorderRadius: @borderRadius;
 @basicBorderSize: 1px;
 @basicTextColor: @textColor;
-@basicColoredBorderSize: 2px;
+@basicColoredBorderSize: 1px;
 
 @basicBackground: transparent none;
-@basicFontWeight: normal;
+@basicFontWeight: @normal;
 @basicBorder: 1px solid @borderColor;
 @basicBoxShadow: 0px 0px 0px @basicBorderSize @borderColor inset;
 @basicLoadingColor: @offWhite;
@@ -304,13 +319,25 @@
 /* Ordinality */
 @primaryBackgroundImage: @coloredBackgroundImage;
 @primaryTextColor: @invertedTextColor;
+@lightPrimaryTextColor: @invertedTextColor;
 @primaryTextShadow: @invertedTextShadow;
 @primaryBoxShadow: @coloredBoxShadow;
 
 @secondaryBackgroundImage: @coloredBackgroundImage;
 @secondaryTextColor: @invertedTextColor;
 @secondaryTextShadow: @invertedTextShadow;
+@lightSecondaryTextColor: @invertedTextColor;
 @secondaryBoxShadow: @coloredBoxShadow;
+
+@positiveBackgroundImage: @coloredBackgroundImage;
+@positiveTextColor: @invertedTextColor;
+@positiveTextShadow: @invertedTextShadow;
+@positiveBoxShadow: @coloredBoxShadow;
+
+@negativeBackgroundImage: @coloredBackgroundImage;
+@negativeTextColor: @invertedTextColor;
+@negativeTextShadow: @invertedTextShadow;
+@negativeBoxShadow: @coloredBoxShadow;
 
 /* Compact */
 @compactVerticalPadding: (@verticalPadding * 0.75);

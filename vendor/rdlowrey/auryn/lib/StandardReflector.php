@@ -25,9 +25,23 @@ class StandardReflector implements Reflector
 
     public function getParamTypeHint(\ReflectionFunctionAbstract $function, \ReflectionParameter $param)
     {
-        return ($reflectionClass = $param->getClass())
-            ? $reflectionClass->getName()
-            : null;
+        // php 8 deprecates getClass method
+        if (PHP_VERSION_ID >= 80000) {
+            $type = $param->getType();
+            if ($type instanceof \ReflectionNamedType && $type->isBuiltin()) {
+                return null;
+            }
+
+            return $type ? (string) $type : null;
+        } else {
+            /** @var ?\ReflectionClass $reflectionClass */
+            $reflectionClass = $param->getClass();
+            if ($reflectionClass) {
+                return $reflectionClass->getName();
+            }
+
+            return null;
+        }
     }
 
     public function getFunction($functionName)

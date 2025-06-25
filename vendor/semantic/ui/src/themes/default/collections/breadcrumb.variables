@@ -6,7 +6,7 @@
      Breadcrumb
 --------------------*/
 
-@verticalMargin: 1em;
+@verticalMargin: 0em;
 @display: inline-block;
 @verticalAlign: middle;
 
@@ -30,4 +30,4 @@
        States
 --------------------*/
 
-@activeFontWeight: bold;
+@activeFontWeight: @bold;

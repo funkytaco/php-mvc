@@ -16,9 +16,9 @@ var
   flatten      = require('gulp-flatten'),
   gulpif       = require('gulp-if'),
   less         = require('gulp-less'),
-  minifyCSS    = require('gulp-minify-css'),
+  minifyCSS    = require('gulp-clean-css'),
   plumber      = require('gulp-plumber'),
-  print        = require('gulp-print'),
+  print        = require('gulp-print').default,
   rename       = require('gulp-rename'),
   replace      = require('gulp-replace'),
 
@@ -36,15 +36,26 @@ var
   banner       = tasks.banner,
   comments     = tasks.regExp.comments,
   log          = tasks.log,
-  settings     = tasks.settings
+  settings     = tasks.settings,
+
+  {series, parallel} = gulp,
+
+  buildCSS
 ;
 
 // add internal tasks (concat release)
 require('../collections/internal')(gulp);
 
-module.exports = function(callback) {
+buildCSS = function(taskCallback) {
+  let
+    tasksCompleted = 0,
+    maybeCallback  = function() {
+      tasksCompleted++;
+      if(tasksCompleted === 2) {
+        taskCallback();
+      }
+    },
 
-  var
     stream,
     compressedStream,
     uncompressedStream
@@ -83,11 +94,12 @@ module.exports = function(callback) {
     .pipe(print(log.created))
     .on('end', function() {
       gulp.start('package uncompressed css');
+      maybeCallback();
     })
   ;
 
   // compressed component css
-  compressedStream = stream
+  compressedStream
     .pipe(plumber())
     .pipe(clone())
     .pipe(replace(assets.source, assets.compressed))
@@ -98,8 +110,13 @@ module.exports = function(callback) {
     .pipe(print(log.created))
     .on('end', function() {
       gulp.start('package compressed css');
-      callback();
+      maybeCallback();
     })
   ;
 
 };
+
+/* Export with Metadata */
+buildCSS.displayName = 'build-css';
+buildCSS.description = 'Builds all css from source';
+module.exports = series(buildCSS);

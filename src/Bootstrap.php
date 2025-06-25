@@ -1,8 +1,7 @@
 <?php /*** Bootstrap file ***/
 
     namespace Main;
-    error_reporting(E_ALL);
-
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
     define('ENV', 'development');
 
     define('MODELS_DIR', __DIR__ . '/../app/Models');
@@ -61,12 +60,15 @@
     * Pass $injector PDO configuration
     *
     */
-    $injector->define('\Main\PDO', [
-      ':dsn' => $config['pdo']['dsn'],
-      ':username' => $config['pdo']['username'],
-      ':passwd' => $config['pdo']['password'],
-      ':options' => $config['pdo']['options']
-    ]);
+    // Only configure PDO if settings exist
+    if (isset($config['pdo'])) {
+        $injector->define('\Main\PDO', [
+            ':dsn' => $config['pdo']['dsn'] ?? '',
+            ':username' => $config['pdo']['username'] ?? '',
+            ':passwd' => $config['pdo']['password'] ?? '',
+            ':options' => $config['pdo']['options'] ?? []
+        ]);
+    }
 
     /**
     * Mock Database PDO
@@ -85,50 +87,64 @@
     // $conn = $injector->make('\Main\PDO'); //uncomment to use PDO!
 
     /**
-    * HTTP Request/Response Handlers
-    * $request - Request Handler
-    * $response - Response Handler
-    */
-    $request = $injector->make('\Klein\Request');
-    $response = $injector->make('\Klein\Response');
-
-    /**
     * Templating Engine
     * $renderer
     */
     $renderer = $injector->make('Main\Renderer\Renderer');
 
-
     /**
-    * App Router
-    * $router
+    * Router Dispatcher
     */
-    $router = $injector->make('\Klein\Klein');
+    $routeCollector = $injector->make('Main\Router\RouteCollector');
+    $dispatcher = $injector->make('Main\Router\Dispatcher');
 
     /**** end injector includes ***/
 
-    /**
-    * build $routes for the router. This will change depending on
-    * the PHP router you choose.
-    */
+    // Load and process base routes
     $routes = include('Routes.php');
-
-    if (gettype($routes) == 'array') {
-      foreach ($routes as $route) {
-              $router->respond($route[0], $route[1], $route[2]);
-      }
+    if (is_array($routes)) {
+        foreach ($routes as $route) {
+            if (is_callable($route[2])) {
+                $routeCollector->addRoute($route[0], $route[1], $route[2]);
+            }
+        }
     }
 
+    // Process custom routes
     if (is_file(CUSTOM_ROUTES_FILE)) {
-
         $custom_routes = include(CUSTOM_ROUTES_FILE);
-        if (gettype($custom_routes) == 'array') {
-          foreach ($custom_routes as $route) {
-                  $router->respond($route[0], $route[1], $route[2]);
-          }
+        if (is_array($custom_routes)) {
+            foreach ($custom_routes as $route) {
+                if (is_callable($route[2])) {
+                    $routeCollector->addRoute($route[0], $route[1], $route[2]);
+                }
+            }
         }
     }
 
 
 
-    $router->dispatch();
+    // Handle the request using FastRoute
+    $httpMethod = $_SERVER['REQUEST_METHOD'];
+    $uri = $_SERVER['REQUEST_URI'];
+
+    // Strip query string (?foo=bar) and decode URI
+    if (false !== $pos = strpos($uri, '?')) {
+        $uri = substr($uri, 0, $pos);
+    }
+    $uri = rawurldecode($uri);
+
+    $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+    switch ($routeInfo[0]) {
+        case \Main\Router\Dispatcher::NOT_FOUND:
+            http_response_code(404);
+            break;
+        case \Main\Router\Dispatcher::METHOD_NOT_ALLOWED:
+            http_response_code(405);
+            break;
+        case \Main\Router\Dispatcher::FOUND:
+            $handler = $routeInfo[1];
+            $vars = $routeInfo[2];
+            call_user_func_array($handler, $vars);
+            break;
+    }

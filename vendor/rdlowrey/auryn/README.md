@@ -279,7 +279,7 @@ class MyClass {
 }
 
 $injector = new Auryn\Injector;
-$myObj = $injector->make('MyClass', ['dependency' => 'SomeImplementation']);
+$myObj = $injector->make('MyClass', ['dependency' => 'SomeImplementationClass']);
 
 var_dump($myObj instanceof MyClass); // true
 ```
@@ -559,7 +559,7 @@ var_dump($obj->value); // int(2)
 ### Prepares and Setter Injection
 
 Constructor injection is almost always preferable to setter injection. However, some APIs require
-additional post-instantiation mutations. auryn accomodates these use cases with its
+additional post-instantiation mutations. auryn accommodates these use cases with its
 `Injector::prepare()` method. Users may register any class or interface name for post-instantiation
 modification. Consider:
 

@@ -58,7 +58,7 @@ module.exports = {
       }
     },
 
-    theme: /.*\/themes\/.*?(?=\/)/mg
+    theme: /.*(\/|\\)themes(\/|\\).*?(?=(\/|\\))/mg
 
   },
 
@@ -67,6 +67,10 @@ module.exports = {
     /* Remove Files in Clean */
     del: {
       silent : true
+    },
+
+    concatCSS: {
+      rebaseUrls: false
     },
 
     /* Comment Banners */
@@ -111,15 +115,8 @@ module.exports = {
       }
     },
 
-    /* What Browsers to Prefix */
+    /* Autoprefix settings */
     prefix: {
-      browsers: [
-        'last 2 versions',
-        '> 1%',
-        'opera 12.1',
-        'bb 10',
-        'android 4'
-      ]
     },
 
     /* File Renames */
@@ -134,26 +131,32 @@ module.exports = {
     minify: {
       processImport       : false,
       restructuring       : false,
-      keepSpecialComments : 1
+      keepSpecialComments : 1,
+      roundingPrecision   : -1,
     },
 
     /* Minified JS Settings */
     uglify: {
-      mangle           : true,
-      preserveComments : 'some'
+      mangle   : true,
+      output: {
+        comments: 'some'
+      }
     },
 
     /* Minified Concat CSS Settings */
     concatMinify: {
       processImport       : false,
       restructuring       : false,
-      keepSpecialComments : false
+      keepSpecialComments : false,
+      roundingPrecision   : -1,
     },
 
     /* Minified Concat JS */
     concatUglify: {
-      mangle           : true,
-      preserveComments : false
+      mangle   : true,
+      output: {
+        comments: 'some'
+      }
     }
 
   }

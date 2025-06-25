@@ -2,41 +2,46 @@
           Build Task
 *******************************/
 
-var
-  gulp         = require('gulp-help')(require('gulp')),
+let
+  // dependencies
+  gulp        = require('gulp'),
 
   // config
-  config       = require('./config/user'),
-  install      = require('./config/project/install')
+  config      = require('./config/user'),
+  install     = require('./config/project/install'),
+
+  buildJS     = require('./build/javascript'),
+  buildCSS    = require('./build/css'),
+  buildAssets = require('./build/assets'),
+
+  // rtl
+  buildRTL    = require('./rtl/build'),
+
+  // task sequence
+  tasks   = [],
+
+  {series, parallel} = gulp,
+
+  build
 ;
 
-// add sub-tasks
-if(config.rtl) {
-  require('./collections/rtl')(gulp);
+if(config.rtl == 'both') {
+  tasks.push(buildRTL);
 }
-require('./collections/build')(gulp);
 
-module.exports = function(callback) {
+if(config.rtl === true || config.rtl === 'Yes') {
+  tasks.push(buildRTL);
+}
+else {
+  tasks.push(buildJS);
+  tasks.push(buildCSS);
+  tasks.push(buildAssets);
+}
 
-  console.info('Building Semantic');
-
-  if( !install.isSetup() ) {
-    console.error('Cannot find semantic.json. Run "gulp install" to set-up Semantic');
-    return;
-  }
-
-  // check for right-to-left (RTL) language
-  if(config.rtl == 'both') {
-    gulp.start('build-rtl');
-  }
-  if(config.rtl === true || config.rtl === 'Yes') {
-    gulp.start('build-rtl');
-    return;
-  }
-
-  gulp.start('build-javascript');
-  gulp.start('build-css');
-  gulp.start('build-assets');
+build = parallel(tasks);
 
 
-};
+/* Export with Metadata */
+build.displayName = 'build';
+build.description = 'Build SUI from source';
+module.exports = build;

@@ -31,7 +31,7 @@ var when = {
 
   // install
   hasConfig: function() {
-    return requireDotFile('semantic.json');
+    return requireDotFile('semantic.json', process.cwd());
   },
 
   allowOverwrite: function(questions) {
@@ -80,6 +80,14 @@ module.exports = {
   // check whether install is setup
   isSetup: function() {
     return when.hasConfig();
+  },
+
+  // detect whether there is a semantic.json configuration and that the auto-install option is set to true
+  shouldAutoInstall: function() {
+    var
+      config = when.hasConfig()
+    ;
+    return config['autoInstall'];
   },
 
   // checks if files are in a PM directory
@@ -274,13 +282,7 @@ module.exports = {
         type    : 'list',
         name    : 'useRoot',
         message :
-          '    \n' +
-          '    {packageMessage} \n' +
-          '    \n' +
-          '    Is this your project folder?\n' +
-          '    \033[92m{root}\033[0m \n' +
-          '    \n ' +
-          '\n',
+          '{packageMessage} Is this your project folder? {root}',
         choices: [
           {
             name  : 'Yes',
@@ -331,7 +333,7 @@ module.exports = {
         when: when.allowOverwrite,
         choices: [
           {
-            name: 'Automatic (Use defaults locations and all components)',
+            name: 'Automatic (Use default locations and all components)',
             value: 'auto'
           },
           {
@@ -351,61 +353,62 @@ module.exports = {
 
         // duplicated manually from tasks/defaults.js with additional property
         choices: [
-          { name: "reset", checked: true },
-          { name: "site", checked: true },
-          { name: "button", checked: true },
-          { name: "container", checked: true },
-          { name: "divider", checked: true },
-          { name: "flag", checked: true },
-          { name: "header", checked: true },
-          { name: "icon", checked: true },
-          { name: "image", checked: true },
-          { name: "input", checked: true },
-          { name: "label", checked: true },
-          { name: "list", checked: true },
-          { name: "loader", checked: true },
-          { name: "rail", checked: true },
-          { name: "reveal", checked: true },
-          { name: "segment", checked: true },
-          { name: "step", checked: true },
-          { name: "breadcrumb", checked: true },
-          { name: "form", checked: true },
-          { name: "grid", checked: true },
-          { name: "menu", checked: true },
-          { name: "message", checked: true },
-          { name: "table", checked: true },
-          { name: "ad", checked: true },
-          { name: "card", checked: true },
-          { name: "comment", checked: true },
-          { name: "feed", checked: true },
-          { name: "item", checked: true },
-          { name: "statistic", checked: true },
-          { name: "accordion", checked: true },
-          { name: "checkbox", checked: true },
-          { name: "dimmer", checked: true },
-          { name: "dropdown", checked: true },
-          { name: "embed", checked: true },
-          { name: "modal", checked: true },
-          { name: "nag", checked: true },
-          { name: "popup", checked: true },
-          { name: "progress", checked: true },
-          { name: "rating", checked: true },
-          { name: "search", checked: true },
-          { name: "shape", checked: true },
-          { name: "sidebar", checked: true },
-          { name: "sticky", checked: true },
-          { name: "tab", checked: true },
-          { name: "transition", checked: true },
-          { name: "api", checked: true },
-          { name: "form", checked: true },
-          { name: "state", checked: true },
-          { name: "visibility", checked: true }
+          { name: 'reset', checked: true },
+          { name: 'site', checked: true },
+          { name: 'button', checked: true },
+          { name: 'container', checked: true },
+          { name: 'divider', checked: true },
+          { name: 'flag', checked: true },
+          { name: 'header', checked: true },
+          { name: 'icon', checked: true },
+          { name: 'image', checked: true },
+          { name: 'input', checked: true },
+          { name: 'label', checked: true },
+          { name: 'list', checked: true },
+          { name: 'loader', checked: true },
+          { name: 'placeholder', checked: true },
+          { name: 'rail', checked: true },
+          { name: 'reveal', checked: true },
+          { name: 'segment', checked: true },
+          { name: 'step', checked: true },
+          { name: 'breadcrumb', checked: true },
+          { name: 'form', checked: true },
+          { name: 'grid', checked: true },
+          { name: 'menu', checked: true },
+          { name: 'message', checked: true },
+          { name: 'table', checked: true },
+          { name: 'ad', checked: true },
+          { name: 'card', checked: true },
+          { name: 'comment', checked: true },
+          { name: 'feed', checked: true },
+          { name: 'item', checked: true },
+          { name: 'statistic', checked: true },
+          { name: 'accordion', checked: true },
+          { name: 'checkbox', checked: true },
+          { name: 'dimmer', checked: true },
+          { name: 'dropdown', checked: true },
+          { name: 'embed', checked: true },
+          { name: 'modal', checked: true },
+          { name: 'nag', checked: true },
+          { name: 'popup', checked: true },
+          { name: 'progress', checked: true },
+          { name: 'rating', checked: true },
+          { name: 'search', checked: true },
+          { name: 'shape', checked: true },
+          { name: 'sidebar', checked: true },
+          { name: 'sticky', checked: true },
+          { name: 'tab', checked: true },
+          { name: 'transition', checked: true },
+          { name: 'api', checked: true },
+          { name: 'form', checked: true },
+          { name: 'state', checked: true },
+          { name: 'visibility', checked: true }
         ],
         when: when.notAuto
       },
       {
         type: 'list',
-        name: 'changePermisions',
+        name: 'changePermissions',
         when: when.notAuto,
         message: 'Should we set permissions on outputted files?',
         choices: [
@@ -416,7 +419,7 @@ module.exports = {
           {
             name: 'Yes',
             value: true
-          },
+          }
         ]
       },
       {
@@ -730,7 +733,7 @@ module.exports = {
 
     /* Rename Files */
     rename: {
-      json : { extname : '.json' },
+      json : { extname : '.json' }
     },
 
     /* Copy Install Folders */
@@ -752,5 +755,4 @@ module.exports = {
 
     }
   }
-
 };

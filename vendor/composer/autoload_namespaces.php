@@ -6,6 +6,6 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
-    'Whoops' => array($vendorDir . '/filp/whoops/src'),
     'Mustache' => array($vendorDir . '/mustache/mustache/src'),
+    'HTMLPurifier' => array($vendorDir . '/ezyang/htmlpurifier/library'),
 );

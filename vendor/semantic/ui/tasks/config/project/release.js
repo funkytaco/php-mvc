@@ -5,7 +5,7 @@
 var
   requireDotFile = require('require-dot-file'),
   config,
-  package,
+  npmPackage,
   version
 ;
 
@@ -15,24 +15,28 @@ var
 *******************************/
 
 try {
-
-  config   = requireDotFile('semantic.json');
-  package  = require('../../../package.json');
-
-  // looks for version in config or package.json (whichever is available)
-  version = (config && config.version !== undefined)
-    ? config.version
-    : package.version
-  ;
-
+  config = requireDotFile('semantic.json');
 }
+catch(error) {}
 
+
+try {
+  npmPackage = require('../../../package.json');
+}
 catch(error) {
   // generate fake package
-  package = {
+  npmPackage = {
+    name: 'Unknown',
     version: 'x.x'
   };
 }
+
+// looks for version in config or package.json (whichever is available)
+version = (npmPackage && npmPackage.version !== undefined && npmPackage.name == 'semantic-ui')
+  ? npmPackage.version
+  : config.version
+;
+
 
 /*******************************
              Export
@@ -50,12 +54,12 @@ module.exports = {
     + ' * <%= repository %>' + '\n'
     + ' * <%= url %>' + '\n'
     + ' *' + '\n'
-    + ' * Copyright 2014 Contributors' + '\n'
+    + ' * Copyright ' + new Date().getFullYear() + ' Contributors' + '\n'
     + ' * Released under the MIT license' + '\n'
     + ' * http://opensource.org/licenses/MIT' + '\n'
     + ' *' + '\n'
     + ' */' + '\n',
 
-  version    : package.version
+  version    : version
 
 };
