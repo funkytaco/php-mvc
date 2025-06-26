@@ -1,148 +1,144 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{appName}} - Home</title>
+    <title>{{appName}}</title>
     {{> partials/header}}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
-<body class="bg-gray-50">
-    <nav class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <span class="text-xl font-semibold">LKUI</span>
-                    </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="/" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Home
-                        </a>
-                        <a href="/hosts" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Hosts
-                        </a>
-                        <a href="/orders" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Orders
-                        </a>
-                    </div>
-                </div>
+<body role="document">
+<br><br><br>
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">LKUI</a>
             </div>
+            <div id="navbar" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="/">Home</a></li>
+                    <li><a href="/hosts">Hosts</a></li>
+                    <li><a href="/orders">Orders</a></li>
+                </ul>
+            </div><!--/.nav-collapse -->
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <!-- Hosts Card -->
-            <div class="bg-white overflow-hidden shadow rounded-lg">
-                <div class="px-4 py-5 sm:p-6">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
-                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                            </svg>
-                        </div>
-                        <div class="ml-5 w-0 flex-1">
-                            <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">
-                                    Total Hosts
-                                </dt>
-                                <dd class="flex items-baseline">
-                                    <div class="text-2xl font-semibold text-gray-900">
-                                        {{hosts_count}}
-                                    </div>
-                                </dd>
-                            </dl>
-                        </div>
-                    </div>
-                    <div class="mt-5">
-                        <a href="/hosts" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                            View all<span aria-hidden="true"> &rarr;</span>
-                        </a>
-                    </div>
+    <div class="container theme-showcase" role="main">
+        <!-- Main jumbotron for a primary marketing message or call to action -->
+        <div class="jumbotron">
+            <h1>{{title}}</h1>
+            <p>Welcome to the License Key UI - your SSL certificate management system.</p>
+            <p>This system helps you generate CSRs, manage certificate orders, and track SSL certificates for your infrastructure.</p>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <h3>Generate CSRs</h3>
+                    <p>Create Certificate Signing Requests using predefined templates for RHEL6, RHEL7, and RHEL8.</p>
+                    <a class="btn btn-primary" href="/hosts" role="button">Manage Hosts &raquo;</a>
                 </div>
-            </div>
-
-            <!-- Orders Card -->
-            <div class="bg-white overflow-hidden shadow rounded-lg">
-                <div class="px-4 py-5 sm:p-6">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
-                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                            </svg>
-                        </div>
-                        <div class="ml-5 w-0 flex-1">
-                            <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">
-                                    Pending Orders
-                                </dt>
-                                <dd class="flex items-baseline">
-                                    <div class="text-2xl font-semibold text-gray-900">
-                                        {{pending_orders_count}}
-                                    </div>
-                                </dd>
-                            </dl>
-                        </div>
-                    </div>
-                    <div class="mt-5">
-                        <a href="/orders" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                            View all<span aria-hidden="true"> &rarr;</span>
-                        </a>
-                    </div>
+                <div class="col-md-4">
+                    <h3>Track Orders</h3>
+                    <p>Monitor certificate orders and upload completed certificates when they're ready.</p>
+                    <a class="btn btn-primary" href="/orders" role="button">View Orders &raquo;</a>
                 </div>
-            </div>
-
-            <!-- Templates Card -->
-            <div class="bg-white overflow-hidden shadow rounded-lg">
-                <div class="px-4 py-5 sm:p-6">
-                    <div class="flex items-center">
-                        <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
-                            <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                            </svg>
-                        </div>
-                        <div class="ml-5 w-0 flex-1">
-                            <dl>
-                                <dt class="text-sm font-medium text-gray-500 truncate">
-                                    Available Templates
-                                </dt>
-                                <dd class="flex items-baseline">
-                                    <div class="text-2xl font-semibold text-gray-900">
-                                        {{templates_count}}
-                                    </div>
-                                </dd>
-                            </dl>
-                        </div>
-                    </div>
-                    <div class="mt-5">
-                        <a href="/lkui/api/templates" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                            View all<span aria-hidden="true"> &rarr;</span>
-                        </a>
-                    </div>
+                <div class="col-md-4">
+                    <h3>REST API</h3>
+                    <p>Access all functionality via REST API endpoints for automation and integration.</p>
+                    <a class="btn btn-primary" href="/lkui/api/templates" role="button">API Docs &raquo;</a>
                 </div>
             </div>
         </div>
 
-        <div class="mt-8">
-            <div class="bg-white shadow rounded-lg">
-                <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">
-                        Quick Actions
-                    </h3>
+        <div class="page-header">
+            <h2>Quick Actions</h2>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Create New Host</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form id="createHostForm">
+                            <div class="form-group">
+                                <label for="template">Template:</label>
+                                <select class="form-control" id="template" name="template_id" required>
+                                    <option value="">Select a template...</option>
+                                    <option value="1">RHEL6</option>
+                                    <option value="2">RHEL7</option>
+                                    <option value="3">RHEL8</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="commonName">Common Name:</label>
+                                <input type="text" class="form-control" id="commonName" name="common_name" placeholder="*.example.com" value="*.example.com">
+                            </div>
+                            <button type="submit" class="btn btn-success">Generate CSR</button>
+                        </form>
+                    </div>
                 </div>
-                <div class="px-4 py-5 sm:p-6">
-                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                        <a href="/hosts/create" class="bg-white border border-gray-300 rounded-lg shadow-sm p-6 hover:border-indigo-500 hover:shadow-md transition duration-150">
-                            <h4 class="text-lg font-medium text-gray-900 mb-2">Create New Host</h4>
-                            <p class="text-sm text-gray-500">Generate a new CSR for a host</p>
-                        </a>
-                        <a href="/orders" class="bg-white border border-gray-300 rounded-lg shadow-sm p-6 hover:border-indigo-500 hover:shadow-md transition duration-150">
-                            <h4 class="text-lg font-medium text-gray-900 mb-2">Manage Orders</h4>
-                            <p class="text-sm text-gray-500">View and update certificate orders</p>
-                        </a>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">API Endpoints</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="list-unstyled">
+                            <li><strong>GET</strong> /lkui/api/templates - List templates</li>
+                            <li><strong>POST</strong> /lkui/api/hosts - Create host</li>
+                            <li><strong>GET</strong> /lkui/api/hosts - List hosts</li>
+                            <li><strong>POST</strong> /lkui/api/orders - Create order</li>
+                            <li><strong>GET</strong> /lkui/api/orders/{id} - Get order</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </div> <!-- /container -->
+
+    <script>
+    document.getElementById('createHostForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            template_id: parseInt(formData.get('template_id')),
+            common_name: formData.get('common_name')
+        };
+        
+        fetch('/lkui/api/hosts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Host created successfully! ID: ' + data.data.id);
+                window.location.href = '/hosts';
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    });
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
 </body>
 </html>

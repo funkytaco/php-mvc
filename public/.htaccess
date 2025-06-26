@@ -1,6 +1,29 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Ensure the base path is correct
+    RewriteBase /
+    
+    # Don't rewrite requests for actual files or directories
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Handle front controller
     RewriteRule ^(.*)$ index.php [QSA,L]
+    
+    # Ensure Authorization header is passed
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Handle various content types
+<IfModule mod_mime.c>
+    AddType application/javascript          js
+    AddType application/json                json
+    AddType text/css                        css
 </IfModule>

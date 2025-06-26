@@ -1,98 +1,196 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+    <title>{{appName}} - Hosts Management</title>
     {{> partials/header}}
-    <title>{{appName}} - Hosts</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
-<body class="bg-gray-50">
-    <div class="min-h-screen">
-        <!-- Navigation -->
-        <nav class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
-                    <div class="flex">
-                        <div class="flex-shrink-0 flex items-center">
-                            <h1 class="text-xl font-semibold">{{appName}}</h1>
-                        </div>
-                        <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                            <a href="/" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Dashboard
-                            </a>
-                            <a href="/hosts" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Hosts
-                            </a>
-                            <a href="/orders" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Orders
-                            </a>
-                        </div>
-                    </div>
-                </div>
+<body role="document">
+<br><br><br>
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">LKUI</a>
             </div>
-        </nav>
+            <div id="navbar" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Home</a></li>
+                    <li class="active"><a href="/hosts">Hosts</a></li>
+                    <li><a href="/orders">Orders</a></li>
+                </ul>
+            </div><!--/.nav-collapse -->
+        </div>
+    </nav>
 
-        <!-- Main Content -->
-        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <!-- Page header -->
-            <div class="px-4 py-6 sm:px-0">
-                <div class="sm:flex sm:items-center">
-                    <div class="sm:flex-auto">
-                        <h1 class="text-2xl font-semibold text-gray-900">Hosts</h1>
-                        <p class="mt-2 text-sm text-gray-700">A list of all hosts with their CSR status and certificate information.</p>
-                    </div>
-                    <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-                        <button type="button" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
-                            Add Host
-                        </button>
-                    </div>
-                </div>
-            </div>
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Manage SSL certificate hosts and CSR generation.</p>
+        </div>
 
-            <!-- Hosts Table -->
-            <div class="mt-8 flex flex-col">
-                <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-                        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-300">
-                                <thead class="bg-gray-50">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Hosts List</h3>
+                    </div>
+                    <div class="panel-body">
+                        {{#hosts}}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
                                     <tr>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">ID</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Common Name</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
-                                        <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                                            <span class="sr-only">Actions</span>
-                                        </th>
+                                        <th>ID</th>
+                                        <th>Common Name</th>
+                                        <th>Template</th>
+                                        <th>Status</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-200 bg-white">
+                                <tbody>
                                     {{#hosts}}
                                     <tr>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{id}}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{common_name}}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                            <span class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 {{#is_active}}bg-green-100 text-green-800{{/is_active}}{{^is_active}}bg-gray-100 text-gray-800{{/is_active}}">
-                                                {{status}}
-                                            </span>
+                                        <td>{{id}}</td>
+                                        <td>{{common_name}}</td>
+                                        <td>{{template_name}}</td>
+                                        <td>
+                                            <span class="label {{#equals status 'CSR_GENERATED'}}label-success{{/equals}}{{#equals status 'ORDER_PENDING'}}label-warning{{/equals}}{{#equals status 'ORDER_COMPLETED'}}label-info{{/equals}}">{{status}}</span>
                                         </td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{created_at}}</td>
-                                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                            <a href="/hosts/{{id}}" class="text-indigo-600 hover:text-indigo-900">View<span class="sr-only">, {{common_name}}</span></a>
+                                        <td>{{created_at}}</td>
+                                        <td>
+                                            <a href="/hosts/{{id}}" class="btn btn-sm btn-primary">View</a>
+                                            <button class="btn btn-sm btn-success" onclick="createOrder({{id}})">Create Order</button>
                                         </td>
-                                    </tr>
-                                    {{/hosts}}
-                                    {{^hosts}}
-                                    <tr>
-                                        <td colspan="5" class="px-3 py-4 text-sm text-gray-500 text-center">No hosts found</td>
                                     </tr>
                                     {{/hosts}}
                                 </tbody>
                             </table>
                         </div>
+                        {{/hosts}}
+                        {{^hosts}}
+                        <div class="alert alert-info">
+                            <strong>No hosts found.</strong> Create your first host using the form below.
+                        </div>
+                        {{/hosts}}
                     </div>
                 </div>
             </div>
-        </main>
-    </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Create New Host</h3>
+                    </div>
+                    <div class="panel-body">
+                        <form id="createHostForm">
+                            <div class="form-group">
+                                <label for="template">Template:</label>
+                                <select class="form-control" id="template" name="template_id" required>
+                                    <option value="">Select a template...</option>
+                                    <option value="1">RHEL6 (RSA 2048)</option>
+                                    <option value="2">RHEL7 (RSA 2048)</option>
+                                    <option value="3">RHEL8 (RSA 4096)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="commonName">Common Name:</label>
+                                <input type="text" class="form-control" id="commonName" name="common_name" placeholder="*.example.com" value="*.example.com" required>
+                                <small class="form-text text-muted">Enter the domain name for the certificate (e.g., *.example.com, www.example.com)</small>
+                            </div>
+                            <button type="submit" class="btn btn-success">Generate CSR</button>
+                            <button type="button" class="btn btn-default" onclick="window.location.reload()">Refresh List</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Template Information</h3>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="list-unstyled">
+                            <li><strong>RHEL6:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL7:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL8:</strong> RSA 4096-bit key</li>
+                        </ul>
+                        <hr>
+                        <p><small>All templates use SHA-256 digest algorithm and include standard organization details.</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- /container -->
+
+    <script>
+    document.getElementById('createHostForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            template_id: parseInt(formData.get('template_id')),
+            common_name: formData.get('common_name')
+        };
+        
+        fetch('/lkui/api/hosts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Host created successfully! ID: ' + data.data.id);
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    });
+
+    function createOrder(hostId) {
+        if (confirm('Create an order for this host?')) {
+            fetch('/lkui/api/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({host_id: hostId})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Order created successfully! ID: ' + data.data.id);
+                    window.location.href = '/orders';
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
 </body>
 </html>

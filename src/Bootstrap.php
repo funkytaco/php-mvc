@@ -1,6 +1,8 @@
 <?php /*** Bootstrap file ***/
 
     namespace Main;
+    use Auryn\Injector;
+
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
     define('ENV', 'development');
 
@@ -129,14 +131,18 @@
     // Handle the request using FastRoute
     $httpMethod = $_SERVER['REQUEST_METHOD'];
     $uri = $_SERVER['REQUEST_URI'];
-
+    $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+    // $routeInfo = $dispatcher->dispatch(
+    //     $_SERVER['REQUEST_METHOD'],
+    //     $_SERVER['REQUEST_URI']
+    // );
     // Strip query string (?foo=bar) and decode URI
     if (false !== $pos = strpos($uri, '?')) {
         $uri = substr($uri, 0, $pos);
     }
     $uri = rawurldecode($uri);
 
-    $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+
     switch ($routeInfo[0]) {
         case \FastRoute\Dispatcher::NOT_FOUND:
             http_response_code(404);
@@ -145,8 +151,26 @@
             http_response_code(405);
             break;
         case \FastRoute\Dispatcher::FOUND:
-            $handler = $routeInfo[1];
-            $vars = $routeInfo[2];
-            call_user_func_array($handler, $vars);
+            [$controllerClass, $method] = $routeInfo[1];
+            $args = $routeInfo[2];
+            //print_r($controllerClass);exit;
+            // Get an Auryn-managed controller instance
+            //$controller = $injector->make("Main\\Controllers\\{$controllerClass}");
+            $controller = $injector->make(get_class($controllerClass));
+            // Or simply $controller = $injector->make($controllerClass); if classes already have full namespace
+
+            // Prepare request/response
+            $request = $_REQUEST;  // or your custom request object
+            $response = new stdClass();
+            // Prepare request/response
+            $request = $_REQUEST;  // or your custom request object
+            $response = new stdClass();
+
+            // Let Auryn invoke the method with named arguments
+            $injector->execute(
+                [$controller, $method],
+                ['request' => $request, 'response' => $response, 'args' => $args]
+            );
+            //echo $handler($request, $response, $vars);
             break;
     }
