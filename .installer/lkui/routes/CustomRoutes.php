@@ -3,7 +3,10 @@ include('Controllers/HostController.php');
 include('Controllers/OrderController.php');
 include('Controllers/TemplatesController.php');
 
-$HostCtrl = new HostController($renderer, $conn);
+// Create module dependencies
+$mod_date = $injector->make('Main\Modules\Date_Module');
+
+$HostCtrl = new HostController($renderer, $conn, $mod_date);
 $OrderCtrl = new OrderController($renderer, $conn);
 $TemplatesCtrl = new TemplatesController($renderer, $conn);
 
