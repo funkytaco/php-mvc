@@ -1,8 +1,8 @@
 <?php
 require_once('ControllerInterface.php');
 
-use \Main\Renderer\Renderer;
-use \Main\Mock\PDO;
+use Main\Renderer\Renderer;
+use Main\Mock\PDO;
 use Main\Modules\Date_Module;
 
     /**
@@ -20,7 +20,7 @@ class HostController implements ControllerInterface {
 
     public function __construct(
         Renderer $renderer,
-        PDO $conn, 
+        Main\Mock\PDO $conn, 
         Date_Module $mod_date
     ) {
         $this->renderer = $renderer;
@@ -28,16 +28,25 @@ class HostController implements ControllerInterface {
         $this->mod_date = $mod_date;
 
         $this->data = [
-            'appName' => "PHP-MVC Template",
-            'myDateModule' => $mod_date->getDate(),
-            'projectList' => $this->getLegacyProjects()
+            'appName' => 'LKUI - License Key UI',
+            'title' => 'License Key Management System',
+            'myDateModule' => $mod_date->getDate()
         ];
     }
+
+    public function get() {
+        // Add GET parameters to data if needed
+        $this->data['getVar'] = $_GET;
+        
+        $html = $this->renderer->render('index.html', $this->data);
+        echo $html;
+    }
+
 
     /**
      * Show homepage
      */
-    public function showHomepage($request, $response, $args)
+    public function showHomepage()
     {
         $data = [
             'appName' => 'LKUI - License Key UI',
@@ -50,17 +59,15 @@ class HostController implements ControllerInterface {
     /**
      * Show hosts list page
      */
-    public function showHosts($request, $response, $args)
+    public function showHosts()
     {
         $hosts = $this->listHostsData();
         
         $data = [
-            'appName' => 'LKUI - License Key UI',
-            'title' => 'Hosts Management',
             'hosts' => $hosts
         ];
         
-        return $this->renderer->render($response, 'hosts.html', $data);
+        echo $this->renderer->render('hosts.html', $data);
     }
 
     /**
