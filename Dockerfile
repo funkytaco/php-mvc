@@ -7,14 +7,11 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     libpq-dev \
     zip \
-    unzip
+    unzip \
+    && docker-php-ext-install zip pdo pdo_pgsql pdo_mysql \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN docker-php-ext-install \
-    pdo_mysql \
-    pdo_pgsql \
-    zip
-
-    COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
+COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 
 COPY . /var/www/
 
@@ -43,14 +40,12 @@ RUN echo '<IfModule mod_rewrite.c>\n\
 </IfModule>' > /var/www/public/.htaccess
 
 RUN chown -R www-data:www-data /var/www \
-    && a2enmod rewrite
+    && a2enmod rewrite && service apache2 reload
 
-RUN echo "extension_dir=/usr/local/lib/php/extensions/no-debug-non-zts-20220829" >> /usr/local/etc/php/php.ini \
-    && echo "extension=pdo_mysql.so" >> /usr/local/etc/php/php.ini \
-    && echo "extension=pdo_pgsql.so" >> /usr/local/etc/php/php.ini
+#RUN echo "extension_dir=/usr/local/lib/php/extensions/no-debug-non-zts-20220829" >> /usr/local/etc/php/php.ini
 
 USER www-data
 WORKDIR /var/www/
-RUN rm -rf app && composer install-lkui
+RUN rm -rf app && composer install-lkui --no-dev --optimize-autoloader
 EXPOSE 8080
 CMD ["/bin/sh", "-c", "apache2-foreground"]

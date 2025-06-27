@@ -1,20 +1,45 @@
 <?php
 
-class OrderController
-{
-    private $renderer;
-    private $conn;
+use Main\Renderer\Renderer;
+use Main\Modules\Date_Module;
 
-    public function __construct($renderer, $conn)
-    {
+class OrderController implements ControllerInterface {
+
+    protected $renderer;
+    protected $conn;
+    protected $mod_date;
+    private $data;
+
+    public function __construct(
+        Renderer $renderer,
+        PDO $conn, 
+        Date_Module $mod_date
+    ) {
         $this->renderer = $renderer;
         $this->conn = $conn;
+        $this->mod_date = $mod_date;
+
+        $this->data = [
+            'appName' => 'LKUI - License Key UI',
+            'title' => 'License Key Management System',
+            'myDateModule' => $mod_date->getDate()
+        ];
     }
+
+    public function get() {
+        // Add GET parameters to data if needed
+        $this->data['getVar'] = $_GET;
+        
+        $html = $this->renderer->render('order-detail.html', $this->data);
+        echo $html;
+    }
+
+
 
     /**
      * Show orders list page
      */
-    public function showOrders($request, $response, $args)
+    public function showOrders()
     {
         $orders = $this->listOrdersData();
         
@@ -24,7 +49,7 @@ class OrderController
             'orders' => $orders
         ];
         
-        return $this->renderer->render($response, 'orders.html', $data);
+        echo $this->renderer->render('orders.html', $data);
     }
 
     /**
@@ -37,7 +62,7 @@ class OrderController
         
         if (!$order) {
             $data = ['error' => 'Order not found'];
-            return $this->renderer->render($response, 'error.html', $data);
+            $html = $this->renderer->render($response, 'error.html', $data);
         }
         
         $data = [
@@ -46,7 +71,8 @@ class OrderController
             'order' => $order
         ];
         
-        return $this->renderer->render($response, 'order-detail.html', $data);
+        $html = $this->renderer->render($response, 'order-detail.html', $data);
+        echo $html;
     }
 
     /**
@@ -62,7 +88,7 @@ class OrderController
                 'status' => 'error',
                 'message' => 'host_id is required'
             ]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            $html = $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         
         $hostId = $data['host_id'];
@@ -74,7 +100,7 @@ class OrderController
                 'status' => 'error',
                 'message' => 'Host not found'
             ]));
-            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            $html = $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
         
         // Create order
@@ -90,14 +116,13 @@ class OrderController
             ]
         ]));
         
-        return $response->withHeader('Content-Type', 'application/json');
+        echo $response->withHeader('Content-Type', 'application/json');
     }
 
     /**
      * API: Get specific order
      */
-    public function getOrder($request, $response, $args)
-    {
+    public function getOrder($request, $response, $args) {
         $orderId = $args['id'];
         $order = $this->getOrderData($orderId);
         
@@ -106,15 +131,18 @@ class OrderController
                 'status' => 'error',
                 'message' => 'Order not found'
             ]));
-            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
-        }
-        
+            $json = $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        } else {
         $response->getBody()->write(json_encode([
             'status' => 'success',
             'data' => $order
         ]));
         
-        return $response->withHeader('Content-Type', 'application/json');
+        $json = $response->withHeader('Content-Type', 'application/json');
+
+        }
+        
+        echo $json;
     }
 
     /**

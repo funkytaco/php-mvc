@@ -4,18 +4,18 @@
 
     $arrDbSettings = [
     'dsn' => '',
-    'username' => 'dbuser',
-    'password' => '',
+    'username' => 'luki',
+    'password' => 'lkui_secure_password_2024',
     'options' => null
     ];
 
     switch($dbType) {
         case 'postgres':
-        $arrDbSettings['dsn'] = 'pgsql:dbname=clouddbpostgres;host=127.0.0.1;';
+        $arrDbSettings['dsn'] = 'pgsql:dbname=lkui;host=db;';
         break;
 
         case 'mysql':
-        $arrDbSettings['dsn'] = 'mysql:dbname=clouddb;host=127.0.0.1;';
+        $arrDbSettings['dsn'] = 'mysql:dbname=lkui;host=db;';
         break;
         default:
     }
@@ -29,8 +29,7 @@
         'requires' => ['date_module']
     ];
 
-    /** MY SETTINGS
-        specify as 'key' => 'value' **/
+    /** MY SETTINGS. specify as 'key' => 'value' **/
     $arrMySettings = [];
 
 

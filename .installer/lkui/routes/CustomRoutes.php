@@ -7,12 +7,12 @@ include('Controllers/TemplatesController.php');
 $mod_date = $injector->make('Main\Modules\Date_Module');
 
 $HostCtrl = new HostController($renderer, $conn, $mod_date);
-$OrderCtrl = new OrderController($renderer, $conn);
+$OrderCtrl = new OrderController($renderer, $conn, $mod_date);
 $TemplatesCtrl = new TemplatesController($renderer, $conn);
 
 return [
-    // Homepage route
-    //['GET', '/', [$HostCtrl, 'get']],
+    //Homepage route
+    ['GET', '/', [$HostCtrl, 'get']],
 
     // Web view routes
     ['GET', '/hosts', [$HostCtrl, 'showHosts']],

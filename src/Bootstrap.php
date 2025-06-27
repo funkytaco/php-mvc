@@ -4,6 +4,12 @@
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
     define('ENV', 'development');
 
+    // if (extension_loaded('pdo_pgsql')) {
+    //     echo "PDO PostgreSQL driver is loaded";
+    // } else {
+    //     echo "PDO PostgreSQL driver is NOT loaded";
+    // }exit;
+
     define('MODELS_DIR', __DIR__ . '/../app/Models');
     define('VIEWS_DIR', __DIR__ . '/../app/Views');
     define('CONTROLLERS_DIR', __DIR__ . '/../app/Controllers');
@@ -59,15 +65,33 @@
     */
     // Only configure PDO if settings exist
     if (isset($config['pdo'])) {
-        $injector->define('\PDO', [
-            ':dsn' => $config['pdo']['dsn'] ?? '',
-            ':username' => $config['pdo']['username'] ?? '',
-            ':passwd' => $config['pdo']['password'] ?? '',
-            ':options' => $config['pdo']['options'] ?? [],
-            ':host' => $config['pdo']['host'] ?? 'db',
-            ':port' => $config['pdo']['port'] ?? 5432
-        ]);
+        // $injector->share('\PDO');
+        // $injector->define('\PDO', [
+        //     ':dsn' => $config['pdo']['dsn'] ?? '', //':dsn' => 'mysql:dbname=testdb;host=127.0.0.1',
+        //     ':username' => $config['pdo']['username'],
+        //     ':passwd' => $config['pdo']['password'] ?? 'lkui_secure_password_2024',
+        //     ':options' => $config['pdo']['options'],
+        //     ':host' => $config['pdo']['host'] ?? 'db',
+        //     ':port' => $config['pdo']['port'] ?? 5432
+        // ]);
     }
+    $injector->share('PDO');
+    //$injector->define('PDO', ['postgresql://lkui:lkui_secure_password_2024@db:5432/lkui;host=db', 'lkui', 'lkui_secure_password_2024']);
+    // $injector->define('PDO', [
+    //     ':dsn' => 'pgsql:host=db;port=5432;dbname=lkui',
+    //     ':username' => 'lkui', 
+    //     ':passwd' => 'lkui_secure_password_2024'
+    // ]);
+    $injector->define('PDO', [
+        'pgsql:host=db;port=5432;dbname=lkui',  // $dsn (position 0)
+        'lkui',                                  // $username (position 1) 
+        'lkui_secure_password_2024'             // $password (position 2)
+    ]);
+    // $injector->define('PDO', [
+    //     ':dsn' => 'pgsql:host=db;port=5432;dbname=lkui',
+    //     ':username' => 'lkui',
+    //     ':passwd' => 'lkui_secure_password_2024'
+    // ]);
 
     /**
     * Mock Database PDO
@@ -83,7 +107,7 @@
     *   - "use \Main\PDO" in your controller
     */
 
-    $conn = $injector->make('\PDO'); //uncomment to use PDO!
+    $conn = $injector->make('PDO');
 
     /**
     * Templating Engine
