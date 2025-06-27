@@ -5,11 +5,13 @@ USER root
 
 RUN apt-get update && apt-get install -y \
     libzip-dev \
+    libpq-dev \
     zip \
     unzip
 
 RUN docker-php-ext-install \
     pdo_mysql \
+    pdo_pgsql \
     zip
 
     COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
@@ -42,6 +44,10 @@ RUN echo '<IfModule mod_rewrite.c>\n\
 
 RUN chown -R www-data:www-data /var/www \
     && a2enmod rewrite
+
+RUN echo "extension_dir=/usr/local/lib/php/extensions/no-debug-non-zts-20220829" >> /usr/local/etc/php/php.ini \
+    && echo "extension=pdo_mysql.so" >> /usr/local/etc/php/php.ini \
+    && echo "extension=pdo_pgsql.so" >> /usr/local/etc/php/php.ini
 
 USER www-data
 WORKDIR /var/www/
