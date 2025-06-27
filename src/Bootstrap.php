@@ -25,7 +25,6 @@
         exit('<b>vendor</b> directory not found. Please see README.md for install instructions, or simply try running <b>composer install</b>.');
     }
 
-
     /**
     * Error Handler
     */
@@ -39,8 +38,6 @@
         });
     }
     $whoops->register();
-
-
 
     /**
     * Dependency Injector
@@ -66,7 +63,9 @@
             ':dsn' => $config['pdo']['dsn'] ?? '',
             ':username' => $config['pdo']['username'] ?? '',
             ':passwd' => $config['pdo']['password'] ?? '',
-            ':options' => $config['pdo']['options'] ?? []
+            ':options' => $config['pdo']['options'] ?? [],
+            ':host' => $config['pdo']['host'] ?? 'db',
+            ':port' => $config['pdo']['port'] ?? 5432
         ]);
     }
 
@@ -123,8 +122,6 @@
 
     // Create dispatcher after routes are loaded
     $dispatcher = new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
-
-
 
     // Handle the request using FastRoute
     $httpMethod = $_SERVER['REQUEST_METHOD'];
