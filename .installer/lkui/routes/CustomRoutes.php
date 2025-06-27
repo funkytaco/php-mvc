@@ -1,7 +1,7 @@
 <?php
-include('Controllers/HostController.php');
-include('Controllers/OrderController.php');
-include('Controllers/TemplatesController.php');
+require_once('Controllers/HostController.php');
+require_once('Controllers/OrderController.php');
+require_once('Controllers/TemplatesController.php');
 
 // Create module dependencies
 $mod_date = $injector->make('Main\Modules\Date_Module');

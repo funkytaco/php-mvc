@@ -1,6 +1,9 @@
 <?php /*** Bootstrap file ***/
 
     namespace Main;
+    use FastRoute\RouteCollector;
+    use FastRoute\Dispatcher;
+    use function FastRoute\simpleDispatcher;
     error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
     define('ENV', 'development');
 
@@ -145,13 +148,22 @@
     }
 
     // Create dispatcher after routes are loaded
-    $dispatcher = new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
+   // $dispatcher = new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
+   // Load and build routes
+    $dispatcher = simpleDispatcher(function (RouteCollector $r) use ($injector, $renderer, $conn) {
+        if (is_file(CUSTOM_ROUTES_FILE)) {
+            $routes = include CUSTOM_ROUTES_FILE;
+            foreach ($routes as [$method, $path, $handler]) {
+                if (is_callable($handler)) {
+                    $r->addRoute($method, $path, $handler);
+                }
+            }
+        }
+    });
 
-    // Handle the request using FastRoute
+    // Dispatch
     $httpMethod = $_SERVER['REQUEST_METHOD'];
     $uri = $_SERVER['REQUEST_URI'];
-
-    // Strip query string (?foo=bar) and decode URI
     if (false !== $pos = strpos($uri, '?')) {
         $uri = substr($uri, 0, $pos);
     }
@@ -159,15 +171,26 @@
 
     $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
     switch ($routeInfo[0]) {
-        case \FastRoute\Dispatcher::NOT_FOUND:
+        case Dispatcher::NOT_FOUND:
             http_response_code(404);
+            echo json_encode(['error' => 'Not Found']);
             break;
-        case \FastRoute\Dispatcher::METHOD_NOT_ALLOWED:
+
+        case Dispatcher::METHOD_NOT_ALLOWED:
             http_response_code(405);
+            echo json_encode(['error' => 'Method Not Allowed']);
             break;
-        case \FastRoute\Dispatcher::FOUND:
-            $handler = $routeInfo[1]; //HostController class object
-            $vars = $routeInfo[2]; //Prints: Array ( [hostId] => 3 ) when visiting http://localhost:3000/hosts/3
-            call_user_func_array($handler, $vars);
+
+        case Dispatcher::FOUND:
+            [$controller, $method] = $routeInfo[1];
+            $vars = $routeInfo[2];
+
+            // Optional: inject dependencies if $controller is a class string
+            if (is_string($controller)) {
+                $instance = $injector->make($controller);
+                call_user_func_array([$instance, $method], $vars);
+            } else {
+                call_user_func_array([$controller, $method], $vars);
+            }
             break;
-    }
+    }   

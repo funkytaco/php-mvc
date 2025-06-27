@@ -90,31 +90,22 @@ class HostController implements ControllerInterface {
     /**
      * Show individual host detail page
      */
-    //public function showHostDetail($request, $response, $args)
-    public function showHostDetail($hostId)
-    {
-        //print_r('wemadeit'. $hostId);exit;
-        $host = $this->getHostData($hostId);
-        print_r($host);exit;
-        if (!$host) {
+    public function showHostDetail($hostId) {
+        $this->data['host'] = $this->getHostData($hostId);
+        $this->data['host']['csr'] = $this->data['host']['csr_content'];
+        if (!$this->data['host']['csr']) $this->data['host']['can_generate_csr'] = true;
+
+        if (!$this->data['host'] ) {
             // Return 404 or error page
             $this->data = ['error' => 'Host not found'];
-            //return $this->renderer->render('Error....', 'error.html', $data);
-            // Add GET parameters to data if needed
-            //$this->data['getVar'] = $_GET;
+
             
             echo $this->renderer->render('error.html', $this->data);
-            //echo $this->renderer->render('index.html', $this->data);
-
+            return;
             //echo $html;
         } else {
-        $data = [
-            'appName' => 'LKUI - License Key UI',
-            'title' => 'Host Details',
-            'host' => $host
-        ];
-        //return $this->renderer->render('Some response.....', 'host-detail.html', $data);
-        echo $this->renderer->render('host-detail.html', $data);
+
+        echo $this->renderer->render('host-detail.html', $this->data);
 
         }
         
@@ -124,16 +115,14 @@ class HostController implements ControllerInterface {
     /**
      * API: List all hosts
      */
-    public function listHosts($request, $response, $args)
-    {
+    public function listHosts() {
         $hosts = $this->listHostsData();
-        
-        $response->getBody()->write(json_encode([
+
+        header('Content-Type: application/json');
+        echo json_encode([
             'status' => 'success',
             'data' => $hosts
-        ]));
-        
-        return $response->withHeader('Content-Type', 'application/json');
+        ]);
     }
 
     /**
@@ -141,38 +130,37 @@ class HostController implements ControllerInterface {
      */
     public function createHost()
     {
-        $data = json_decode($request->getBody()->getContents(), true);
-        
-        // Validate required fields
-        if (!isset($data['template_id'])) {
-            $response->getBody()->write(json_encode([
+        $body = file_get_contents('php://input');
+        $data = json_decode($body, true);
+
+        if (!is_array($data) || !isset($data['template_id'])) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'template_id is required'
-            ]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
-        
+
         $templateId = $data['template_id'];
         $commonName = $data['common_name'] ?? '*.example.com';
-        
-        // Generate CSR
+
         $csrData = $this->generateCSR($commonName);
-        
-        // Save to database
         $hostId = $this->saveHost($templateId, $commonName, $csrData);
-        
-        $response->getBody()->write(json_encode([
+
+        http_response_code(201);
+        header('Content-Type: application/json');
+        echo json_encode([
             'status' => 'success',
             'data' => [
                 'id' => $hostId,
                 'template_id' => $templateId,
                 'common_name' => $commonName,
                 'status' => 'CSR_GENERATED',
-                'csr_content' => $csrData['csr']
+                'csr' => $csrData['csr']
             ]
-        ]));
-        
-        return $response->withHeader('Content-Type', 'application/json');
+        ]);
     }
 
     /**
@@ -182,7 +170,6 @@ class HostController implements ControllerInterface {
     {
         $hostId = $args['id'];
         $host = $this->getHostData($hostId);
-        
         if (!$host) {
             $response->getBody()->write(json_encode([
                 'status' => 'error',
