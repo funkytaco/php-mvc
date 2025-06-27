@@ -12,25 +12,25 @@ $TemplatesCtrl = new TemplatesController($renderer, $conn);
 
 return [
     // Homepage route
-    ['GET', '/', [$HostCtrl, 'get']],
+    //['GET', '/', [$HostCtrl, 'get']],
 
     // Web view routes
     ['GET', '/hosts', [$HostCtrl, 'showHosts']],
-    ['GET', '/hosts/{id:\d+}', [$HostCtrl, 'showHostDetail']],
+    ['GET', '/hosts/{hostId:\d+}', [$HostCtrl, 'showHostDetail']],
     ['GET', '/orders', [$OrderCtrl, 'showOrders']],
-    ['GET', '/orders/{id:\d+}', [$OrderCtrl, 'showOrderDetail']],
+    ['GET', '/orders/{orderId:\d+}', [$OrderCtrl, 'showOrderDetail']],
 
     // API routes - Host
     ['GET', '/lkui/api/hosts', [$HostCtrl, 'listHosts']],
     ['POST', '/lkui/api/hosts', [$HostCtrl, 'createHost']],
-    ['GET', '/lkui/api/hosts/{id:\d+}', [$HostCtrl, 'getHost']],
+    ['GET', '/lkui/api/hosts/{hostId:\d+}', [$HostCtrl, 'getHost']],
 
     // API routes - Order
     ['POST', '/lkui/api/orders', [$OrderCtrl, 'createOrder']],
-    ['GET', '/lkui/api/orders/{id:\d+}', [$OrderCtrl, 'getOrder']],
-    ['POST', '/lkui/api/orders/{id:\d+}/certificate', [$OrderCtrl, 'updateOrder']],
+    ['GET', '/lkui/api/orders/{orderId:\d+}', [$OrderCtrl, 'getOrder']],
+    ['POST', '/lkui/api/orders/{orderId:\d+}/certificate', [$OrderCtrl, 'updateOrder']],
 
     // API routes - Template
     ['GET', '/lkui/api/templates', [$TemplatesCtrl, 'listTemplates']],
-    ['GET', '/lkui/api/templates/{name}', [$TemplatesCtrl, 'getTemplate']],
+    ['GET', '/lkui/api/templates/{templateName}', [$TemplatesCtrl, 'getTemplate']],
 ];

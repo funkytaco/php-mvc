@@ -42,39 +42,37 @@
                         <h3 class="panel-title">Hosts List</h3>
                     </div>
                     <div class="panel-body">
-                        {{#hosts}}
                         <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Common Name</th>
-                                        <th>Template</th>
-                                        <th>Status</th>
-                                        <th>Created</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {{#hosts}}
-                                    <tr>
-                                        <td>{{id}}</td>
-                                        <td>{{common_name}}</td>
-                                        <td>{{template_name}}</td>
-                                        <td>
-                                            <span class="label {{#equals status 'CSR_GENERATED'}}label-success{{/equals}}{{#equals status 'ORDER_PENDING'}}label-warning{{/equals}}{{#equals status 'ORDER_COMPLETED'}}label-info{{/equals}}">{{status}}</span>
-                                        </td>
-                                        <td>{{created_at}}</td>
-                                        <td>
-                                            <a href="/hosts/{{id}}" class="btn btn-sm btn-primary">View</a>
-                                            <button class="btn btn-sm btn-success" onclick="createOrder({{id}})">Create Order</button>
-                                        </td>
-                                    </tr>
-                                    {{/hosts}}
-                                </tbody>
-                            </table>
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Common Name</th>
+                                <th>Template</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#hosts}}
+                            <tr>
+                                <td>{{id}}</td>
+                                <td>{{common_name}}</td>
+                                <td>{{template_name}}</td>
+                                <td>
+                                <span class="label {{labelClass}}">{{status}}</span>
+                                </td>
+                                <td>{{created_at}}</td>
+                                <td>
+                                <a href="/hosts/{{id}}" class="btn btn-sm btn-primary">View</a>
+                                <button class="btn btn-sm btn-success" onclick="createOrder({{id}})">Create Order</button>
+                                </td>
+                            </tr>
+                            {{/hosts}}
+                            </tbody>
+                        </table>
                         </div>
-                        {{/hosts}}
                         {{^hosts}}
                         <div class="alert alert-info">
                             <strong>No hosts found.</strong> Create your first host using the form below.

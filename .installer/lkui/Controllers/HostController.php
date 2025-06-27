@@ -61,8 +61,26 @@ class HostController implements ControllerInterface {
      */
     public function showHosts()
     {
-        $hosts = $this->listHostsData();
-        
+        //$hosts = $this->listHostsData();
+        $hostsRaw = $this->listHostsData();
+        // Inject `labelClass` into each host
+        $hosts = array_map(function ($host) {
+            switch ($host['status']) {
+                case 'CSR_GENERATED':
+                    $host['labelClass'] = 'label-success';
+                    break;
+                case 'ORDER_PENDING':
+                    $host['labelClass'] = 'label-warning';
+                    break;
+                case 'ORDER_COMPLETED':
+                    $host['labelClass'] = 'label-info';
+                    break;
+                default:
+                    $host['labelClass'] = 'label-default';
+            }
+            return $host;
+        }, $hostsRaw);
+
         $data = [
             'hosts' => $hosts
         ];
@@ -73,24 +91,35 @@ class HostController implements ControllerInterface {
     /**
      * Show individual host detail page
      */
-    public function showHostDetail($request, $response, $args)
+    //public function showHostDetail($request, $response, $args)
+    public function showHostDetail($hostId)
     {
-        $hostId = $args['id'];
+        //print_r('wemadeit'. $hostId);exit;
         $host = $this->getHostData($hostId);
-        
+        print_r($host);exit;
         if (!$host) {
             // Return 404 or error page
-            $data = ['error' => 'Host not found'];
-            return $this->renderer->render($response, 'error.html', $data);
-        }
-        
+            $this->data = ['error' => 'Host not found'];
+            //return $this->renderer->render('Error....', 'error.html', $data);
+            // Add GET parameters to data if needed
+            //$this->data['getVar'] = $_GET;
+            
+            echo $this->renderer->render('error.html', $this->data);
+            //echo $this->renderer->render('index.html', $this->data);
+
+            //echo $html;
+        } else {
         $data = [
             'appName' => 'LKUI - License Key UI',
             'title' => 'Host Details',
             'host' => $host
         ];
+        //return $this->renderer->render('Some response.....', 'host-detail.html', $data);
+        echo $this->renderer->render('host-detail.html', $data);
+
+        }
         
-        return $this->renderer->render($response, 'host-detail.html', $data);
+
     }
 
     /**
@@ -174,20 +203,54 @@ class HostController implements ControllerInterface {
     /**
      * Private helper: Get hosts data from database
      */
-    private function listHostsData()
-    {
-        try {
-            $stmt = $this->conn->prepare("
-                SELECT h.*, t.name as template_name 
-                FROM hosts h 
-                LEFT JOIN templates t ON h.template_id = t.id 
-                ORDER BY h.created_at DESC
-            ");
-            $stmt->execute();
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            return [];
-        }
+    private function listHostsData() {
+        return [
+                [
+                    'id' => 3,
+                    'template_id' => 1,
+                    'common_name' => 'web3.example.com',
+                    'csr_content' => '-----BEGIN CERTIFICATE REQUEST-----\nMIIBVTCB+wIBADBQMQswCQYDVQQGEwJVUzELMAkGA1UECAwCU1QxEDAOBgNVBAcM\nB0NpdHkxEDAOBgNVBAoMB0V4YW1wbGUxEjAQBgNVBAMMCWxvY2FsaG9zdDCBnzAN\nBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAyZogNLknD0RMeF6RjK2Dd6KklXzAeCjv\nnDO78Qn9Mffv9BvWGe+9IjBY7kdB9Zy5TUnlRZIt3oOZkSGxUExTfI2pKk98gYpH\nLZKKs3MQ4a/F3FlWn7EbB8AlMxU4HYgB0ubTCvS3UepA9jIRKo8Kt2l0Z+/bGVUm\nVoYXz+9Mi6gk/sECAwEAAaAAMA0GCSqGSIb3DQEBCwUAA4GBAJDeA3UnpguKgjcI\npV2qWz3Mg0AJyJhFbOee5uztFKCPr0INiXbGxB7QNNnQSyLr9vcSDR97Zsbr+Ptn\n9tyNVPPgqlD7IMYcUlESxAQ7yy6c4h5ofXruFHEzPVzM1ODVAlhZDzRPaN4Z8nCx\nFg4U9gTZHkn2Om5LHYyBiBt5ZYkz\n-----END CERTIFICATE REQUEST-----',
+                    'private_key' => '-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDJmiA0uScPREwQ\n...\n-----END PRIVATE KEY-----',
+                    'status' => 'CSR_GENERATED',
+                    'created_at' => '2025-06-24 10:00:00',
+                    'updated_at' => '2025-06-24 10:00:00',
+                    'template_name' => 'RHEL6',
+                ],
+                [
+                    'id' => 2,
+                    'template_id' => 2,
+                    'common_name' => 'web2.example.com',
+                    'csr_content' => '-----BEGIN CERTIFICATE REQUEST-----\n...\n-----END CERTIFICATE REQUEST-----',
+                    'private_key' => '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----',
+                    'status' => 'ORDER_PENDING',
+                    'created_at' => '2025-06-23 14:30:00',
+                    'updated_at' => '2025-06-23 14:30:00',
+                    'template_name' => 'RHEL7',
+                ],
+                [
+                    'id' => 1,
+                    'template_id' => 3,
+                    'common_name' => 'web1.example.com',
+                    'csr_content' => '-----BEGIN CERTIFICATE REQUEST-----\n...\n-----END CERTIFICATE REQUEST-----',
+                    'private_key' => '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----',
+                    'status' => 'ORDER_COMPLETED',
+                    'created_at' => '2025-06-22 09:15:00',
+                    'updated_at' => '2025-06-22 09:15:00',
+                    'template_name' => 'RHEL8',
+                ],
+            ];
+        // try {
+        //     $stmt = $this->conn->prepare("
+        //         SELECT h.*, t.name as template_name 
+        //         FROM hosts h 
+        //         LEFT JOIN templates t ON h.template_id = t.id 
+        //         ORDER BY h.created_at DESC
+        //     ");
+        //     $stmt->execute();
+        //     return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // } catch (Exception $e) {
+        //     return [];
+        // }
     }
 
     /**

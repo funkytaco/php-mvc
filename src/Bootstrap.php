@@ -62,7 +62,7 @@
     */
     // Only configure PDO if settings exist
     if (isset($config['pdo'])) {
-        $injector->define('\Main\PDO', [
+        $injector->define('\PDO', [
             ':dsn' => $config['pdo']['dsn'] ?? '',
             ':username' => $config['pdo']['username'] ?? '',
             ':passwd' => $config['pdo']['password'] ?? '',
@@ -74,8 +74,7 @@
     * Mock Database PDO
     * $conn
     */
-    $conn = $injector->make('Main\Mock\PDO'); //comment out to use PDO $conn below
-    //print_r($conn);exit;
+    //$conn = $injector->make('Main\Mock\PDO'); //comment out to use PDO $conn below
 
     /**
     *
@@ -85,7 +84,7 @@
     *   - "use \Main\PDO" in your controller
     */
 
-    // $conn = $injector->make('\Main\PDO'); //uncomment to use PDO!
+    $conn = $injector->make('\PDO'); //uncomment to use PDO!
 
     /**
     * Templating Engine
@@ -146,8 +145,8 @@
             http_response_code(405);
             break;
         case \FastRoute\Dispatcher::FOUND:
-            $handler = $routeInfo[1];
-            $vars = $routeInfo[2];
+            $handler = $routeInfo[1]; //HostController class object
+            $vars = $routeInfo[2]; //Prints: Array ( [hostId] => 3 ) when visiting http://localhost:3000/hosts/3
             call_user_func_array($handler, $vars);
             break;
     }
