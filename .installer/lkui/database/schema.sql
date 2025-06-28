@@ -27,11 +27,17 @@ CREATE TABLE IF NOT EXISTS hosts (
 );
 
 -- Orders table for certificate management
+-- Supports order types (certbot, letsencrypt, self-signed, external, imported)
+-- and renewal relationships via is_renewal + renewal_of_id
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
     host_id INTEGER REFERENCES hosts(id) ON DELETE CASCADE,
+    order_type VARCHAR(50) NOT NULL,
+    is_renewal BOOLEAN DEFAULT FALSE,
+    renewal_of_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
     status VARCHAR(50) DEFAULT 'ORDER_PENDING',
-    cert_content TEXT, -- PEM formatted certificate
+    cert_content TEXT,
+    error_message TEXT DEFAULT NULL,
     issued_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -154,48 +154,51 @@ class OrderController implements ControllerInterface {
     /**
      * API: Update order with certificate
      */
-    public function updateOrder($request, $response, $args)
-    {
-        $orderId = $args['id'];
-        $data = json_decode($request->getBody()->getContents(), true);
-        
+    public function updateOrder($orderId) {
+        $body = file_get_contents('php://input');
+        $data = json_decode($body, true);
+
+        header('Content-Type: application/json');
+
         // Validate required fields
         if (!isset($data['cert_content'])) {
-            $response->getBody()->write(json_encode([
+            http_response_code(400);
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'cert_content is required'
-            ]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
-        
+
         $certContent = $data['cert_content'];
-        
+
         // Validate certificate
         if (!$this->validateCertificate($certContent)) {
-            $response->getBody()->write(json_encode([
+            http_response_code(400);
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'Invalid certificate format'
-            ]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
-        
+
         // Update order
         $success = $this->updateOrderCertificate($orderId, $certContent);
-        
+
         if (!$success) {
-            $response->getBody()->write(json_encode([
+            http_response_code(500);
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'Failed to update order'
-            ]));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
-        
-        $response->getBody()->write(json_encode([
+
+        http_response_code(200);
+        echo json_encode([
             'status' => 'success',
             'message' => 'Order updated successfully'
-        ]));
-        
-        return $response->withHeader('Content-Type', 'application/json');
+        ]);
     }
 
     /**

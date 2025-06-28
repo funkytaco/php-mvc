@@ -4,5 +4,7 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"ansible.python.interpreterPath": "/Users/neo/Documents/GitHub/flux/.venv/bin/python"
+	}
 }

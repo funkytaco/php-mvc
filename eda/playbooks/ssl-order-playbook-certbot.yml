@@ -57,6 +57,6 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          status: "error"
-          message: "{{ certbot_result.stderr | default('Unknown certbot error') }}"
+          status: "ORDER_FAILED"
+          error_message: "{{ certbot_result.stderr | default('Unknown certbot error') }}"
       when: (certbot_result | default({})).get('rc', 1) != 0
