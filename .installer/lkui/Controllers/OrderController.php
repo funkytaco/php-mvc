@@ -13,11 +13,13 @@ class OrderController implements ControllerInterface {
     public function __construct(
         Renderer $renderer,
         PDO $conn, 
-        Date_Module $mod_date
+        Date_Module $mod_date,
+        HostController $HostCtrl
     ) {
         $this->renderer = $renderer;
         $this->conn = $conn;
         $this->mod_date = $mod_date;
+        $this->HostCtrl = $HostCtrl;
 
         $this->data = [
             'appName' => 'LKUI - License Key UI',
@@ -75,6 +77,46 @@ class OrderController implements ControllerInterface {
         $html = $this->renderer->render('order-detail.html', $data);
         echo $html;
     }
+
+    /**
+     * Show individual host detail page
+     */
+    public function showCreateOrder() {
+
+        $hostId = $request->getQueryParams()['hostId'] ?? null;
+        http_response_code(200);
+        header('Content-Type: application/json');
+            echo json_encode([
+            'status' => 'success',
+            'data' => [
+                'id' => 123,
+                'host_id' => $data['host_id'],
+                'status' => 'ORDER_PENDING',
+                'created_at' => date('Y-m-d H:i:s')
+            ]
+        ]);
+        return;  
+
+        //$this->data['host'] = $this->HostCtrl->getHostData($hostId);
+        
+        //$this->data['host']['csr'] = $this->data['host']['csr_content'];
+        // if (!$this->data['host']['csr']) $this->data['host']['can_generate_csr'] = true;
+
+        // if (!$this->data['host'] ) {
+        //     // Return 404 or error page
+        //     $this->data = ['error' => 'Host not found'];
+
+            
+        //     echo $this->renderer->render('error.html', $this->data);
+        //     return;
+        // } 
+        
+        echo $this->renderer->render('order-create.html', $this->data);
+
+
+    }
+
+
 
     /**
      * API: Create a new order

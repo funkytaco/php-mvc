@@ -7,7 +7,7 @@ require_once('Controllers/TemplatesController.php');
 $mod_date = $injector->make('Main\Modules\Date_Module');
 
 $HostCtrl = new HostController($renderer, $conn, $mod_date);
-$OrderCtrl = new OrderController($renderer, $conn, $mod_date);
+$OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl);
 $TemplatesCtrl = new TemplatesController($renderer, $conn);
 
 return [
@@ -17,6 +17,7 @@ return [
     // Web view routes
     ['GET', '/hosts', [$HostCtrl, 'showHosts']],
     ['GET', '/hosts/{hostId:\d+}', [$HostCtrl, 'showHostDetail']],
+    ['GET', '/order', [$OrderCtrl, 'showCreateOrder']], //?hostId={hostId:\d+}
     ['GET', '/orders', [$OrderCtrl, 'showOrders']],
     ['GET', '/orders/{orderId:\d+}', [$OrderCtrl, 'showOrderDetail']],
 

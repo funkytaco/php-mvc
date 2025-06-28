@@ -147,9 +147,7 @@
         }
     }
 
-    // Create dispatcher after routes are loaded
-   // $dispatcher = new \FastRoute\Dispatcher\GroupCountBased($routeCollector->getData());
-   // Load and build routes
+    // Create dispatcher: builds internal routing table. On HTTP request, dispatcher matches method + URI to handler.
     $dispatcher = simpleDispatcher(function (RouteCollector $r) use ($injector, $renderer, $conn) {
         if (is_file(CUSTOM_ROUTES_FILE)) {
             $routes = include CUSTOM_ROUTES_FILE;
@@ -170,6 +168,25 @@
     $uri = rawurldecode($uri);
 
     $routeInfo = $dispatcher->dispatch($httpMethod, $uri);
+
+    // Simple middleware pipeline: add callables to this array as needed
+    $middleware = [
+        function($httpMethod, $uri) {
+            // Example logger
+            // error_log("Request: $httpMethod $uri");
+            return true;
+        },
+        // Add more middleware callables here
+    ];
+
+    // Run middleware, allow short-circuit
+    foreach ($middleware as $mw) {
+        if ($mw($httpMethod, $uri) === false) {
+            // Middleware returned false: stop further handling
+            return;
+        }
+    }
+
     switch ($routeInfo[0]) {
         case Dispatcher::NOT_FOUND:
             http_response_code(404);
@@ -183,9 +200,28 @@
 
         case Dispatcher::FOUND:
             [$controller, $method] = $routeInfo[1];
-            $vars = $routeInfo[2];
+            $vars = $routeInfo[2]; // FastRoute path parameters: e.g. for /order/{id}, $vars['id'] = value
 
-            // Optional: inject dependencies if $controller is a class string
+            // Parse HTTP body for POST/PUT/PATCH and merge into $vars
+            $bodyVars = [];
+            if (in_array($httpMethod, ['POST', 'PUT', 'PATCH'])) {
+                $rawInput = file_get_contents('php://input');
+                $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+                if (strpos($contentType, 'application/json') !== false) {
+                    $bodyVars = json_decode($rawInput, true) ?? [];
+                } elseif (strpos($contentType, 'application/x-www-form-urlencoded') !== false) {
+                    parse_str($rawInput, $bodyVars);
+                }
+            }
+            $vars = array_merge($vars, $bodyVars);
+
+            // CRUD example usage:
+            // GET    /order/1         => show($id)
+            // POST   /order           => create($field1, $field2)
+            // PUT    /order/1         => update($id, $field1, $field2)
+            // DELETE /order/1         => delete($id)
+            // These $vars are automatically passed into call_user_func_array.
+
             if (is_string($controller)) {
                 $instance = $injector->make($controller);
                 call_user_func_array([$instance, $method], $vars);

@@ -242,7 +242,7 @@ class HostController implements ControllerInterface {
     /**
      * Private helper: Get single host data
      */
-    private function getHostData($hostId)
+    public function getHostData($hostId)
     {
         try {
             $stmt = $this->conn->prepare("
