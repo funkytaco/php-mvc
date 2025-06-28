@@ -55,14 +55,15 @@ class OrderController implements ControllerInterface {
     /**
      * Show individual order detail page
      */
-    public function showOrderDetail($request, $response, $args)
-    {
-        $orderId = $args['id'];
+    public function showOrderDetail($orderId) {
+
+
         $order = $this->getOrderData($orderId);
         
         if (!$order) {
             $data = ['error' => 'Order not found'];
-            $html = $this->renderer->render($response, 'error.html', $data);
+            echo $this->renderer->render('error.html', $data);
+            return;
         }
         
         $data = [
@@ -71,52 +72,57 @@ class OrderController implements ControllerInterface {
             'order' => $order
         ];
         
-        $html = $this->renderer->render($response, 'order-detail.html', $data);
+        $html = $this->renderer->render('order-detail.html', $data);
         echo $html;
     }
 
     /**
      * API: Create a new order
      */
-    public function createOrder($request, $response, $args)
-    {
-        $data = json_decode($request->getBody()->getContents(), true);
-        
+    public function createOrder() {
+        $body = file_get_contents('php://input');
+        $data = json_decode($body, true);
+
         // Validate required fields
-        if (!isset($data['host_id'])) {
-            $response->getBody()->write(json_encode([
+        if (!is_array($data) || !isset($data['host_id'])) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'host_id is required'
-            ]));
-            $html = $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
-        
-        $hostId = $data['host_id'];
-        
+                
         // Verify host exists
-        $host = $this->getHostById($hostId);
+        $host = $this->getHostById($data['host_id']);
         if (!$host) {
-            $response->getBody()->write(json_encode([
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'Host not found'
-            ]));
-            $html = $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
         
         // Create order
-        $orderId = $this->saveOrder($hostId);
+        $orderId = $this->saveOrder($data['host_id']);
         
-        $response->getBody()->write(json_encode([
+        http_response_code(200);
+        header('Content-Type: application/json');
+            echo json_encode([
             'status' => 'success',
             'data' => [
                 'id' => $orderId,
-                'host_id' => $hostId,
+                'host_id' => $data['host_id'],
                 'status' => 'ORDER_PENDING',
                 'created_at' => date('Y-m-d H:i:s')
             ]
-        ]));
-        
-        echo $response->withHeader('Content-Type', 'application/json');
+        ]);
+        return;        
+
+
     }
 
     /**

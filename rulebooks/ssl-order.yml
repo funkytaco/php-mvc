@@ -1,0 +1,30 @@
+---
+- name: SSL Certificate Order Handler
+  hosts: localhost
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+        endpoint: /ssl-order
+  rules:
+    - name: Process SSL Order (Lets Encrypt)
+      condition: event.payload.action == "order_ssl_letsencrypt"
+      action:
+        run_playbook:
+          name: /playbooks/ssl-order-letsencrypt.yml
+          extra_vars:
+            csr: "{{ event.payload.csr }}"
+            domain: "{{ event.payload.domain }}"
+            email: "{{ event.payload.email }}"
+            order_id: "{{ event.payload.order_id }}"
+    - name: Process SSL Order (Certbot)
+      condition: event.payload.action == "order_ssl_certbot"
+      action:
+        run_playbook:
+          name: /playbooks/ssl-order-certbot.yml
+          extra_vars:
+            csr: "{{ event.payload.csr }}"
+            domain: "{{ event.payload.domain }}"
+            email: "{{ event.payload.email }}"
+            order_id: "{{ event.payload.order_id }}"
+    

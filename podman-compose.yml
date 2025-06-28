@@ -1,5 +1,9 @@
 version: '3.8'
 
+networks:
+  lkui-net:
+    driver: bridge
+
 services:
   app:
     build: .
@@ -10,6 +14,8 @@ services:
       - .:/var/www:Z
     depends_on:
       - db
+    networks:
+      - lkui-net
 
   db:
     #build:
@@ -25,7 +31,7 @@ services:
     container_name: lkui-postgres
     # environment:
     #   POSTGRES_USER: lkui
-    #   POSTGRES_PASSWORD: lkui_password
+    #   POSTGRES_PASSWORD: lkui_secure_password_2024
     #   POSTGRES_DB: lkui
     volumes:
       - ./data:/var/lib/postgresql/data:Z
@@ -37,7 +43,30 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - lkui-net
 
+
+  eda-rulebook:
+    image: registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest
+    container_name: lkui-eda
+    volumes:
+      - ./eda/rulebooks:/rulebooks:Z
+      - ./eda/inventory:/inventory:Z
+      - ./eda/playbooks:/playbooks:Z
+      - ./eda/logs:/logs:Z
+      - ./eda/letsencrypt:/etc/letsencrypt:Z
+      - ./eda/init-entrypoint.sh:/init-entrypoint.sh:Z
+    working_dir: /rulebooks
+    entrypoint: ["sh", "/init-entrypoint.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # ports:
+    #   - "5000:5000"
+    networks:
+      - lkui-net
 
 volumes:
   postgres_data:

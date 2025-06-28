@@ -1,0 +1,35 @@
+---
+- name: Order SSL certificate with Let's Encrypt
+  hosts: localhost
+  gather_facts: no
+  vars:
+    acme_account_key: "/etc/letsencrypt/account.key"
+    cert_key: "/etc/letsencrypt/{{ domain }}.key"
+    cert_fullchain: "/etc/letsencrypt/{{ domain }}.crt"
+  tasks:
+    - name: Ensure account key exists
+      community.crypto.openssl_privatekey:
+        path: "{{ acme_account_key }}"
+        size: 4096
+      register: account_key_result
+
+    - name: Ensure domain private key exists
+      community.crypto.openssl_privatekey:
+        path: "{{ cert_key }}"
+        size: 2048
+      register: domain_key_result
+
+    - name: Order certificate using DNS challenge
+      community.crypto.acme_certificate:
+        account_key_src: "{{ acme_account_key }}"
+        csr: "{{ csr }}"
+        dest: "{{ cert_fullchain }}"
+        challenge: dns-01
+        acme_directory: https://acme-v02.api.letsencrypt.org/directory
+        terms_agreed: yes
+        remaining_days: 30
+      register: cert_result
+
+    - name: Debug output for tracking
+      debug:
+        msg: "Certificate issued for {{ domain }} with order ID {{ order_id }}. Cert path: {{ cert_fullchain }}"
