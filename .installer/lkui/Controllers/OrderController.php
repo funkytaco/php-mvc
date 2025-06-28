@@ -198,7 +198,7 @@ class OrderController implements ControllerInterface {
     /**
      * API: Update order with certificate
      */
-    public function updateOrder($orderId) {
+    public function updateOrder(int $orderId, string $status, string $error_message = null) {
         $body = file_get_contents('php://input');
         $data = json_decode($body, true);
 
