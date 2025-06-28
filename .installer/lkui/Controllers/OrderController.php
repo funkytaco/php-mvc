@@ -9,6 +9,8 @@ class OrderController implements ControllerInterface {
     protected $conn;
     protected $mod_date;
     private $data;
+    public $HostCtrl;
+
 
     public function __construct(
         Renderer $renderer,

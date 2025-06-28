@@ -4,11 +4,11 @@ require_once('Controllers/OrderController.php');
 require_once('Controllers/TemplatesController.php');
 
 // Create module dependencies
-$mod_date = $injector->make('Main\Modules\Date_Module');
+$mod_date = $this->injector->make('Main\Modules\Date_Module');
 
-$HostCtrl = new HostController($renderer, $conn, $mod_date);
-$OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl);
-$TemplatesCtrl = new TemplatesController($renderer, $conn);
+$HostCtrl = new HostController($this->renderer, $this->conn, $mod_date);
+$OrderCtrl = new OrderController($this->renderer, $this->conn, $mod_date, $HostCtrl);
+$TemplatesCtrl = new TemplatesController($this->renderer, $this->conn);
 
 return [
     //Homepage route
