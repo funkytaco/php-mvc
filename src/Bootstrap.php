@@ -77,13 +77,12 @@ class Nimbus {
     }
 
     private function setupRoutes() {
-        // Seed local variables for CustomRoutes.php (expects $injector, $renderer, $conn)
-        $injector = $this->injector;
-        $renderer = $this->renderer;
-        $conn     = $this->conn;
-
         $this->routeCollector = $this->injector->make('Main\Router\RouteCollector');
+
         $routes = include('Routes.php');
+        if (is_callable($routes)) {
+            $routes = $routes($this->injector, $this->renderer, $this->conn);
+        }
         if (is_array($routes)) {
             foreach ($routes as $route) {
                 if (is_callable($route[2])) {
@@ -91,12 +90,16 @@ class Nimbus {
                 }
             }
         }
+
         if (is_file(CUSTOM_ROUTES_FILE)) {
-            $custom_routes = include(CUSTOM_ROUTES_FILE);
-            if (is_array($custom_routes)) {
-                foreach ($custom_routes as $route) {
-                    if (is_callable($route[2])) {
-                        $this->routeCollector->addRoute($route[0], $route[1], $route[2]);
+            $customRouteFactory = include CUSTOM_ROUTES_FILE;
+            if (is_callable($customRouteFactory)) {
+                $custom_routes = $customRouteFactory($this->injector, $this->renderer, $this->conn);
+                if (is_array($custom_routes)) {
+                    foreach ($custom_routes as $route) {
+                        if (is_callable($route[2])) {
+                            $this->routeCollector->addRoute($route[0], $route[1], $route[2]);
+                        }
                     }
                 }
             }
@@ -104,18 +107,16 @@ class Nimbus {
     }
 
     private function setupDispatcher() {
-        // Seed local variables for CustomRoutes.php (expects $injector, $renderer, $conn)
-        $injector = $this->injector;
-        $renderer = $this->renderer;
-        $conn     = $this->conn;
-
         $this->dispatcher = \FastRoute\simpleDispatcher(function (\FastRoute\RouteCollector $r) {
             if (is_file(CUSTOM_ROUTES_FILE)) {
-                $routes = include(CUSTOM_ROUTES_FILE);
-                if (is_array($routes)) {
-                    foreach ($routes as [$method, $path, $handler]) {
-                        if (is_callable($handler)) {
-                            $r->addRoute($method, $path, $handler);
+                $customRouteFactory = include CUSTOM_ROUTES_FILE;
+                if (is_callable($customRouteFactory)) {
+                    $routes = $customRouteFactory($this->injector, $this->renderer, $this->conn);
+                    if (is_array($routes)) {
+                        foreach ($routes as [$method, $path, $handler]) {
+                            if (is_callable($handler)) {
+                                $r->addRoute($method, $path, $handler);
+                            }
                         }
                     }
                 }
@@ -167,9 +168,9 @@ class Nimbus {
                 $vars = array_merge($vars, $bodyVars);
                 if (is_string($controller)) {
                     $instance = $this->injector->make($controller);
-                    call_user_func_array([$instance, $method], $vars);
+                    $instance->$method(...$vars);
                 } else {
-                    call_user_func_array([$controller, $method], $vars);
+                    $controller->$method(...$vars);
                 }
                 break;
         }
