@@ -128,12 +128,11 @@ class HostController implements ControllerInterface {
     /**
      * API: Create a new host
      */
-    public function createHost()
-    {
-        $body = file_get_contents('php://input');
-        $data = json_decode($body, true);
+    public function createHost($template_id, $common_name) {
+        // $body = file_get_contents('php://input');
+        // $data = json_decode($body, true);
 
-        if (!is_array($data) || !isset($data['template_id'])) {
+        if (!isset($template_id)) {
             http_response_code(400);
             header('Content-Type: application/json');
             echo json_encode([
@@ -143,11 +142,11 @@ class HostController implements ControllerInterface {
             return;
         }
 
-        $templateId = $data['template_id'];
-        $commonName = $data['common_name'] ?? '*.example.com';
+        // $template_id = $data['template_id'];
+        // $common_name = $data['common_name'] ?? '*.example.com';
 
-        $csrData = $this->generateCSR($commonName);
-        $hostId = $this->saveHost($templateId, $commonName, $csrData);
+        $csrData = $this->generateCSR($common_name);
+        $hostId = $this->saveHost($template_id, $common_name, $csrData);
 
         http_response_code(201);
         header('Content-Type: application/json');
@@ -155,8 +154,8 @@ class HostController implements ControllerInterface {
             'status' => 'success',
             'data' => [
                 'id' => $hostId,
-                'template_id' => $templateId,
-                'common_name' => $commonName,
+                'template_id' => $template_id,
+                'common_name' => $common_name,
                 'status' => 'CSR_GENERATED',
                 'csr' => $csrData['csr']
             ]
@@ -261,7 +260,7 @@ class HostController implements ControllerInterface {
     /**
      * Private helper: Generate CSR
      */
-    private function generateCSR($commonName)
+    private function generateCSR($common_name)
     {
         // Generate private key
         $privateKey = openssl_pkey_new([
@@ -272,7 +271,7 @@ class HostController implements ControllerInterface {
 
         // Generate CSR
         $csr = openssl_csr_new([
-            "commonName" => $commonName,
+            "commonName" => "$common_name",
             "organizationName" => "Example Organization",
             "organizationalUnitName" => "IT Department",
             "localityName" => "City",
@@ -295,14 +294,14 @@ class HostController implements ControllerInterface {
     /**
      * Private helper: Save host to database
      */
-    private function saveHost($templateId, $commonName, $csrData)
+    private function saveHost($template_id, $common_name, $csrData)
     {
         try {
             $stmt = $this->conn->prepare("
                 INSERT INTO hosts (template_id, common_name, csr_content, private_key, status, created_at) 
                 VALUES (?, ?, ?, ?, 'CSR_GENERATED', NOW())
             ");
-            $stmt->execute([$templateId, $commonName, $csrData['csr'], $csrData['private_key']]);
+            $stmt->execute([$template_id, $common_name, $csrData['csr'], $csrData['private_key']]);
             return $this->conn->lastInsertId();
         } catch (Exception $e) {
             throw new Exception("Failed to save host: " . $e->getMessage());

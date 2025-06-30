@@ -83,16 +83,16 @@ class OrderController implements ControllerInterface {
     /**
      * Show individual host detail page
      */
-    public function showCreateOrder() {
+    public function showCreateOrder($host_id) {
 
-        $hostId = $request->getQueryParams()['hostId'] ?? null;
+        //$hostId = $request->getQueryParams()['hostId'] ?? null;
         http_response_code(200);
         header('Content-Type: application/json');
             echo json_encode([
             'status' => 'success',
             'data' => [
                 'id' => 123,
-                'host_id' => $data['host_id'],
+                'host_id' => $host_id,
                 'status' => 'ORDER_PENDING',
                 'created_at' => date('Y-m-d H:i:s')
             ]
@@ -123,12 +123,11 @@ class OrderController implements ControllerInterface {
     /**
      * API: Create a new order
      */
-    public function createOrder() {
-        $body = file_get_contents('php://input');
-        $data = json_decode($body, true);
+    public function createOrder($host_id) {
+
 
         // Validate required fields
-        if (!is_array($data) || !isset($data['host_id'])) {
+        if (!isset($host_id)) {
             http_response_code(400);
             header('Content-Type: application/json');
             echo json_encode([
@@ -139,7 +138,7 @@ class OrderController implements ControllerInterface {
         }
                 
         // Verify host exists
-        $host = $this->getHostById($data['host_id']);
+        $host = $this->getHostById($host_id);
         if (!$host) {
             http_response_code(404);
             header('Content-Type: application/json');
@@ -151,7 +150,8 @@ class OrderController implements ControllerInterface {
         }
         
         // Create order
-        $orderId = $this->saveOrder($data['host_id']);
+        if (!isset($order_type)) { $order_type = 'certbot'; } //todo
+        $orderId = $this->saveOrder($host_id, $order_type);
         
         http_response_code(200);
         header('Content-Type: application/json');
@@ -159,7 +159,7 @@ class OrderController implements ControllerInterface {
             'status' => 'success',
             'data' => [
                 'id' => $orderId,
-                'host_id' => $data['host_id'],
+                'host_id' => $host_id,
                 'status' => 'ORDER_PENDING',
                 'created_at' => date('Y-m-d H:i:s')
             ]
@@ -172,27 +172,28 @@ class OrderController implements ControllerInterface {
     /**
      * API: Get specific order
      */
-    public function getOrder($request, $response, $args) {
-        $orderId = $args['id'];
+    public function getOrder($id) {
+        $orderId = $id;
         $order = $this->getOrderData($orderId);
         
         if (!$order) {
-            $response->getBody()->write(json_encode([
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
                 'status' => 'error',
-                'message' => 'Order not found'
-            ]));
-            $json = $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+                'message' => 'Order ID '. $orderId .' not found'
+            ]);
+            return;
         } else {
-        $response->getBody()->write(json_encode([
-            'status' => 'success',
-            'data' => $order
-        ]));
-        
-        $json = $response->withHeader('Content-Type', 'application/json');
-
+            http_response_code(200);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'success',
+                'data' => $order
+            ]);
+            return;
         }
         
-        echo $json;
     }
 
     /**
@@ -204,12 +205,14 @@ class OrderController implements ControllerInterface {
 
         header('Content-Type: application/json');
 
-        // Validate required fields
+        // Validate required fields based on status
+        if ($status === 'ORDER_COMPLETED') {
+        // For successful orders, cert_content is required
         if (!isset($data['cert_content'])) {
             http_response_code(400);
             echo json_encode([
                 'status' => 'error',
-                'message' => 'cert_content is required'
+                'message' => 'cert_content is required for completed orders'
             ]);
             return;
         }
@@ -226,7 +229,7 @@ class OrderController implements ControllerInterface {
             return;
         }
 
-        // Update order
+        // Update order with certificate
         $success = $this->updateOrderCertificate($orderId, $certContent);
 
         if (!$success) {
@@ -241,8 +244,74 @@ class OrderController implements ControllerInterface {
         http_response_code(200);
         echo json_encode([
             'status' => 'success',
-            'message' => 'Order updated successfully'
+            'message' => 'Order updated successfully with certificate'
         ]);
+
+        } elseif ($status === 'ORDER_FAILED') {
+            // For failed orders, handle the failure
+            $errorMessage = $error_message ?? $data['error_message'] ?? 'Unknown error';
+            
+            // Update order status to failed
+            $success = $this->updateOrderStatus($orderId, $status, $errorMessage);
+
+            if (!$success) {
+                http_response_code(500);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => '1: Failed to update order status to: '. $status .''
+                ]);
+                return;
+            }
+
+            http_response_code(200);
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Order status updated to '. $status .'',
+                'error_message' => $errorMessage
+            ]);
+
+        } else {
+            // Handle other status updates
+            $success = $this->updateOrderStatus($orderId, $status);
+
+            if (!$success) {
+                http_response_code(500);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => '2: Failed to update order status to: '. $status .''
+                ]);
+                return;
+            }
+
+            http_response_code(200);
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Order status updated to: ' . $status
+            ]);
+        }
+    }
+
+    private function updateOrderStatus(int $orderId, string $status, string $errorMessage = null) {
+        try {
+            $sql = "UPDATE orders SET status = :status, updated_at = NOW()";
+            $params = [
+                ':status' => $status,
+                ':order_id' => $orderId
+            ];
+
+            if ($errorMessage !== null) {
+                $sql .= ", error_message = :error_message";
+                $params[':error_message'] = $errorMessage;
+            }
+
+            $sql .= " WHERE id = :order_id";
+
+            $stmt = $this->conn->prepare($sql);
+            return $stmt->execute($params);
+        } catch (Exception $e) {
+            error_log("Error updating order status: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -302,14 +371,14 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Save order to database
      */
-    private function saveOrder($hostId)
-    {
+    private function saveOrder($hostId, $orderType) {
+
         try {
             $stmt = $this->conn->prepare("
-                INSERT INTO orders (host_id, status, created_at) 
-                VALUES (?, 'ORDER_PENDING', NOW())
+                INSERT INTO orders (host_id, order_type, status, created_at) 
+                VALUES (?,?, 'ORDER_PENDING', NOW())
             ");
-            $stmt->execute([$hostId]);
+            $stmt->execute([$hostId, $orderType]);
             return $this->conn->lastInsertId();
         } catch (Exception $e) {
             throw new Exception("Failed to save order: " . $e->getMessage());
@@ -319,8 +388,7 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Update order with certificate
      */
-    private function updateOrderCertificate($orderId, $certContent)
-    {
+    private function updateOrderCertificate($orderId, $certContent) {
         try {
             $stmt = $this->conn->prepare("
                 UPDATE orders 
