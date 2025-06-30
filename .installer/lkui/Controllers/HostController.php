@@ -58,8 +58,7 @@ class HostController implements ControllerInterface {
     /**
      * Show hosts list page
      */
-    public function showHosts()
-    {
+    public function showHosts() {
         //$hosts = $this->listHostsData();
         $hostsRaw = $this->listHostsData();
         // Inject `labelClass` into each host

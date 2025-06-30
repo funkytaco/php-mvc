@@ -22,6 +22,9 @@ return function ($injector, $renderer, $conn) {
         ['GET', '/orders', [$OrderCtrl, 'showOrders']],
         ['GET', '/orders/{orderId:\d+}', [$OrderCtrl, 'showOrderDetail']],
 
+        //Templates routes
+        ['GET', '/templates', [$TemplatesCtrl, 'showTemplates']],
+
         // API routes - Host
         ['GET', '/lkui/api/hosts', [$HostCtrl, 'listHosts']],
         ['POST', '/lkui/api/hosts', [$HostCtrl, 'createHost']],

@@ -11,6 +11,16 @@ class TemplatesController
         $this->conn = $conn;
     }
 
+
+    public function showTemplates() {
+        $templates = $this->getTemplatesData();
+        $data = [
+            'templates' => $templates
+        ];
+        echo $this->renderer->render('templates.html', $data);
+    }
+
+
     /**
      * API: List all templates
      */
