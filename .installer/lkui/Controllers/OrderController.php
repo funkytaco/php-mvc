@@ -419,4 +419,31 @@ class OrderController implements ControllerInterface {
         $cert = openssl_x509_parse($certContent);
         return $cert !== false;
     }
+
+
+    //EDA API methods
+    public function submitSslOrder($action, $csr, $domain, $email, $order_id, $timestamp, $certificate_authority,$validation_method) {
+
+
+    // Example processing or logging
+    // You would replace this with forwarding logic or DB updates
+    $data = [
+        'action' => $action,
+        'csr' => $csr,
+        'domain' => $domain,
+        'email' => $email,
+        'order_id' => $orderId,
+        'timestamp' => $timestamp,
+        'certificate_authority' => $certificateAuthority,
+        'validation_method' => $validationMethod
+    ];
+
+    return $response->withJson([
+        'status' => 'received',
+        'data' => $data
+    ]);
+}
+
+
+
 }

@@ -38,5 +38,9 @@ return function ($injector, $renderer, $conn) {
         // API routes - Template
         ['GET', '/lkui/api/templates', [$TemplatesCtrl, 'listTemplates']],
         ['GET', '/lkui/api/templates/{templateName}', [$TemplatesCtrl, 'getTemplate']],
+
+        //EDA API routes
+        ['POST', '/eda/api/ssl-order', [$OrderCtrl, 'submitSslOrder']]
+        //['POST', '/lkui/api/ssl-order', [$OrderCtrl, 'forwardSslOrder']],
     ];
 };

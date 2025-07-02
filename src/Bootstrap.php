@@ -125,6 +125,17 @@ class Nimbus {
     }
 
     public function run() {
+
+        // header("Access-Control-Allow-Origin: http://localhost:8080");
+        // header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        // header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+        if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+            http_response_code(204);
+            exit();
+        }
+
+
         $httpMethod = $_SERVER['REQUEST_METHOD'];
         $uri = $_SERVER['REQUEST_URI'];
         if (false !== $pos = strpos($uri, '?')) {
