@@ -1,106 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+    <title>{{appName}} - Orders Management</title>
     {{> partials/header}}
-    <title>{{appName}} - Orders</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
-<body class="bg-gray-50">
-    <div class="min-h-screen">
-        <!-- Navigation -->
-        <nav class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
-                    <div class="flex">
-                        <div class="flex-shrink-0 flex items-center">
-                            <h1 class="text-xl font-semibold">{{appName}}</h1>
-                        </div>
-                        <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                            <a href="/" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Dashboard
-                            </a>
-                            <a href="/hosts" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Hosts
-                            </a>
-                            <a href="/orders" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Orders
-                            </a>
-                            <a href="/templates" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Templates
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </nav>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
 
-        <!-- Main Content -->
-        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <!-- Page header -->
-            <div class="px-4 py-6 sm:px-0">
-                <div class="sm:flex sm:items-center">
-                    <div class="sm:flex-auto">
-                        <h1 class="text-2xl font-semibold text-gray-900">Orders</h1>
-                        <p class="mt-2 text-sm text-gray-700">A list of all certificate orders and their current status.</p>
-                    </div>
-                    <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-                        <button type="button" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
-                            New Order
-                        </button>
-                    </div>
-                </div>
-            </div>
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Manage SSL certificate orders.</p>
+        </div>
 
-            <!-- Orders Table -->
-            <div class="mt-8 flex flex-col">
-                <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                    <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-                        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                            <table class="min-w-full divide-y divide-gray-300">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Order ID</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Host</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Type</th>
-                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
-                                        <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                                            <span class="sr-only">Actions</span>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-gray-200 bg-white">
-                                    {{#orders}}
-                                    <tr>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{id}}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">{{common_name}}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                            <span class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 
-                                                {{#is_pending}}bg-yellow-100 text-yellow-800{{/is_pending}}
-                                                {{#is_completed}}bg-green-100 text-green-800{{/is_completed}}
-                                                {{#is_failed}}bg-red-100 text-red-800{{/is_failed}}">
-                                                {{status}}
-                                            </span>
-                                        </td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{order_type}}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{created_at}}</td>
-                                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                            <a href="/orders/{{id}}" class="text-indigo-600 hover:text-indigo-900">View<span class="sr-only">, Order {{id}}</span></a>
-                                        </td>
-                                    </tr>
-                                    {{/orders}}
-                                    {{^orders}}
-                                    <tr>
-                                        <td colspan="6" class="px-3 py-4 text-sm text-gray-500 text-center">No orders found</td>
-                                    </tr>
-                                    {{/orders}}
-                                </tbody>
-                            </table>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Orders List</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Common Name</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#orders}}
+                            <tr>
+                                <td>{{id}}</td>
+                                <td>{{common_name}}</td>
+                                <td>
+                                <span class="label {{labelClass}}">{{status}}</span>
+                                </td>
+                                <td>{{created_at}}</td>
+                                <td>
+                                <a href="/orders/{{id}}" class="btn btn-sm btn-primary">View</a>
+                                <button class="btn btn-sm btn-success" onclick="submitOrder({{id}})">Submit Order</button>
+                                </td>
+                            </tr>
+                            {{/orders}}
+                            </tbody>
+                        </table>
                         </div>
+                        {{^orders}}
+                        <div class="alert alert-info">
+                            <strong>No orders found.</strong> Create your first order using the form below.
+                        </div>
+                        {{/orders}}
                     </div>
                 </div>
             </div>
-        </main>
-    </div>
+        </div>
+    </div> <!-- /container -->
+
+    <script>
+    function submitOrder(hostId) {
+        if (confirm('Submit an order for this host?')) {
+            const payload = {
+                action: "order_ssl_letsencrypt",
+                csr: "-----BEGIN CERTIFICATE REQUEST-----\nMIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==\n-----END CERTIFICATE REQUEST-----",
+                domain: "example.com",
+                email: "admin@example.com",
+                order_id: hostId,
+                timestamp: new Date().toISOString(),
+                certificate_authority: "letsencrypt",
+                validation_method: "dns"
+            };
+
+            payload.csr = payload.csr.replace('...', 'MIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==');
+
+            fetch('http://localhost:5000/ssl-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Order submitted successfully! ID: ' + data.data.id);
+                    window.location.href = '/orders';
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
 </body>
 </html>
