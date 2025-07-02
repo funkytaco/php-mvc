@@ -33,15 +33,15 @@
       register: certbot_result
       ignore_errors: yes
 
-    - name: Run certbot with manual dns-01 challenge
-      ansible.builtin.command: >
-        certbot certonly --manual --preferred-challenges dns
-        --non-interactive --agree-tos
-        -m {{ email }}
-        -d {{ domain }}
-      when: validation_method == "dns"
-      register: certbot_result
-      ignore_errors: yes
+    # - name: Run certbot with manual dns-01 challenge
+    #   ansible.builtin.command: >
+    #     certbot certonly --manual --preferred-challenges dns
+    #     --non-interactive --agree-tos
+    #     -m {{ email }}
+    #     -d {{ domain }}
+    #   when: validation_method == "dns"
+    #   register: certbot_result
+    #   ignore_errors: yes
 
     - name: Debug output on success
       debug:
@@ -59,7 +59,7 @@
         body_format: json
         body:
           status: "ORDER_FAILED"
-          error_message: "{{ certbot_result.stderr | default('Unknown certbot error') }}"
+          error_message: "{{ certbot_result.stderr | default('Unknown certbot error. See /var/log/letsencrypt/letsencrypt.log') }}"
       when: (certbot_result | default({})).get('rc', 1) != 0
 
     - name: Post success to order endpoint

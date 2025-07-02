@@ -321,7 +321,7 @@ class OrderController implements ControllerInterface {
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT o.*, h.common_name, h.status as status, t.name as template_name
+                SELECT o.*, h.common_name, o.status as status, t.name as template_name
                 FROM orders o 
                 LEFT JOIN hosts h ON o.host_id = h.id 
                 LEFT JOIN templates t ON h.template_id = t.id 
