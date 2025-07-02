@@ -422,27 +422,75 @@ class OrderController implements ControllerInterface {
 
 
     //EDA API methods
-    public function submitSslOrder($action, $csr, $domain, $email, $order_id, $timestamp, $certificate_authority,$validation_method) {
+    public function submitSslOrder($action, $csr, $domain, $email, $order_id, $timestamp, $certificate_authority, $validation_method) {
+        // Build payload
+        $payload = json_encode([
+            "action" => $action,
+            "csr" => $csr,
+            "domain" => $domain,
+            "email" => $email,
+            "order_id" => $order_id,
+            "timestamp" => $timestamp,
+            "certificate_authority" => $certificate_authority,
+            "validation_method" => $validation_method
+        ]);
 
+        // Only handle certbot, letsencrypt, self-signed for now
+        if (!in_array($certificate_authority, ['certbot', 'letsencrypt', 'self-signed'])) {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Unsupported certificate authority type'
+            ]);
+            return;
+        }
 
-    // Example processing or logging
-    // You would replace this with forwarding logic or DB updates
-    $data = [
-        'action' => $action,
-        'csr' => $csr,
-        'domain' => $domain,
-        'email' => $email,
-        'order_id' => $orderId,
-        'timestamp' => $timestamp,
-        'certificate_authority' => $certificateAuthority,
-        'validation_method' => $validationMethod
-    ];
+        // POST to EDA API
+        $ch = curl_init('http://lkui-eda:5000/ssl-order');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        $result = curl_exec($ch);
+        $curlErr = curl_error($ch);
+        curl_close($ch);
 
-    return $response->withJson([
-        'status' => 'received',
-        'data' => $data
-    ]);
-}
+        if ($curlErr) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Failed to reach EDA: ' . $curlErr
+            ]);
+            return;
+        }
+
+        $edaResponse = json_decode($result, true);
+
+        // If EDA output has stderr or stdout, attempt to update order
+        if (!empty($edaResponse['stderr']) || !empty($edaResponse['stdout'])) {
+            $updatePayload = json_encode([
+                'cert_content' => $edaResponse['stdout'] ?? '',
+                'error_message' => $edaResponse['stderr'] ?? ''
+            ]);
+
+            $updateCh = curl_init("http://localhost:8080/lkui/api/orders/{$order_id}/certificate");
+            curl_setopt($updateCh, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($updateCh, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($updateCh, CURLOPT_POST, true);
+            curl_setopt($updateCh, CURLOPT_POSTFIELDS, $updatePayload);
+            $updateResult = curl_exec($updateCh);
+            curl_close($updateCh);
+        }
+
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'success',
+            'eda_response' => $edaResponse
+        ]);
+    }
 
 
 
