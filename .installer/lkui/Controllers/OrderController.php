@@ -321,7 +321,7 @@ class OrderController implements ControllerInterface {
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT o.*, h.common_name, h.status as host_status, t.name as template_name
+                SELECT o.*, h.common_name, h.status as status, t.name as template_name
                 FROM orders o 
                 LEFT JOIN hosts h ON o.host_id = h.id 
                 LEFT JOIN templates t ON h.template_id = t.id 
@@ -467,28 +467,12 @@ class OrderController implements ControllerInterface {
         }
 
         $edaResponse = json_decode($result, true);
-
-        // If EDA output has stderr or stdout, attempt to update order
-        if (!empty($edaResponse['stderr']) || !empty($edaResponse['stdout'])) {
-            $updatePayload = json_encode([
-                'cert_content' => $edaResponse['stdout'] ?? '',
-                'error_message' => $edaResponse['stderr'] ?? ''
-            ]);
-
-            $updateCh = curl_init("http://localhost:8080/lkui/api/orders/{$order_id}/certificate");
-            curl_setopt($updateCh, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($updateCh, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-            curl_setopt($updateCh, CURLOPT_POST, true);
-            curl_setopt($updateCh, CURLOPT_POSTFIELDS, $updatePayload);
-            $updateResult = curl_exec($updateCh);
-            curl_close($updateCh);
-        }
-
+        //FIXME $updateOrderResponse = $this->updateOrder($order_id, 'ORDER_QUEUED', '');
         http_response_code(200);
         header('Content-Type: application/json');
         echo json_encode([
             'status' => 'success',
-            'eda_response' => $edaResponse
+            'data' => $payload
         ]);
     }
 

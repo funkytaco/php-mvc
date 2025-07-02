@@ -6,6 +6,7 @@
     acme_account_key: "/etc/letsencrypt/account.key"
     cert_key: "/etc/letsencrypt/{{ domain }}.key"
     cert_fullchain: "/etc/letsencrypt/{{ domain }}.crt"
+    acme_version: 1
   tasks:
     - name: Ensure account key exists
       community.crypto.openssl_privatekey:
@@ -28,6 +29,7 @@
         acme_directory: https://acme-v02.api.letsencrypt.org/directory
         terms_agreed: yes
         remaining_days: 30
+        acme_version: "{{acme_version | int }}"
       register: cert_result
 
     - name: Debug output for tracking

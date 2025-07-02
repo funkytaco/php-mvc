@@ -8,6 +8,7 @@
     email: ""
     order_id: ""
     validation_method: "http"
+    acme_version: 1
 
   tasks:
     - name: Ensure python3 and pip installed

@@ -41,7 +41,7 @@
                                 <td>{{id}}</td>
                                 <td>{{common_name}}</td>
                                 <td>
-                                <span class="label {{labelClass}}">{{status}}</span>
+                                <span>{{status}}</span>
                                 </td>
                                 <td>{{created_at}}</td>
                                 <td>
@@ -65,22 +65,22 @@
     </div> <!-- /container -->
 
     <script>
-    function submitOrder(hostId) {
+    function submitOrder(orderId) {
         if (confirm('Submit an order for this host?')) {
             const payload = {
-                action: "order_ssl_letsencrypt",
+                action: "order_ssl_certbot",
                 csr: "-----BEGIN CERTIFICATE REQUEST-----\nMIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==\n-----END CERTIFICATE REQUEST-----",
                 domain: "example.com",
                 email: "admin@example.com",
-                order_id: hostId,
+                order_id: orderId,
                 timestamp: new Date().toISOString(),
-                certificate_authority: "letsencrypt",
+                certificate_authority: "certbot",
                 validation_method: "dns"
             };
 
             payload.csr = payload.csr.replace('...', 'MIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==');
 
-            fetch('http://localhost:5000/ssl-order', {
+            fetch('/eda/api/ssl-order', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -90,7 +90,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('Order submitted successfully! ID: ' + data.data.id);
+                    alert('Order submitted successfully! Order ID: ' + data.order_id);
                     window.location.href = '/orders';
                 } else {
                     alert('Error: ' + data.message);

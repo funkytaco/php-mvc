@@ -17,6 +17,7 @@
             domain: "{{ event.payload.domain }}"
             email: "{{ event.payload.email }}"
             order_id: "{{ event.payload.order_id }}"
+            acme_version: "{{ event.payload.acme_version | int }}"
     - name: Process SSL Order (Certbot)
       condition: event.payload.action == "order_ssl_certbot"
       action:
@@ -27,3 +28,5 @@
             domain: "{{ event.payload.domain }}"
             email: "{{ event.payload.email }}"
             order_id: "{{ event.payload.order_id }}"
+            acme_version: "{{ event.payload.acme_version | int }}"
+
