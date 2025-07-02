@@ -46,7 +46,7 @@
       debug:
         msg: |
           Certificate issued for {{ domain }} with order ID {{ order_id }}
-          Certbot output: {{ certbot_result.stdout | default('') }}
+          Certbot output: {{ certbot_result.stdout | default('Certificate issued') }}
       when: (certbot_result | default({})).get('rc', 1) == 0
 
     - name: Post failure to order endpoint
@@ -60,3 +60,15 @@
           status: "ORDER_FAILED"
           error_message: "{{ certbot_result.stderr | default('Unknown certbot error') }}"
       when: (certbot_result | default({})).get('rc', 1) != 0
+
+    - name: Post success to order endpoint
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_SUCCESS"
+          message: "Certificate issued successfully"
+      when: (certbot_result | default({})).get('rc', 1) == 0

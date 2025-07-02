@@ -7,5 +7,6 @@ app/
 **/credentials.json
 .clinerules
 .composer
+.kilocode/
 data/
 html

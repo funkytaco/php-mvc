@@ -33,3 +33,14 @@
     - name: Debug output for tracking
       debug:
         msg: "Certificate issued for {{ domain }} with order ID {{ order_id }}. Cert path: {{ cert_fullchain }}"
+
+    - name: Post success to order endpoint
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_SUCCESS"
+          message: "Certificate issued successfully"
