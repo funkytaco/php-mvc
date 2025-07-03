@@ -90,10 +90,12 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('Order submitted successfully! Order ID: ' + data.order_id);
-                    window.location.href = '/orders';
+                    const payload = JSON.parse(data.data);
+                    setTimeout(() => {
+                        window.location.href = `/orders/${payload.order_id}?status=${data.status}`;
+                    }, 2000); 
                 } else {
-                    alert('Error: ' + data.message);
+                    alert('Error: ' + payload.message);
                 }
             })
             .catch(error => {
