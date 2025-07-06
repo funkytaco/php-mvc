@@ -207,45 +207,51 @@ class OrderController implements ControllerInterface {
 
         // Validate required fields based on status
         if ($status === 'ORDER_COMPLETED') {
-        // For successful orders, cert_content is required
-        if (!isset($data['cert_content'])) {
-            http_response_code(400);
+            // For successful orders, cert_content is required
+            if (!isset($data['cert_content'])) {
+                http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'error' => 'validation_error',
+                    'message' => 'cert_content is required for completed orders'
+                ]);
+                return;
+            }
+
+            $certContent = $data['cert_content'];
+
+            // Validate certificate
+            if (!$this->validateCertificate($certContent)) {
+                http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'error' => 'validation_error', 
+                    'message' => 'Invalid certificate format'
+                ]);
+                return;
+            }
+
+            // Update order with certificate
+            $success = $this->updateOrderCertificate($orderId, $certContent);
+
+            if (!$success) {
+                http_response_code(500);
+                echo json_encode([
+                    'status' => 'error',
+                    'error' => 'database_error',
+                    'message' => 'Failed to update order certificate'
+                ]);
+                return;
+            }
+
+            http_response_code(200);
             echo json_encode([
-                'status' => 'error',
-                'message' => 'cert_content is required for completed orders'
+                'status' => 'success',
+                'data' => [
+                    'order_id' => $orderId,
+                    'status' => $status
+                ]
             ]);
-            return;
-        }
-
-        $certContent = $data['cert_content'];
-
-        // Validate certificate
-        if (!$this->validateCertificate($certContent)) {
-            http_response_code(400);
-            echo json_encode([
-                'status' => 'error',
-                'message' => 'Invalid certificate format'
-            ]);
-            return;
-        }
-
-        // Update order with certificate
-        $success = $this->updateOrderCertificate($orderId, $certContent);
-
-        if (!$success) {
-            http_response_code(500);
-            echo json_encode([
-                'status' => 'error',
-                'message' => 'Failed to update order'
-            ]);
-            return;
-        }
-
-        http_response_code(200);
-        echo json_encode([
-            'status' => 'success',
-            'message' => 'Order updated successfully with certificate'
-        ]);
 
         } elseif ($status === 'ORDER_FAILED') {
             // For failed orders, handle the failure
@@ -258,7 +264,8 @@ class OrderController implements ControllerInterface {
                 http_response_code(500);
                 echo json_encode([
                     'status' => 'error',
-                    'message' => '1: Failed to update order status to: '. $status .''
+                    'error' => 'database_error',
+                    'message' => 'Failed to update order status'
                 ]);
                 return;
             }
@@ -266,8 +273,10 @@ class OrderController implements ControllerInterface {
             http_response_code(200);
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Order status updated to '. $status .'',
-                'error_message' => $errorMessage
+                'data' => [
+                    'order_id' => $orderId,
+                    'status' => $status
+                ]
             ]);
 
         } else {
@@ -278,7 +287,8 @@ class OrderController implements ControllerInterface {
                 http_response_code(500);
                 echo json_encode([
                     'status' => 'error',
-                    'message' => '2: Failed to update order status to: '. $status .''
+                    'error' => 'database_error',
+                    'message' => 'Failed to update order status'
                 ]);
                 return;
             }
@@ -286,7 +296,10 @@ class OrderController implements ControllerInterface {
             http_response_code(200);
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Order status updated to: ' . $status
+                'data' => [
+                    'order_id' => $orderId,
+                    'status' => $status
+                ]
             ]);
         }
     }
