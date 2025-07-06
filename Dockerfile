@@ -47,6 +47,6 @@ RUN chown -R www-data:www-data /var/www \
 
 USER www-data
 WORKDIR /var/www/
-RUN rm -rf app && composer install-lkui --no-dev --optimize-autoloader
+RUN rm -rf app && rm -rf html/assets & composer install-lkui --no-dev --optimize-autoloader
 EXPOSE 8080
 CMD ["/bin/sh", "-c", "apache2-foreground"]

@@ -85,7 +85,7 @@ class OrderController implements ControllerInterface {
      */
     public function showCreateOrder($host_id) {
 
-        //$hostId = $request->getQueryParams()['hostId'] ?? null;
+        //$host_id = $request->getQueryParams()['host_id'] ?? null;
         http_response_code(200);
         header('Content-Type: application/json');
             echo json_encode([
@@ -99,7 +99,7 @@ class OrderController implements ControllerInterface {
         ]);
         return;  
 
-        //$this->data['host'] = $this->HostCtrl->getHostData($hostId);
+        //$this->data['host'] = $this->HostCtrl->getHostData($host_id);
         
         //$this->data['host']['csr'] = $this->data['host']['csr_content'];
         // if (!$this->data['host']['csr']) $this->data['host']['can_generate_csr'] = true;
@@ -123,7 +123,7 @@ class OrderController implements ControllerInterface {
     /**
      * API: Create a new order
      */
-    public function createOrder($host_id) {
+    public function createOrder($host_id, $certificate_authority) {
 
 
         // Validate required fields
@@ -150,7 +150,8 @@ class OrderController implements ControllerInterface {
         }
         
         // Create order
-        if (!isset($order_type)) { $order_type = 'certbot'; } //todo
+        $order_type = $certificate_authority;
+        if (!isset($order_type)) { $order_type = 'certbot'; }
         $orderId = $this->saveOrder($host_id, $order_type);
         
         http_response_code(200);
@@ -396,11 +397,11 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Get host by ID
      */
-    private function getHostById($hostId)
+    private function getHostById($host_id)
     {
         try {
             $stmt = $this->conn->prepare("SELECT * FROM hosts WHERE id = ?");
-            $stmt->execute([$hostId]);
+            $stmt->execute([$host_id]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             return null;
@@ -410,14 +411,14 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Save order to database
      */
-    private function saveOrder($hostId, $orderType) {
+    private function saveOrder($host_id, $orderType) {
 
         try {
             $stmt = $this->conn->prepare("
                 INSERT INTO orders (host_id, order_type, status, created_at) 
                 VALUES (?,?, 'ORDER_PENDING', NOW())
             ");
-            $stmt->execute([$hostId, $orderType]);
+            $stmt->execute([$host_id, $orderType]);
             return $this->conn->lastInsertId();
         } catch (Exception $e) {
             throw new Exception("Failed to save order: " . $e->getMessage());
@@ -464,7 +465,7 @@ class OrderController implements ControllerInterface {
     public function submitSslOrder($action, $csr, $domain, $email, $order_id, $timestamp, $certificate_authority, $validation_method) {
         // Build payload
         $payload = json_encode([
-            "action" => $action,
+            "action" => "order_ssl_" . $certificate_authority,
             "csr" => $csr,
             "domain" => $domain,
             "email" => $email,

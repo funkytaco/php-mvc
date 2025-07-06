@@ -11,12 +11,13 @@ class OrderModel {
         $this->db = $db;
     }
 
-    public function createOrder($hostId) {
+    public function createOrder($host_id, $certificate_authority) {
         $stmt = $this->db->prepare("
-            INSERT INTO orders (host_id, status)
-            VALUES (:host_id, 'pending')
+            INSERT INTO orders (host_id, status, order_type)
+            VALUES (:host_id, 'pending', :certificate_authority)
         ");
-        $stmt->bindParam(':host_id', $hostId, PDO::PARAM_INT);
+        $stmt->bindParam(':host_id', $host_id, PDO::PARAM_INT);
+        $stmt->bindParam(':certificate_authority', $certificate_authority, PDO::PARAM_STR);
         return $stmt->execute() ? $this->db->lastInsertId() : false;
     }
 

@@ -17,7 +17,7 @@ return function ($injector, $renderer, $conn) {
 
         // Web view routes
         ['GET', '/hosts', [$HostCtrl, 'showHosts']],
-        ['GET', '/hosts/{hostId:\d+}', [$HostCtrl, 'showHostDetail']],
+        ['GET', '/hosts/{host_id:\d+}', [$HostCtrl, 'showHostDetail']],
         ['GET', '/order', [$OrderCtrl, 'showCreateOrder']],
         ['GET', '/orders', [$OrderCtrl, 'showOrders']],
         ['GET', '/orders/{orderId:\d+}', [$OrderCtrl, 'showOrderDetail']],
@@ -28,7 +28,7 @@ return function ($injector, $renderer, $conn) {
         // API routes - Host
         ['GET', '/lkui/api/hosts', [$HostCtrl, 'listHosts']],
         ['POST', '/lkui/api/hosts', [$HostCtrl, 'createHost']],
-        ['GET', '/lkui/api/hosts/{hostId:\d+}', [$HostCtrl, 'getHost']],
+        ['GET', '/lkui/api/hosts/{host_id:\d+}', [$HostCtrl, 'getHost']],
 
         // API routes - Order
         ['POST', '/lkui/api/orders', [$OrderCtrl, 'createOrder']],

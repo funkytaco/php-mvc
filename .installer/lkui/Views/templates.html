@@ -146,14 +146,14 @@
         });
     });
 
-    function createOrder(hostId) {
+    function createOrder(host_id) {
         if (confirm('Create an order for this host?')) {
             fetch('/lkui/api/orders', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({host_id: hostId})
+                body: JSON.stringify({host_id: host_id})
             })
             .then(response => response.json())
             .then(data => {

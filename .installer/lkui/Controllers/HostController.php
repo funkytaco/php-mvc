@@ -89,24 +89,29 @@ class HostController implements ControllerInterface {
     /**
      * Show individual host detail page
      */
-    public function showHostDetail($hostId) {
-        $this->data['host'] = $this->getHostData($hostId);
+    public function showHostDetail($host_id) {
+        $this->data['host'] = $this->getHostData($host_id);
         $this->data['host']['csr'] = $this->data['host']['csr_content'];
         if (!$this->data['host']['csr']) $this->data['host']['can_generate_csr'] = true;
 
-        if (!$this->data['host'] ) {
+        // Add certificate authority options
+        $authorities = [
+            'certbot' => 'Certbot',
+            'letsencrypt' => 'Let\'s Encrypt',
+            'self-signed' => 'Self-Signed'
+        ];
+        $this->data['certificate_authorities'] = array_map(function($key, $value) {
+            return ['key' => $key, 'value' => $value];
+        }, array_keys($authorities), $authorities);
+
+        if (!$this->data['host']) {
             // Return 404 or error page
             $this->data = ['error' => 'Host not found'];
-
-            
             echo $this->renderer->render('error.html', $this->data);
             return;
-            //echo $html;
-        } else {
+        }
 
         echo $this->renderer->render('host-detail.html', $this->data);
-
-        }
         
 
     }
@@ -145,14 +150,14 @@ class HostController implements ControllerInterface {
         // $common_name = $data['common_name'] ?? '*.example.com';
 
         $csrData = $this->generateCSR($common_name);
-        $hostId = $this->saveHost($template_id, $common_name, $csrData);
+        $host_id = $this->saveHost($template_id, $common_name, $csrData);
 
         http_response_code(201);
         header('Content-Type: application/json');
         echo json_encode([
             'status' => 'success',
             'data' => [
-                'id' => $hostId,
+                'id' => $host_id,
                 'template_id' => $template_id,
                 'common_name' => $common_name,
                 'status' => 'CSR_GENERATED',
@@ -166,8 +171,8 @@ class HostController implements ControllerInterface {
      */
     public function getHost($request, $response, $args)
     {
-        $hostId = $args['id'];
-        $host = $this->getHostData($hostId);
+        $host_id = $args['id'];
+        $host = $this->getHostData($host_id);
         if (!$host) {
             $response->getBody()->write(json_encode([
                 'status' => 'error',
@@ -240,7 +245,7 @@ class HostController implements ControllerInterface {
     /**
      * Private helper: Get single host data
      */
-    public function getHostData($hostId)
+    public function getHostData($host_id)
     {
         try {
             $stmt = $this->conn->prepare("
@@ -249,7 +254,7 @@ class HostController implements ControllerInterface {
                 LEFT JOIN templates t ON h.template_id = t.id 
                 WHERE h.id = ?
             ");
-            $stmt->execute([$hostId]);
+            $stmt->execute([$host_id]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
             return null;
