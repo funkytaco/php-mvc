@@ -135,6 +135,27 @@
                 </button>
                 {{/order.can_cancel}}
             </div>
+
+            <!-- Order Updates -->
+            {{#order.updates}}
+            <div class="mt-8">
+                <h3 class="text-lg font-medium">Order Updates</h3>
+                <div class="mt-4 space-y-4">
+                    {{#.}}
+                    <div class="border-l-4 pl-4 py-2 
+                        {{#status.ORDER_FAILED}}border-red-500 bg-red-50{{/status.ORDER_FAILED}}
+                        {{#status.ORDER_COMPLETED}}border-green-500 bg-green-50{{/status.ORDER_COMPLETED}}
+                        {{^status.ORDER_FAILED}}{{^status.ORDER_COMPLETED}}border-blue-500 bg-blue-50{{/status.ORDER_COMPLETED}}{{/status.ORDER_FAILED}}">
+                        <div class="flex justify-between">
+                            <span class="font-medium">{{status}}</span>
+                            <span class="text-sm text-gray-500">{{created_at}}</span>
+                        </div>
+                        {{#message}}<p class="mt-1 text-sm">{{message}}</p>{{/message}}
+                    </div>
+                    {{/.}}
+                </div>
+            </div>
+            {{/order.updates}}
         </main>
     </div>
 </body>

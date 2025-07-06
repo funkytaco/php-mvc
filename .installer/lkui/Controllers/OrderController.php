@@ -291,23 +291,44 @@ class OrderController implements ControllerInterface {
         }
     }
 
-    private function updateOrderStatus(int $orderId, string $status, string $errorMessage = null) {
+    private function addOrderUpdate(int $orderId, string $status, string $message = null): bool
+    {
         try {
-            $sql = "UPDATE orders SET status = :status, updated_at = NOW()";
-            $params = [
+            $stmt = $this->conn->prepare("
+                INSERT INTO order_updates (order_id, status, message)
+                VALUES (:order_id, :status, :message)
+            ");
+            return $stmt->execute([
+                ':order_id' => $orderId,
+                ':status' => $status,
+                ':message' => $message
+            ]);
+        } catch (Exception $e) {
+            error_log("Error adding order update: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function updateOrderStatus(int $orderId, string $status, string $errorMessage = null): bool
+    {
+        try {
+            // Update order status
+            $stmt = $this->conn->prepare("
+                UPDATE orders 
+                SET status = :status, updated_at = NOW()
+                WHERE id = :order_id
+            ");
+            $success = $stmt->execute([
                 ':status' => $status,
                 ':order_id' => $orderId
-            ];
-
-            if ($errorMessage !== null) {
-                $sql .= ", error_message = :error_message";
-                $params[':error_message'] = $errorMessage;
+            ]);
+            
+            // Log update
+            if ($success && $errorMessage) {
+                $this->addOrderUpdate($orderId, $status, $errorMessage);
             }
-
-            $sql .= " WHERE id = :order_id";
-
-            $stmt = $this->conn->prepare($sql);
-            return $stmt->execute($params);
+            
+            return $success;
         } catch (Exception $e) {
             error_log("Error updating order status: " . $e->getMessage());
             return false;
@@ -341,14 +362,19 @@ class OrderController implements ControllerInterface {
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT o.*, h.common_name, h.csr_content, h.private_key, t.name as template_name
+                SELECT o.*, h.common_name, h.csr_content, h.private_key, t.name as template_name,
+                (SELECT json_agg(ou) FROM order_updates ou WHERE ou.order_id = o.id) as updates
                 FROM orders o 
                 LEFT JOIN hosts h ON o.host_id = h.id 
                 LEFT JOIN templates t ON h.template_id = t.id 
                 WHERE o.id = ?
             ");
             $stmt->execute([$orderId]);
-            return $stmt->fetch(PDO::FETCH_ASSOC);
+            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($order && isset($order['updates'])) {
+                $order['updates'] = json_decode($order['updates'], true);
+            }
+            return $order;
         } catch (Exception $e) {
             return null;
         }

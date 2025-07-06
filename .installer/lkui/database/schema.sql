@@ -37,10 +37,18 @@ CREATE TABLE IF NOT EXISTS orders (
     renewal_of_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
     status VARCHAR(50) DEFAULT 'ORDER_PENDING',
     cert_content TEXT,
-    error_message TEXT DEFAULT NULL,
     issued_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Order updates tracking table
+CREATE TABLE IF NOT EXISTS order_updates (
+    id SERIAL PRIMARY KEY,
+    order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL,
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create indexes for better performance
