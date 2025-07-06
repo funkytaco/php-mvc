@@ -113,7 +113,7 @@
                 {{/host.can_generate_csr}}
                 
                 <!-- SSL Order Form -->
-                <form action="/lkui/api/orders" method="POST" class="flex items-center gap-3">
+                <form id="createOrderForm" class="flex items-center gap-3">
                     <input type="hidden" name="host_id" value="{{host.id}}">
                     <select name="certificate_authority" required class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                         {{#certificate_authorities}}
@@ -131,6 +131,38 @@
                 </button>
                 {{/host.can_download_cert}}
             </div>
+
+            <script>
+            document.getElementById('createOrderForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const data = {
+                    host_id: parseInt(formData.get('host_id')),
+                    certificate_authority: formData.get('certificate_authority')
+                };
+                
+                fetch('/lkui/api/orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Order created successfully! ID: ' + data.data.id);
+                        window.location.href = '/orders';
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            });
+            </script>
         </main>
     </div>
 </body>
