@@ -51,6 +51,9 @@
     "extra": {
         "lkui-assets": {
             "copy-assets": true,
+            "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "html/assets/bootstrap/dist", "isFile": false},
+            "docs": { "source": "vendor/twbs/bootstrap/docs", "target": "html/assets/bootstrap/docs", "isFile": false},
+            "fonts": { "source": "vendor/twbs/bootstrap/fonts", "target": "html/assets/bootstrap/fonts", "isFile": false},
             "views": {
                 "source": ".installer/lkui/Views",
                 "target": "app/Views",

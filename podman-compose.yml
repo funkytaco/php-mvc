@@ -10,8 +10,8 @@ services:
     container_name: lkui-app
     ports:
       - "8080:8080"
-    volumes:
-      - .:/var/www:Z
+    # volumes:
+    #   - .:/var/www:Z
     depends_on:
       - db
     networks:
