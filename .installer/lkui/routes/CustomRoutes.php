@@ -3,6 +3,7 @@
 require_once('Controllers/HostController.php');
 require_once('Controllers/OrderController.php');
 require_once('Controllers/TemplatesController.php');
+require_once('Controllers/ExpiryController.php');
 
 return function ($injector, $renderer, $conn) {
     $mod_date = $injector->make('Main\Modules\Date_Module');
@@ -10,6 +11,7 @@ return function ($injector, $renderer, $conn) {
     $HostCtrl = new HostController($renderer, $conn, $mod_date);
     $OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl);
     $TemplatesCtrl = new TemplatesController($renderer, $conn);
+    $ExpiryCtrl = new ExpiryController($renderer, $conn, $mod_date);
 
     return [
         //Homepage route
@@ -24,6 +26,9 @@ return function ($injector, $renderer, $conn) {
 
         //Templates routes
         ['GET', '/templates', [$TemplatesCtrl, 'showTemplates']],
+
+        //Expiry routes
+        ['GET', '/expiry', [$ExpiryCtrl, 'get']],
 
         // API routes - Host
         ['GET', '/lkui/api/hosts', [$HostCtrl, 'listHosts']],
