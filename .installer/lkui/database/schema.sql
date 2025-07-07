@@ -73,9 +73,23 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Certificate expiry tracking table
+CREATE TABLE IF NOT EXISTS certificate_expiry (
+    id SERIAL PRIMARY KEY,
+    domain VARCHAR(255) NOT NULL,
+    expiry_date TIMESTAMP NOT NULL,
+    days_remaining INTEGER NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create triggers to automatically update updated_at
 CREATE TRIGGER update_hosts_updated_at BEFORE UPDATE ON hosts
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_certificate_expiry_updated_at BEFORE UPDATE ON certificate_expiry
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

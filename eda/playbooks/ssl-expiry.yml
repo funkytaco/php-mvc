@@ -1,0 +1,42 @@
+---
+- name: Check SSL Certificate Expiry
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Get certificate information
+      command: certbot certificates
+      register: certbot_output
+      changed_when: false
+
+    - name: Parse certificate information
+      ansible.builtin.set_fact:
+        certificates: |
+          [
+          {% for line in certbot_output.stdout_lines %}
+            {% if line.startswith('  Certificate Name:') %}
+              {% set cert_name = line.split(':')[1].strip() %}
+            {% elif line.startswith('    Expiry Date:') %}
+              {% set expiry_parts = line.split(':')[1].strip().split() %}
+              {% set expiry_date = expiry_parts[0] ~ ' ' ~ expiry_parts[1] ~ ' ' ~ expiry_parts[2] ~ ' ' ~ expiry_parts[3] %}
+              {% set days_remaining = expiry_parts[5]|int %}
+              {% if days_remaining < 0 %}
+                {% set status = 'Expired' %}
+              {% elif days_remaining < 30 %}
+                {% set status = 'Expiring Soon' %}
+              {% else %}
+                {% set status = 'Valid' %}
+              {% endif %}
+              {
+                "domain": "{{ cert_name }}",
+                "expiry_date": "{{ expiry_date }}",
+                "days_remaining": {{ days_remaining }},
+                "status": "{{ status }}"
+              }{% if not loop.last %},{% endif %}
+            {% endif %}
+          {% endfor %}
+          ]
+
+    - name: Return certificate data
+      ansible.builtin.debug:
+        msg: "{{ certificates }}"
+      changed_when: false

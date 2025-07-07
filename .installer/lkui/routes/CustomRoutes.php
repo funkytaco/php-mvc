@@ -45,7 +45,12 @@ return function ($injector, $renderer, $conn) {
         ['GET', '/lkui/api/templates/{templateName}', [$TemplatesCtrl, 'getTemplate']],
 
         //EDA API routes
-        ['POST', '/eda/api/ssl-order', [$OrderCtrl, 'submitSslOrder']]
+        ['POST', '/eda/api/ssl-order', [$OrderCtrl, 'submitSslOrder']],
+        ['POST', '/eda/api/ssl-expiry', [$ExpiryCtrl, 'processExpiryData']],
+
+        // Expiry API routes
+        ['GET', '/lkui/api/expiry', [$ExpiryCtrl, 'listCertificates']],
+        ['POST', '/lkui/api/expiry/refresh', [$ExpiryCtrl, 'refreshCertificates']]
         //['POST', '/lkui/api/ssl-order', [$OrderCtrl, 'forwardSslOrder']],
     ];
 };

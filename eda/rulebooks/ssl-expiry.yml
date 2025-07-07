@@ -1,0 +1,28 @@
+---
+- name: SSL Certificate Expiry
+  hosts: localhost
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5001
+        endpoint: /ssl-expiry
+  rules:
+  - name: Process SSL certificate expiry check
+    condition: event.payload.action == "refresh"
+    actions:
+      - run_playbook:
+          name: "/playbooks/ssl-expiry.yml"
+          extra_vars:
+            callback_url: "{{ event.payload.callback_url }}"
+            
+  - name: Send certificate data to callback
+    condition: event.payload.certificates is defined
+    actions:
+      - http_post:
+          url: "{{ event.payload.callback_url }}"
+          body: |
+            {
+              "certificates": {{ event.payload.certificates | to_json }}
+            }
+          headers:
+            Content-Type: application/json

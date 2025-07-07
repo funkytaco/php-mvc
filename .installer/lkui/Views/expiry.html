@@ -83,58 +83,95 @@
     </div> <!-- /container -->
 
     <script>
-    function refreshExpiries() {
-        fetch('/lkui/api/expiry')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    window.location.reload();
-                } else {
-                    alert('Error refreshing: ' + data.message);
-                }
-            });
-    }
+    // Development mock data
+    const isDevelopment = false; //window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const mockExpiries = [
+        {
+            domain: 'test.serveapps.com',
+            expiry_date: '2025-12-31',
+            days_remaining: 178,
+            status: 'Valid',
+            labelClass: 'label-success'
+        },
+        {
+            domain: 'expiring.test.serveapps.com',
+            expiry_date: '2025-07-15',
+            days_remaining: 9,
+            status: 'Expiring Soon',
+            labelClass: 'label-warning'
+        },
+        {
+            domain: 'expired.test.serveapps.com',
+            expiry_date: '2025-06-01',
+            days_remaining: -25,
+            status: 'Expired',
+            labelClass: 'label-danger'
+        }
+    ];
 
-    function checkAllCertificates() {
-        fetch('/lkui/api/expiry/check', {
+    function refreshExpiries() {
+        if (isDevelopment) {
+            renderExpiries(mockExpiries);
+            return;
+        }
+        
+        // First trigger refresh
+        fetch('/lkui/api/expiry/refresh', {
             method: 'POST'
         })
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                alert('Certificate check initiated successfully');
-                refreshExpiries();
-            } else {
-                alert('Error: ' + data.message);
+                // Then get updated data
+                return fetch('/lkui/api/expiry');
             }
+            throw new Error(data.message);
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                renderExpiries(data.data);
+            } else {
+                alert('Error fetching certificates: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
         });
     }
 
-    function viewDetails(domain) {
-        window.location.href = '/expiry/' + encodeURIComponent(domain);
+    function renderExpiries(expiries) {
+        const tbody = document.querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        if (expiries.length === 0) {
+            document.querySelector('.alert-info').style.display = 'block';
+            return;
+        }
+
+        document.querySelector('.alert-info').style.display = 'none';
+        
+        expiries.forEach(expiry => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${expiry.domain}</td>
+                <td>${expiry.expiry_date}</td>
+                <td>${expiry.days_remaining}</td>
+                <td><span class="label ${expiry.labelClass}">${expiry.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewDetails('${expiry.domain}')">Details</button>
+                    <button class="btn btn-sm btn-warning" onclick="renewCertificate('${expiry.domain}')">Renew</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
     }
 
-    function renewCertificate(domain) {
-        if (confirm('Renew certificate for ' + domain + '?')) {
-            fetch('/lkui/api/expiry/renew', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({domain: domain})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('Renewal initiated for ' + domain);
-                    refreshExpiries();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
-        }
+    // Initialize with mock data in development
+    if (isDevelopment) {
+        refreshExpiries();
     }
-    </script>
+</script>
 
     <!-- begin footer includes //-->
     {{> partials/bootstrap-footer}}

@@ -57,6 +57,12 @@ services:
       - ./eda/logs:/logs:Z
       - ./eda/letsencrypt:/etc/letsencrypt:Z
       - ./eda/init-entrypoint.sh:/init-entrypoint.sh:Z
+      # Bind Certbot directories on host into container
+      - ./.installer/lkui/certbot/live:/etc/letsencrypt/live:Z,U
+      - ./.installer/lkui/certbot/archive:/etc/letsencrypt/archive:Z,U
+      - ./.installer/lkui/certbot/renewal:/etc/letsencrypt/renewal:Z,U
+      - ./.installer/lkui/certbot/renewal-hooks:/etc/letsencrypt/renewal-hooks:Z,U
+      - ./.installer/lkui/certbot/logs:/var/log/letsencrypt:Z,U
     working_dir: /rulebooks
     entrypoint: ["sh", "/init-entrypoint.sh"]
     depends_on:
