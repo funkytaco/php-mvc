@@ -1,66 +1,141 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{appName}} - Upload Certificate</title>
     {{> partials/header}}
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>{{appName}} - Upload Certificate</title>
 </head>
-<body class="bg-gray-50">
-    <nav class="bg-white shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex">
-                    <div class="flex-shrink-0 flex items-center">
-                        <span class="text-xl font-semibold">LKUI</span>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>Upload Certificate</h1>
+            <p class="lead">Upload a completed SSL certificate for order {{order.id}}.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Upload</h3>
                     </div>
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <a href="/hosts" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Hosts
-                        </a>
-                        <a href="/orders" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Orders
-                        </a>
+                    <div class="card-body">
+                        <form id="uploadCertForm">
+                            <input type="hidden" name="order_id" value="{{order.id}}">
+                            
+                            <div class="form-group mb-3">
+                                <label for="cert_content" class="form-label">Certificate Content:</label>
+                                <textarea class="form-control" id="cert_content" name="cert_content" rows="15" 
+                                         placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----" required></textarea>
+                                <div class="form-text">Paste the complete certificate content including BEGIN/END lines.</div>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="certificate_file" class="form-label">Or Upload Certificate File:</label>
+                                <input type="file" class="form-control" id="certificate_file" accept=".crt,.cer,.pem">
+                                <div class="form-text">Alternatively, upload a certificate file (.crt, .cer, .pem)</div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-upload"></i> Upload Certificate
+                                </button>
+                                <a href="/orders/{{order.id}}" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Back to Order
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-4">Order ID:</dt>
+                            <dd class="col-sm-8">{{order.id}}</dd>
+
+                            <dt class="col-sm-4">Host:</dt>
+                            <dd class="col-sm-8">{{order.common_name}}</dd>
+
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-info">{{order.status}}</span>
+                            </dd>
+
+                            <dt class="col-sm-4">Created:</dt>
+                            <dd class="col-sm-8">{{order.created_at}}</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Upload Instructions</h3>
+                    </div>
+                    <div class="card-body">
+                        <ol class="list-group list-group-numbered">
+                            <li class="list-group-item">Receive certificate from CA</li>
+                            <li class="list-group-item">Copy certificate content to textarea</li>
+                            <li class="list-group-item">Or upload certificate file directly</li>
+                            <li class="list-group-item">Submit to complete order</li>
+                        </ol>
                     </div>
                 </div>
             </div>
         </div>
-    </nav>
-
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="bg-white shadow rounded-lg overflow-hidden">
-            <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
-                <h3 class="text-lg leading-6 font-medium text-gray-900">
-                    Upload Certificate for Order #{{order.id}}
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                    Host: {{order.host.common_name}}
-                </p>
-            </div>
-            <div class="px-4 py-5 sm:p-6">
-                <form action="/lkui/api/orders/{{order.id}}/certificate" method="POST" enctype="multipart/form-data" class="space-y-6">
-                    <div>
-                        <label for="certificate" class="block text-sm font-medium text-gray-700">
-                            Certificate File
-                        </label>
-                        <div class="mt-1 flex items-center">
-                            <input type="file" name="certificate" id="certificate" accept=".pem,.crt,.cer" class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md">
-                        </div>
-                        <p class="mt-2 text-sm text-gray-500">
-                            Upload the signed certificate in PEM or CRT format
-                        </p>
-                    </div>
-
-                    <div class="flex justify-end">
-                        <a href="/orders" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Cancel
-                        </a>
-                        <button type="submit" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Upload Certificate
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
     </div>
+
+    <script>
+    // Handle file upload
+    document.getElementById('certificate_file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('cert_content').value = e.target.result;
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    document.getElementById('uploadCertForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            cert_content: formData.get('cert_content')
+        };
+        
+        const orderId = formData.get('order_id');
+        
+        fetch(`/lkui/api/orders/${orderId}/certificate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Certificate uploaded successfully!');
+                window.location.href = '/orders/' + orderId;
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    });
+    </script>
 </body>
 </html>

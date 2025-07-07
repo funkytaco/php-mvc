@@ -3,160 +3,249 @@
 <head>
     {{> partials/header}}
     <title>{{appName}} - Order Details</title>
-    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50">
-    <div class="min-h-screen">
-        <!-- Navigation -->
-        <nav class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
-                    <div class="flex">
-                        <div class="flex-shrink-0 flex items-center">
-                            <h1 class="text-xl font-semibold">{{appName}}</h1>
-                        </div>
-                        <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                            <a href="/" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Dashboard
-                            </a>
-                            <a href="/hosts" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Hosts
-                            </a>
-                            <a href="/orders" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Orders
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/orders">Orders</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Order #{{order.id}}</li>
+            </ol>
         </nav>
 
-        <!-- Main Content -->
-        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <!-- Breadcrumb -->
-            <nav class="flex mb-8" aria-label="Breadcrumb">
-                <ol class="flex items-center space-x-4">
-                    <li>
-                        <a href="/orders" class="text-gray-400 hover:text-gray-500">Orders</a>
-                    </li>
-                    <li>
-                        <div class="flex items-center">
-                            <svg class="flex-shrink-0 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                            </svg>
-                            <span class="ml-4 text-sm font-medium text-gray-500">Order #{{order.id}}</span>
-                        </div>
-                    </li>
-                </ol>
-            </nav>
+        <div class="page-header">
+            <h1>Order Details</h1>
+            <p class="lead">Certificate order information and status tracking.</p>
+        </div>
 
-            <!-- Order Details -->
-            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div class="px-4 py-5 sm:px-6">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">Order Information</h3>
-                    <p class="mt-1 max-w-2xl text-sm text-gray-500">Certificate order details and status.</p>
-                </div>
-                <div class="border-t border-gray-200">
-                    <dl>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Order ID</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{order.id}}</dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Host</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <a href="/hosts/{{order.host_id}}" class="text-indigo-600 hover:text-indigo-900">{{order.common_name}}</a>
-                            </dd>
-                        </div>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Status</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <span class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 
-                                    {{#order.is_pending}}bg-yellow-100 text-yellow-800{{/order.is_pending}}
-                                    {{#order.is_completed}}bg-green-100 text-green-800{{/order.is_completed}}
-                                    {{#order.is_failed}}bg-red-100 text-red-800{{/order.is_failed}}">
-                                    {{order.status}}
-                                </span>
-                            </dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Order Type</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{order.order_type}}</dd>
-                        </div>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Created</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{order.created_at}}</dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Updated</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{order.updated_at}}</dd>
-                        </div>
-                        {{#order.license_key}}
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">License Key</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{order.license_key}}</code>
-                            </dd>
-                        </div>
-                        {{/order.license_key}}
-                        {{#order.certificate}}
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Certificate</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <pre class="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{{order.certificate}}</pre>
-                            </dd>
-                        </div>
-                        {{/order.certificate}}
-                        {{#order.error_message}}
-                        <div class="bg-red-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-red-700">Error</dt>
-                            <dd class="mt-1 text-sm text-red-900 sm:mt-0 sm:col-span-2">{{order.error_message}}</dd>
-                        </div>
-                        {{/order.error_message}}
-                    </dl>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="mt-6 flex gap-3">
-                {{#order.can_retry}}
-                <button type="button" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Retry Order
-                </button>
-                {{/order.can_retry}}
-                {{#order.can_download}}
-                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Download Certificate
-                </button>
-                {{/order.can_download}}
-                {{#order.can_cancel}}
-                <button type="button" class="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                    Cancel Order
-                </button>
-                {{/order.can_cancel}}
-            </div>
-
-            <!-- Order Updates -->
-            <h3 class="text-lg font-medium">Order Updates</h3>
-            {{#order.updates}}
-            <div class="mt-8">
-                <div class="mt-4 space-y-4">
-                    {{#.}}
-                    <div class="border-l-4 pl-4 py-2 
-                        {{#status.ORDER_FAILED}}border-red-500 bg-red-50{{/status.ORDER_FAILED}}
-                        {{#status.ORDER_COMPLETED}}border-green-500 bg-green-50{{/status.ORDER_COMPLETED}}
-                        {{^status.ORDER_FAILED}}{{^status.ORDER_COMPLETED}}border-blue-500 bg-blue-50{{/status.ORDER_COMPLETED}}{{/status.ORDER_FAILED}}">
-                        <div class="flex justify-between">
-                            <span class="font-medium">{{status}}</span>
-                            <span class="text-sm text-gray-500">{{created_at}}</span>
-                        </div>
-                        {{#message}}<p class="mt-1 text-sm">{{message}}</p>{{/message}}
+        <!-- Order Information -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Information</h3>
                     </div>
-                    {{/.}}
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-3">Order ID:</dt>
+                            <dd class="col-sm-9">{{order.id}}</dd>
+
+                            <dt class="col-sm-3">Host:</dt>
+                            <dd class="col-sm-9">
+                                <a href="/hosts/{{order.host_id}}">{{order.common_name}}</a>
+                            </dd>
+
+                            <dt class="col-sm-3">Status:</dt>
+                            <dd class="col-sm-9">
+                                {{#order.status}}
+                                    {{#equals order.status "ORDER_PENDING"}}
+                                        <span class="badge bg-warning">{{order.status}}</span>
+                                    {{/equals}}
+                                    {{#equals order.status "ORDER_PROCESSING"}}
+                                        <span class="badge bg-info">{{order.status}}</span>
+                                    {{/equals}}
+                                    {{#equals order.status "ORDER_COMPLETED"}}
+                                        <span class="badge bg-success">{{order.status}}</span>
+                                    {{/equals}}
+                                    {{#equals order.status "ORDER_FAILED"}}
+                                        <span class="badge bg-danger">{{order.status}}</span>
+                                    {{/equals}}
+                                {{/order.status}}
+                            </dd>
+
+                            <dt class="col-sm-3">Order Type:</dt>
+                            <dd class="col-sm-9">{{order.order_type}}</dd>
+
+                            <dt class="col-sm-3">Template:</dt>
+                            <dd class="col-sm-9">{{order.template_name}}</dd>
+
+                            <dt class="col-sm-3">Created:</dt>
+                            <dd class="col-sm-9">{{order.created_at}}</dd>
+
+                            {{#order.issued_at}}
+                            <dt class="col-sm-3">Issued:</dt>
+                            <dd class="col-sm-9">{{order.issued_at}}</dd>
+                            {{/order.issued_at}}
+                        </dl>
+                    </div>
                 </div>
             </div>
-            {{/order.updates}}
-        </main>
+
+            <!-- Actions Card -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            {{#equals order.status "ORDER_PENDING"}}
+                            <button class="btn btn-primary" onclick="processOrder({{order.id}})">
+                                <i class="bi bi-play-circle"></i> Process Order
+                            </button>
+                            {{/equals}}
+                            
+                            {{#equals order.status "ORDER_COMPLETED"}}
+                            <button class="btn btn-success" onclick="downloadCertificate({{order.id}})">
+                                <i class="bi bi-download"></i> Download Certificate
+                            </button>
+                            {{/equals}}
+                            
+                            <a href="/orders" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Orders
+                            </a>
+                            
+                            <button class="btn btn-outline-secondary" onclick="window.location.reload()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CSR Information -->
+        {{#order.csr_content}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Signing Request (CSR)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="csrContent">CSR Content:</label>
+                            <textarea class="form-control" id="csrContent" rows="8" readonly>{{order.csr_content}}</textarea>
+                        </div>
+                        <button class="btn btn-outline-primary" onclick="copyToClipboard('csrContent')">
+                            <i class="bi bi-clipboard"></i> Copy CSR
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.csr_content}}
+
+        <!-- Certificate Information -->
+        {{#order.cert_content}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h3 class="card-title">
+                            <i class="bi bi-shield-check"></i> Certificate
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="certContent">Certificate Content:</label>
+                            <textarea class="form-control" id="certContent" rows="10" readonly>{{order.cert_content}}</textarea>
+                        </div>
+                        <button class="btn btn-outline-success" onclick="copyToClipboard('certContent')">
+                            <i class="bi bi-clipboard"></i> Copy Certificate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.cert_content}}
+
+        <!-- Order Updates -->
+        {{#order.updates}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Updates</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            {{#order.updates}}
+                            <div class="timeline-item mb-3">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <span class="badge bg-primary">{{status}}</span>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        {{#message}}
+                                        <p class="mb-1">{{message}}</p>
+                                        {{/message}}
+                                        <small class="text-muted">{{created_at}}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {{/order.updates}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.updates}}
     </div>
+
+    <script>
+    function processOrder(orderId) {
+        if (confirm('Process this order? This will submit it to the certificate authority.')) {
+            // Implementation depends on your EDA setup
+            fetch(`/eda/api/ssl-order`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    action: 'process'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Order submitted for processing!');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+
+    function downloadCertificate(orderId) {
+        window.location.href = `/lkui/api/orders/${orderId}/certificate/download`;
+    }
+
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        element.select();
+        document.execCommand('copy');
+        
+        // Show feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+    }
+
+    // Helper for Mustache conditionals
+    Handlebars.registerHelper('equals', function(a, b, options) {
+        if (a === b) {
+            return options.fn(this);
+        }
+        return options.inverse(this);
+    });
+    </script>
 </body>
 </html>

@@ -349,8 +349,8 @@ class ApplicationTasks {
 
         mkdir($css_dir, 0755, true);
 
-        copy('vendor/twbs/bootstrap/docs/examples/dashboard/dashboard.css', $css_dir . 'dashboard.css');
-        copy('vendor/twbs/bootstrap/docs/examples/cover/cover.css', $css_dir .'cover.css');
+        copy('vendor/twbs/bootstrap/site/src/assets/examples/dashboard/dashboard.css', $css_dir . 'dashboard.css');
+        copy('vendor/twbs/bootstrap/site/src/assets/examples/cover/cover.css', $css_dir .'cover.css');
 
 
     }

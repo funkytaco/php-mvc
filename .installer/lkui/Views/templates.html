@@ -3,7 +3,6 @@
 <head>
     <title>{{appName}} - Templates Management</title>
     {{> partials/header}}
-    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
 <body role="document">
 <br><br><br>
@@ -21,11 +20,11 @@
 
         <div class="row">
             <div class="col-md-12">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Hosts List</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Hosts List</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
@@ -69,11 +68,11 @@
 
         <div class="row">
             <div class="col-md-8">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Create New Host</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Create New Host</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <form id="createHostForm">
                             <div class="form-group">
                                 <label for="template">Template:</label>
@@ -90,18 +89,18 @@
                                 <small class="form-text text-muted">Enter the domain name for the certificate (e.g., *.example.com, www.example.com)</small>
                             </div>
                             <button type="submit" class="btn btn-success">Generate CSR</button>
-                            <button type="button" class="btn btn-default" onclick="window.location.reload()">Refresh List</button>
+                            <button type="button" class="btn btn-secondary" onclick="window.location.reload()">Refresh List</button>
                         </form>
                     </div>
                 </div>
             </div>
             
             <div class="col-md-4">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Template Information</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Template Information</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <ul class="list-unstyled">
                             <li><strong>RHEL6:</strong> RSA 2048-bit key</li>
                             <li><strong>RHEL7:</strong> RSA 2048-bit key</li>

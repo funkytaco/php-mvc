@@ -3,7 +3,6 @@
 <head>
     <title>{{appName}} - SSL Certificate Expiry</title>
     {{> partials/header}}
-    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
 <body role="document">
 <br><br><br>
@@ -19,11 +18,11 @@
 
         <div class="row">
             <div class="col-md-12">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Certificate Expiry Status</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Expiry Status</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <div class="table-responsive">
                         <table class="table table-striped">
                             <thead>
@@ -65,16 +64,16 @@
 
         <div class="row">
             <div class="col-md-12">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Certificate Operations</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Operations</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <button class="btn btn-primary" onclick="refreshExpiries()">
-                            <span class="glyphicon glyphicon-refresh"></span> Refresh Status
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Status
                         </button>
                         <button class="btn btn-success" onclick="checkAllCertificates()">
-                            <span class="glyphicon glyphicon-search"></span> Check All Certificates
+                            <i class="bi bi-search"></i> Check All Certificates
                         </button>
                     </div>
                 </div>
@@ -91,21 +90,21 @@
             expiry_date: '2025-12-31',
             days_remaining: 178,
             status: 'Valid',
-            labelClass: 'label-success'
+            labelClass: 'bg-success'
         },
         {
             domain: 'expiring.test.serveapps.com',
             expiry_date: '2025-07-15',
             days_remaining: 9,
             status: 'Expiring Soon',
-            labelClass: 'label-warning'
+            labelClass: 'bg-warning'
         },
         {
             domain: 'expired.test.serveapps.com',
             expiry_date: '2025-06-01',
             days_remaining: -25,
             status: 'Expired',
-            labelClass: 'label-danger'
+            labelClass: 'bg-danger'
         }
     ];
 

@@ -3,7 +3,6 @@
 <head>
     <title>{{appName}}</title>
     {{> partials/header}}
-    <link href="/assets/bootstrap/dist/css/bootstrap.css" rel="stylesheet">
 </head>
 <body role="document">
 <br><br><br>
@@ -13,7 +12,7 @@
 
     <div class="container theme-showcase" role="main">
         <!-- Main jumbotron for a primary marketing message or call to action -->
-        <div class="jumbotron">
+        <div class="p-5 mb-4 bg-body-tertiary rounded-3">
             <h1>{{title}}</h1>
             <p>Welcome to the License Key UI - your SSL certificate management system.</p>
             <p>This system helps you generate CSRs, manage certificate orders, and track SSL certificates for your infrastructure.</p>
@@ -43,11 +42,11 @@
         
         <div class="row">
             <div class="col-md-6">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">Create New Host</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Create New Host</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <form id="createHostForm">
                             <div class="form-group">
                                 <label for="template">Template:</label>
@@ -69,11 +68,11 @@
             </div>
             
             <div class="col-md-6">
-                <div class="panel panel-default">
-                    <div class="panel-heading">
-                        <h3 class="panel-title">API Endpoints</h3>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">API Endpoints</h3>
                     </div>
-                    <div class="panel-body">
+                    <div class="card-body">
                         <ul class="list-unstyled">
                             <li><strong>GET</strong> /lkui/api/templates - List templates</li>
                             <li><strong>POST</strong> /lkui/api/hosts - Create host</li>

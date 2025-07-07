@@ -1,7 +1,5 @@
 # Ignore docs files
-_gh_pages
-_site
-.ruby-version
+/_site/
 
 # Numerous always-ignore extensions
 *.diff
@@ -28,15 +26,20 @@ _site
 *.sublime-workspace
 nbproject
 Thumbs.db
+# Local Netlify folder
+.netlify
 
 # Komodo
 .komodotools
 *.komodoproject
 
-# grunt-html-validation
-validation-report.json
-validation-status.json
-
 # Folders to ignore
-bower_components
-node_modules
+/dist-sass/
+/js/coverage/
+/node_modules/
+
+# Site
+/site/dist
+/site/node_modules
+/site/.astro
+/site/public

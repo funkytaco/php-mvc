@@ -3,167 +3,182 @@
 <head>
     {{> partials/header}}
     <title>{{appName}} - Host Details</title>
-    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50">
-    <div class="min-h-screen">
-        <!-- Navigation -->
-        <nav class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
-                    <div class="flex">
-                        <div class="flex-shrink-0 flex items-center">
-                            <h1 class="text-xl font-semibold">{{appName}} - Host Details</h1>
-                        </div>
-                        <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                            <a href="/" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Dashboard
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-hosts}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/hosts">Hosts</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{host.common_name}}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header">
+            <h1>Host Details</h1>
+            <p class="lead">Certificate information and actions for {{host.common_name}}.</p>
+        </div>
+
+        <!-- Host Information Card -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Host Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-3">Host ID:</dt>
+                            <dd class="col-sm-9">{{host.id}}</dd>
+
+                            <dt class="col-sm-3">Common Name:</dt>
+                            <dd class="col-sm-9">{{host.common_name}}</dd>
+
+                            <dt class="col-sm-3">Status:</dt>
+                            <dd class="col-sm-9">
+                                {{#host.is_active}}
+                                    <span class="badge bg-success">{{host.status}}</span>
+                                {{/host.is_active}}
+                                {{^host.is_active}}
+                                    <span class="badge bg-secondary">{{host.status}}</span>
+                                {{/host.is_active}}
+                            </dd>
+
+                            <dt class="col-sm-3">Template:</dt>
+                            <dd class="col-sm-9">{{host.template_name}}</dd>
+
+                            <dt class="col-sm-3">Created:</dt>
+                            <dd class="col-sm-9">{{host.created_at}}</dd>
+
+                            {{#host.updated_at}}
+                            <dt class="col-sm-3">Updated:</dt>
+                            <dd class="col-sm-9">{{host.updated_at}}</dd>
+                            {{/host.updated_at}}
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-success" onclick="createOrder({{host.id}})">
+                                <i class="bi bi-plus-circle"></i> Create Order
+                            </button>
+                            <a href="/orders" class="btn btn-primary">
+                                <i class="bi bi-list-ul"></i> View Orders
                             </a>
-                            <a href="/hosts" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Hosts
-                            </a>
-                            <a href="/orders" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                Orders
-                            </a>
+                            <button class="btn btn-secondary" onclick="window.location.reload()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </nav>
+        </div>
 
-        <!-- Main Content -->
-        <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <!-- Breadcrumb -->
-            <nav class="flex mb-8" aria-label="Breadcrumb">
-                <ol class="flex items-center space-x-4">
-                    <li>
-                        <a href="/hosts" class="text-gray-400 hover:text-gray-500">Hosts</a>
-                    </li>
-                    <li>
-                        <div class="flex items-center">
-                            <svg class="flex-shrink-0 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                            </svg>
-                            <span class="ml-4 text-sm font-medium text-gray-500">{{host.common_name}}</span>
+        <!-- CSR Information -->
+        {{#host.csr_content}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Signing Request (CSR)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="csrContent">CSR Content:</label>
+                            <textarea class="form-control" id="csrContent" rows="10" readonly>{{host.csr_content}}</textarea>
                         </div>
-                    </li>
-                </ol>
-            </nav>
-
-            <!-- Host Details -->
-            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div class="px-4 py-5 sm:px-6">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">Host Information</h3>
-                    <p class="mt-1 max-w-2xl text-sm text-gray-500">Details and certificate information for this host.</p>
-                </div>
-                <div class="border-t border-gray-200">
-                    <dl>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Host ID</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{host.id}}</dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Common Name</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{host.common_name}}</dd>
-                        </div>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Status</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                <span class="inline-flex rounded-full px-2 text-xs font-semibold leading-5 {{#host.is_active}}bg-green-100 text-green-800{{/host.is_active}}{{^host.is_active}}bg-gray-100 text-gray-800{{/host.is_active}}">
-                                    {{host.status}}
-                                </span>
-                            </dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Created</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{host.created_at}}</dd>
-                        </div>
-                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">CSR</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                {{#host.csr}}
-                                <pre class="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{{host.csr}}</pre>
-                                {{/host.csr}}
-                                {{^host.csr}}
-                                <span class="text-gray-500">Not generated yet</span>
-                                {{/host.csr}}
-                            </dd>
-                        </div>
-                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                            <dt class="text-sm font-medium text-gray-500">Certificate</dt>
-                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                                {{#host.certificate}}
-                                <pre class="bg-gray-100 p-2 rounded text-xs overflow-x-auto">{{host.certificate}}</pre>
-                                {{/host.certificate}}
-                                {{^host.certificate}}
-                                <span class="text-gray-500">Not issued yet</span>
-                                {{/host.certificate}}
-                            </dd>
-                        </div>
-                    </dl>
+                        <button class="btn btn-outline-primary" onclick="copyToClipboard('csrContent')">
+                            <i class="bi bi-clipboard"></i> Copy CSR
+                        </button>
+                    </div>
                 </div>
             </div>
+        </div>
+        {{/host.csr_content}}
 
-            <!-- Actions -->
-            <div class="mt-6 flex gap-3">
-                {{#host.can_generate_csr}}
-                <button type="button" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Generate CSR
-                </button>
-                {{/host.can_generate_csr}}
-                
-                <!-- SSL Order Form -->
-                <form id="createOrderForm" class="flex items-center gap-3">
-                    <input type="hidden" name="host_id" value="{{host.id}}">
-                    <select name="certificate_authority" required class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        {{#certificate_authorities}}
-                        <option value="{{key}}">{{value}}</option>
-                        {{/certificate_authorities}}
-                    </select>
-                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Create SSL Order
-                    </button>
-                </form>
-
-                {{#host.can_download_cert}}
-                <button type="button" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Download Certificate
-                </button>
-                {{/host.can_download_cert}}
+        <!-- Private Key Information -->
+        {{#host.private_key}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h3 class="card-title">
+                            <i class="bi bi-shield-exclamation"></i> Private Key
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <strong>Security Warning:</strong> Keep this private key secure and never share it.
+                        </div>
+                        <div class="form-group">
+                            <label for="privateKey">Private Key:</label>
+                            <textarea class="form-control" id="privateKey" rows="10" readonly>{{host.private_key}}</textarea>
+                        </div>
+                        <button class="btn btn-outline-warning" onclick="copyToClipboard('privateKey')">
+                            <i class="bi bi-clipboard"></i> Copy Private Key
+                        </button>
+                    </div>
+                </div>
             </div>
-
-            <script>
-            document.getElementById('createOrderForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const formData = new FormData(this);
-                const data = {
-                    host_id: parseInt(formData.get('host_id')),
-                    certificate_authority: formData.get('certificate_authority')
-                };
-                
-                fetch('/lkui/api/orders', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        alert('Order created successfully! ID: ' + data.data.id);
-                        window.location.href = '/orders';
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error.message);
-                });
-            });
-            </script>
-        </main>
+        </div>
+        {{/host.private_key}}
     </div>
+
+    <script>
+    function createOrder(host_id) {
+        if (confirm('Create an order for this host?')) {
+            fetch('/lkui/api/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({host_id: host_id})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Order created successfully! ID: ' + data.data.id);
+                    window.location.href = '/orders/' + data.data.id;
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        element.select();
+        document.execCommand('copy');
+        
+        // Show feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+    }
+    </script>
 </body>
 </html>
