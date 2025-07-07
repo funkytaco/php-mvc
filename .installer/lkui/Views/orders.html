@@ -47,7 +47,6 @@
                                 <td>{{created_at}}</td>
                                 <td>
                                 <a href="/orders/{{id}}" class="btn btn-sm btn-primary">View</a>
-                                <button class="btn btn-sm btn-success" onclick="submitOrder({{id}})">Submit Order</button>
                                 </td>
                             </tr>
                             {{/orders}}
@@ -68,6 +67,7 @@
     <script>
     function submitOrder(orderId) {
         if (confirm('Submit an order for this host?')) {
+            alert('demo payload fixme');
             const payload = {
                 action: "order_ssl_certbot",
                 csr: "-----BEGIN CERTIFICATE REQUEST-----\nMIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==\n-----END CERTIFICATE REQUEST-----",

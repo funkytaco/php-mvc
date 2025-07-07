@@ -48,7 +48,7 @@
         msg: |
           Certificate issued for {{ domain }} with order ID {{ order_id }}
           Certbot output: {{ certbot_result.stdout | default('Certificate issued') }}
-      when: (certbot_result | default({})).get('rc', 1) == 0
+      when: certbot_result is succeeded
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
@@ -60,7 +60,7 @@
         body:
           status: "ORDER_FAILED"
           error_message: "{{ certbot_result.stderr | default('Unknown certbot error. See /var/log/letsencrypt/letsencrypt.log') }}"
-      when: (certbot_result | default({})).get('rc', 1) != 0
+      when: certbot_result is failed
 
     - name: Post success to order endpoint
       ansible.builtin.uri:
@@ -72,4 +72,4 @@
         body:
           status: "ORDER_SUCCESS"
           message: "Certificate issued successfully"
-      when: (certbot_result | default({})).get('rc', 1) == 0
+      when: certbot_result is succeeded

@@ -31,10 +31,26 @@
         remaining_days: 30
         acme_version: "{{acme_version | int }}"
       register: cert_result
+      ignore_errors: yes
 
-    - name: Debug output for tracking
+    - name: Debug output on success
       debug:
-        msg: "Certificate issued for {{ domain }} with order ID {{ order_id }}. Cert path: {{ cert_fullchain }}"
+        msg: |
+          Certificate issued for {{ domain }} with order ID {{ order_id }}
+          Cert path: {{ cert_fullchain }}
+      when: cert_result is succeeded
+
+    - name: Post failure to order endpoint
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_FAILED"
+          error_message: "{{ cert_result.msg | default('Unknown Lets Encrypt error during certificate issuance') }}"
+      when: cert_result is failed
 
     - name: Post success to order endpoint
       ansible.builtin.uri:
@@ -46,3 +62,4 @@
         body:
           status: "ORDER_SUCCESS"
           message: "Certificate issued successfully"
+      when: cert_result is succeeded
