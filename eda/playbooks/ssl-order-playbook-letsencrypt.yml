@@ -6,7 +6,7 @@
     acme_account_key: "/etc/letsencrypt/account.key"
     cert_key: "/etc/letsencrypt/{{ domain }}.key"
     cert_fullchain: "/etc/letsencrypt/{{ domain }}.crt"
-    acme_version: 1
+    acme_version: 2
   tasks:
     - name: Ensure account key exists
       community.crypto.openssl_privatekey:

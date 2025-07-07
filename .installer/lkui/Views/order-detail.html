@@ -43,20 +43,18 @@
 
                             <dt class="col-sm-3">Status:</dt>
                             <dd class="col-sm-9">
-                                {{#order.status}}
-                                    {{#equals order.status "ORDER_PENDING"}}
-                                        <span class="badge bg-warning">{{order.status}}</span>
-                                    {{/equals}}
-                                    {{#equals order.status "ORDER_PROCESSING"}}
-                                        <span class="badge bg-info">{{order.status}}</span>
-                                    {{/equals}}
-                                    {{#equals order.status "ORDER_COMPLETED"}}
-                                        <span class="badge bg-success">{{order.status}}</span>
-                                    {{/equals}}
-                                    {{#equals order.status "ORDER_FAILED"}}
-                                        <span class="badge bg-danger">{{order.status}}</span>
-                                    {{/equals}}
-                                {{/order.status}}
+                                {{#order.is_pending}}
+                                    <span class="badge bg-warning">{{order.status}}</span>
+                                {{/order.is_pending}}
+                                {{#order.is_processing}}
+                                    <span class="badge bg-info">{{order.status}}</span>
+                                {{/order.is_processing}}
+                                {{#order.is_completed}}
+                                    <span class="badge bg-success">{{order.status}}</span>
+                                {{/order.is_completed}}
+                                {{#order.is_failed}}
+                                    <span class="badge bg-danger">{{order.status}}</span>
+                                {{/order.is_failed}}
                             </dd>
 
                             <dt class="col-sm-3">Order Type:</dt>
@@ -85,17 +83,17 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            {{#equals order.status "ORDER_PENDING"}}
+                            {{#order.is_pending}}
                             <button class="btn btn-primary" onclick="processOrder({{order.id}})">
                                 <i class="bi bi-play-circle"></i> Process Order
                             </button>
-                            {{/equals}}
+                            {{/order.is_pending}}
                             
-                            {{#equals order.status "ORDER_COMPLETED"}}
+                            {{#order.is_completed}}
                             <button class="btn btn-success" onclick="downloadCertificate({{order.id}})">
                                 <i class="bi bi-download"></i> Download Certificate
                             </button>
-                            {{/equals}}
+                            {{/order.is_completed}}
                             
                             <a href="/orders" class="btn btn-secondary">
                                 <i class="bi bi-arrow-left"></i> Back to Orders
@@ -193,15 +191,11 @@
     function processOrder(orderId) {
         if (confirm('Process this order? This will submit it to the certificate authority.')) {
             // Implementation depends on your EDA setup
-            fetch(`/eda/api/ssl-order`, {
+            fetch(`/eda/api/ssl-order/${orderId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    order_id: orderId,
-                    action: 'process'
-                })
+                }
             })
             .then(response => response.json())
             .then(data => {
@@ -239,13 +233,6 @@
         }, 2000);
     }
 
-    // Helper for Mustache conditionals
-    Handlebars.registerHelper('equals', function(a, b, options) {
-        if (a === b) {
-            return options.fn(this);
-        }
-        return options.inverse(this);
-    });
     </script>
 </body>
 </html>

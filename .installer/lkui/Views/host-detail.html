@@ -72,7 +72,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <button class="btn btn-success" onclick="createOrder({{host.id}})">
+                            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createOrderModal">
                                 <i class="bi bi-plus-circle"></i> Create Order
                             </button>
                             <a href="/orders" class="btn btn-primary">
@@ -138,29 +138,93 @@
         {{/host.private_key}}
     </div>
 
+    <!-- Create Order Modal -->
+    <div class="modal fade" id="createOrderModal" tabindex="-1" aria-labelledby="createOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createOrderModalLabel">Create SSL Certificate Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createOrderForm">
+                        <div class="mb-3">
+                            <label for="certificateAuthority" class="form-label">Certificate Authority:</label>
+                            <select class="form-select" id="certificateAuthority" name="certificate_authority" required>
+                                <option value="">Select certificate authority...</option>
+                                {{#certificate_authorities}}
+                                <option value="{{key}}">{{value}}</option>
+                                {{/certificate_authorities}}
+                            </select>
+                            <div class="form-text">Choose the certificate authority to process this order.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Host Details:</label>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <p class="mb-1"><strong>Common Name:</strong> {{host.common_name}}</p>
+                                    <p class="mb-1"><strong>Template:</strong> {{host.template_name}}</p>
+                                    <p class="mb-0"><strong>Status:</strong> 
+                                        {{#host.is_active}}
+                                            <span class="badge bg-success">{{host.status}}</span>
+                                        {{/host.is_active}}
+                                        {{^host.is_active}}
+                                            <span class="badge bg-secondary">{{host.status}}</span>
+                                        {{/host.is_active}}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="submitCreateOrder()">
+                        <i class="bi bi-plus-circle"></i> Create Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-    function createOrder(host_id) {
-        if (confirm('Create an order for this host?')) {
-            fetch('/lkui/api/orders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({host_id: host_id})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert('Order created successfully! ID: ' + data.data.id);
-                    window.location.href = '/orders/' + data.data.id;
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Error: ' + error.message);
-            });
+    function submitCreateOrder() {
+        const certificateAuthority = document.getElementById('certificateAuthority').value;
+        
+        if (!certificateAuthority) {
+            alert('Please select a certificate authority');
+            return;
         }
+        
+        const host_id = {{host.id}};
+        
+        fetch('/lkui/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                host_id: host_id,
+                certificate_authority: certificateAuthority
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createOrderModal'));
+                modal.hide();
+                
+                alert('Order created successfully! ID: ' + data.data.id);
+                window.location.href = '/orders/' + data.data.id;
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
     }
 
     function copyToClipboard(elementId) {

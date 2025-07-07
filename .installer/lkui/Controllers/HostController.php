@@ -79,8 +79,19 @@ class HostController implements ControllerInterface {
             return $host;
         }, $hostsRaw);
 
+        // Add certificate authority options for order creation
+        $authorities = [
+            'certbot' => 'Certbot',
+            'letsencrypt' => 'Let\'s Encrypt',
+            'self-signed' => 'Self-Signed'
+        ];
+        $certificate_authorities = array_map(function($key, $value) {
+            return ['key' => $key, 'value' => $value];
+        }, array_keys($authorities), $authorities);
+
         $data = [
-            'hosts' => $hosts
+            'hosts' => $hosts,
+            'certificate_authorities' => $certificate_authorities
         ];
         
         echo $this->renderer->render('hosts.html', $data);

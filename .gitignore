@@ -10,3 +10,5 @@ app/
 .kilocode/
 data/
 html/
+eda/letsencrypt
+eda/certbot

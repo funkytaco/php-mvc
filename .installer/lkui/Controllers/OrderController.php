@@ -70,6 +70,12 @@ class OrderController implements ControllerInterface {
             return;
         }
         
+        // Add status-specific flags for template conditionals
+        $order['is_pending'] = ($order['status'] === 'ORDER_PENDING');
+        $order['is_processing'] = ($order['status'] === 'ORDER_PROCESSING');
+        $order['is_completed'] = ($order['status'] === 'ORDER_COMPLETED');
+        $order['is_failed'] = ($order['status'] === 'ORDER_FAILED');
+        
         $data = [
             'appName' => 'LKUI - License Key UI',
             'title' => 'Order Details',
@@ -462,10 +468,31 @@ class OrderController implements ControllerInterface {
 
 
     //EDA API methods
-    public function submitSslOrder($action, $csr, $domain, $email, $order_id, $timestamp, $certificate_authority, $validation_method) {
+    public function submitSslOrder($order_id) {
+        // Get order details from database
+        $order = $this->getOrderData($order_id);
+        if (!$order) {
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ]);
+            return;
+        }
+        
+        // Extract order details
+        $action = "order_ssl_" . $order['order_type'];
+        $csr = $order['csr_content'];
+        $domain = $order['common_name'];
+        $email = 'admin@example.com'; // Default email
+        $timestamp = date('c');
+        $certificate_authority = $order['order_type'] ?? 'certbot';
+        $validation_method = 'dns'; // Default validation method
+        
         // Build payload
         $payload = json_encode([
-            "action" => "order_ssl_" . $certificate_authority,
+            "action" => $action,
             "csr" => $csr,
             "domain" => $domain,
             "email" => $email,
