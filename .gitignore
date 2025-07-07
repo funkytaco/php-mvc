@@ -12,3 +12,5 @@ data/
 html/
 eda/letsencrypt
 eda/certbot
+.installer/lkui/certbot/logs/
+.installer/lkui/letsencrypt/logs/
