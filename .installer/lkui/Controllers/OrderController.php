@@ -59,10 +59,10 @@ class OrderController implements ControllerInterface {
     /**
      * Show individual order detail page
      */
-    public function showOrderDetail($orderId) {
+    public function showOrderDetail($order_id) {
 
 
-        $order = $this->getOrderData($orderId);
+        $order = $this->getOrderData($order_id);
         
         if (!$order) {
             $data = ['error' => 'Order not found'];
@@ -158,14 +158,14 @@ class OrderController implements ControllerInterface {
         // Create order
         $order_type = $certificate_authority;
         if (!isset($order_type)) { $order_type = 'certbot'; }
-        $orderId = $this->saveOrder($host_id, $order_type);
+        $order_id = $this->saveOrder($host_id, $order_type);
         
         http_response_code(200);
         header('Content-Type: application/json');
             echo json_encode([
             'status' => 'success',
             'data' => [
-                'id' => $orderId,
+                'id' => $order_id,
                 'host_id' => $host_id,
                 'status' => 'ORDER_PENDING',
                 'created_at' => date('Y-m-d H:i:s')
@@ -179,16 +179,15 @@ class OrderController implements ControllerInterface {
     /**
      * API: Get specific order
      */
-    public function getOrder($id) {
-        $orderId = $id;
-        $order = $this->getOrderData($orderId);
+    public function getOrder($order_id) {
+        $order = $this->getOrderData($order_id);
         
         if (!$order) {
             http_response_code(404);
             header('Content-Type: application/json');
             echo json_encode([
                 'status' => 'error',
-                'message' => 'Order ID '. $orderId .' not found'
+                'message' => 'Order ID '. $order_id .' not found'
             ]);
             return;
         } else {
@@ -204,49 +203,25 @@ class OrderController implements ControllerInterface {
     }
 
     /**
-     * API: Update order with certificate
+     * API: Update order
      */
-    public function updateOrder(int $orderId, string $status, string $error_message = null) {
+    public function updateOrder(int $order_id, string $status, string $error_message = null) {
         $body = file_get_contents('php://input');
         $data = json_decode($body, true);
 
         header('Content-Type: application/json');
 
-        // Validate required fields based on status
+        // Handle status updates (certificate content is handled separately via updateOrderCertificate)
         if ($status === 'ORDER_COMPLETED') {
-            // For successful orders, cert_content is required
-            if (!isset($data['cert_content'])) {
-                http_response_code(400);
-                echo json_encode([
-                    'status' => 'error',
-                    'error' => 'validation_error',
-                    'message' => 'cert_content is required for completed orders'
-                ]);
-                return;
-            }
-
-            $certContent = $data['cert_content'];
-
-            // Validate certificate
-            if (!$this->validateCertificate($certContent)) {
-                http_response_code(400);
-                echo json_encode([
-                    'status' => 'error',
-                    'error' => 'validation_error', 
-                    'message' => 'Invalid certificate format'
-                ]);
-                return;
-            }
-
-            // Update order with certificate
-            $success = $this->updateOrderCertificate($orderId, $certContent);
+            // Update order status to completed
+            $success = $this->updateOrderStatus($order_id, $status);
 
             if (!$success) {
                 http_response_code(500);
                 echo json_encode([
                     'status' => 'error',
                     'error' => 'database_error',
-                    'message' => 'Failed to update order certificate'
+                    'message' => 'Failed to update order status'
                 ]);
                 return;
             }
@@ -255,7 +230,7 @@ class OrderController implements ControllerInterface {
             echo json_encode([
                 'status' => 'success',
                 'data' => [
-                    'order_id' => $orderId,
+                    'order_id' => $order_id,
                     'status' => $status
                 ]
             ]);
@@ -265,7 +240,7 @@ class OrderController implements ControllerInterface {
             $errorMessage = $error_message ?? $data['error_message'] ?? 'Unknown error';
             
             // Update order status to failed
-            $success = $this->updateOrderStatus($orderId, $status, $errorMessage);
+            $success = $this->updateOrderStatus($order_id, $status, $errorMessage);
 
             if (!$success) {
                 http_response_code(500);
@@ -281,14 +256,14 @@ class OrderController implements ControllerInterface {
             echo json_encode([
                 'status' => 'success',
                 'data' => [
-                    'order_id' => $orderId,
+                    'order_id' => $order_id,
                     'status' => $status
                 ]
             ]);
 
         } else {
             // Handle other status updates
-            $success = $this->updateOrderStatus($orderId, $status);
+            $success = $this->updateOrderStatus($order_id, $status);
 
             if (!$success) {
                 http_response_code(500);
@@ -304,14 +279,14 @@ class OrderController implements ControllerInterface {
             echo json_encode([
                 'status' => 'success',
                 'data' => [
-                    'order_id' => $orderId,
+                    'order_id' => $order_id,
                     'status' => $status
                 ]
             ]);
         }
     }
 
-    private function addOrderUpdate(int $orderId, string $status, string $message = null): bool
+    private function addOrderUpdate(int $order_id, string $status, string $message = null): bool
     {
         try {
             $stmt = $this->conn->prepare("
@@ -319,7 +294,7 @@ class OrderController implements ControllerInterface {
                 VALUES (:order_id, :status, :message)
             ");
             return $stmt->execute([
-                ':order_id' => $orderId,
+                ':order_id' => $order_id,
                 ':status' => $status,
                 ':message' => $message
             ]);
@@ -329,7 +304,7 @@ class OrderController implements ControllerInterface {
         }
     }
 
-    private function updateOrderStatus(int $orderId, string $status, string $errorMessage = null): bool
+    private function updateOrderStatus(int $order_id, string $status, string $errorMessage = null): bool
     {
         try {
             // Update order status
@@ -340,12 +315,12 @@ class OrderController implements ControllerInterface {
             ");
             $success = $stmt->execute([
                 ':status' => $status,
-                ':order_id' => $orderId
+                ':order_id' => $order_id
             ]);
             
             // Log update
             if ($success && $errorMessage) {
-                $this->addOrderUpdate($orderId, $status, $errorMessage);
+                $this->addOrderUpdate($order_id, $status, $errorMessage);
             }
             
             return $success;
@@ -378,7 +353,7 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Get single order data
      */
-    private function getOrderData($orderId)
+    private function getOrderData($order_id)
     {
         try {
             $stmt = $this->conn->prepare("
@@ -389,7 +364,7 @@ class OrderController implements ControllerInterface {
                 LEFT JOIN templates t ON h.template_id = t.id 
                 WHERE o.id = ?
             ");
-            $stmt->execute([$orderId]);
+            $stmt->execute([$order_id]);
             $order = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($order && isset($order['updates'])) {
                 $order['updates'] = json_decode($order['updates'], true);
@@ -434,36 +409,284 @@ class OrderController implements ControllerInterface {
     /**
      * Private helper: Update order with certificate
      */
-    private function updateOrderCertificate($orderId, $certContent) {
+    public function updateOrderCertificate($order_id, $cert_content) {
+        // print_r($cert_content);exit;
+        // $body = file_get_contents('php://input');
+        // $data = json_decode($body, true);
+
+        header('Content-Type: application/json');
+
+        // Extract cert_content from POST body
+        // $cert_content = $data['cert_content'] ?? null;
+
+        if (!$cert_content) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'cert_content is required in request body'
+            ]);
+            return;
+        }
+
+        // Validate certificate
+        if (!$this->validateCertificate($cert_content)) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'error' => 'validation_error', 
+                'message' => 'Invalid certificate format'
+            ]);
+            return;
+        }
+
         try {
             $stmt = $this->conn->prepare("
                 UPDATE orders 
-                SET cert_content = ?, status = 'ORDER_COMPLETED', issued_at = NOW() 
+                SET cert_content = ?, issued_at = NOW() 
                 WHERE id = ?
             ");
-            return $stmt->execute([$certContent, $orderId]);
+            $success = $stmt->execute([$cert_content, $order_id]);
+
+            if (!$success) {
+                http_response_code(500);
+                echo json_encode([
+                    'status' => 'error',
+                    'error' => 'database_error',
+                    'message' => 'Failed to update order certificate'
+                ]);
+                return;
+            }
+
+            http_response_code(200);
+            echo json_encode([
+                'status' => 'success',
+                'data' => [
+                    'order_id' => $order_id,
+                    'message' => 'Certificate updated successfully'
+                ]
+            ]);
+
         } catch (Exception $e) {
-            return false;
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'error' => 'database_error',
+                'message' => 'Failed to update certificate: ' . $e->getMessage()
+            ]);
         }
+    }
+
+    /**
+     * API: Download certificate for an order
+     */
+    public function downloadCertificate($order_id) {
+        $order = $this->getOrderData($order_id);
+        
+        if (!$order) {
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Order not found'
+            ]);
+            return;
+        }
+
+        if (!$order['cert_content']) {
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Certificate not available for this order'
+            ]);
+            return;
+        }
+
+        if ($order['status'] !== 'ORDER_COMPLETED') {
+            http_response_code(400);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Order is not completed'
+            ]);
+            return;
+        }
+
+        // Set headers for file download
+        $filename = $order['common_name'] . '_certificate.crt';
+        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename); // Sanitize filename
+        
+        header('Content-Type: application/x-pem-file');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($order['cert_content']));
+        header('Cache-Control: no-cache, must-revalidate');
+        
+        echo $order['cert_content'];
     }
 
     /**
      * Private helper: Validate certificate format
      */
-    private function validateCertificate($certContent)
+    private function validateCertificate($cert_content)
     {
         // Basic validation - check if it looks like a PEM certificate
-        if (strpos($certContent, '-----BEGIN CERTIFICATE-----') === false) {
+        if (strpos($cert_content, '-----BEGIN CERTIFICATE-----') === false) {
             return false;
         }
         
-        if (strpos($certContent, '-----END CERTIFICATE-----') === false) {
+        if (strpos($cert_content, '-----END CERTIFICATE-----') === false) {
             return false;
         }
         
         // Try to parse the certificate
-        $cert = openssl_x509_parse($certContent);
+        $cert = openssl_x509_parse($cert_content);
         return $cert !== false;
+    }
+
+    /**
+     * API: Decode CSR content
+     */
+    public function decodeCSR($csr_content) {
+        header('Content-Type: application/json');
+        
+        // Validate input
+        if (!isset($csr_content) || empty($csr_content)) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'CSR content is required'
+            ]);
+            return;
+        }
+        
+        $csrContent = $csr_content;
+        
+        // Convert literal \n to actual newlines
+        $csrContent = str_replace('\\n', "\n", $csrContent);
+        
+        // Sanitize CSR content - ensure it's a valid PEM format
+        $csrContent = trim($csrContent);
+        
+        // Validate PEM format
+        if (!preg_match('/^-----BEGIN CERTIFICATE REQUEST-----[\s\S]*-----END CERTIFICATE REQUEST-----$/', $csrContent)) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Invalid CSR format. Must be PEM encoded.'
+            ]);
+            return;
+        }
+        
+        // Additional safety check - limit CSR size
+        if (strlen($csrContent) > 10000) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'CSR content too large'
+            ]);
+            return;
+        }
+        
+        // Decode CSR using OpenSSL
+        $csrInfo = $this->parseCSRContent($csrContent);
+        
+        if ($csrInfo === false) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Failed to parse CSR. Invalid or corrupted CSR data.'
+            ]);
+            return;
+        }
+        
+        http_response_code(200);
+        echo json_encode([
+            'status' => 'success',
+            'data' => $csrInfo
+        ]);
+    }
+
+    /**
+     * Private helper: Parse CSR content using OpenSSL
+     */
+    private function parseCSRContent($csrContent) {
+        try {
+            // Parse CSR using OpenSSL
+            $csrData = openssl_csr_get_subject($csrContent);
+            $csrDetails = openssl_csr_get_public_key($csrContent);
+            
+            if ($csrData === false) {
+                return false;
+            }
+            
+            $result = [];
+            
+            // Extract subject information
+            if (isset($csrData['CN'])) {
+                $result['commonName'] = $csrData['CN'];
+            }
+            if (isset($csrData['O'])) {
+                $result['organization'] = $csrData['O'];
+            }
+            if (isset($csrData['OU'])) {
+                $result['organizationalUnit'] = $csrData['OU'];
+            }
+            if (isset($csrData['C'])) {
+                $result['country'] = $csrData['C'];
+            }
+            if (isset($csrData['ST'])) {
+                $result['state'] = $csrData['ST'];
+            }
+            if (isset($csrData['L'])) {
+                $result['locality'] = $csrData['L'];
+            }
+            if (isset($csrData['emailAddress'])) {
+                $result['email'] = $csrData['emailAddress'];
+            }
+            
+            // Build subject string
+            $subjectParts = [];
+            foreach ($csrData as $key => $value) {
+                $subjectParts[] = "$key=$value";
+            }
+            $result['subject'] = implode(', ', $subjectParts);
+            
+            // Extract key information
+            if ($csrDetails !== false) {
+                $keyDetails = openssl_pkey_get_details($csrDetails);
+                if ($keyDetails !== false) {
+                    $result['keySize'] = $keyDetails['bits'] ?? 'Unknown';
+                    $result['keyType'] = $keyDetails['type'] ?? 'Unknown';
+                    
+                    // Convert key type number to string
+                    switch ($result['keyType']) {
+                        case OPENSSL_KEYTYPE_RSA:
+                            $result['algorithm'] = 'RSA';
+                            break;
+                        case OPENSSL_KEYTYPE_DSA:
+                            $result['algorithm'] = 'DSA';
+                            break;
+                        case OPENSSL_KEYTYPE_DH:
+                            $result['algorithm'] = 'DH';
+                            break;
+                        case OPENSSL_KEYTYPE_EC:
+                            $result['algorithm'] = 'EC';
+                            break;
+                        default:
+                            $result['algorithm'] = 'Unknown';
+                    }
+                }
+                
+                // Clean up resource
+                openssl_pkey_free($csrDetails);
+            }
+            
+            return $result;
+            
+        } catch (Exception $e) {
+            error_log("CSR parsing error: " . $e->getMessage());
+            return false;
+        }
     }
 
 

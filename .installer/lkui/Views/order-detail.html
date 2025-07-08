@@ -121,9 +121,30 @@
                             <label for="csrContent">CSR Content:</label>
                             <textarea class="form-control" id="csrContent" rows="8" readonly>{{order.csr_content}}</textarea>
                         </div>
-                        <button class="btn btn-outline-primary" onclick="copyToClipboard('csrContent')">
-                            <i class="bi bi-clipboard"></i> Copy CSR
-                        </button>
+                        <div class="btn-group mb-3" role="group">
+                            <button class="btn btn-outline-primary" onclick="copyToClipboard('csrContent')">
+                                <i class="bi bi-clipboard"></i> Copy CSR
+                            </button>
+                            <button class="btn btn-outline-info" onclick="decodeCSR()">
+                                <i class="bi bi-search"></i> Decode CSR
+                            </button>
+                        </div>
+                        
+                        <!-- CSR Decoded Information -->
+                        <div id="csrDecoded" class="mt-3" style="display: none;">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-info-circle"></i> Decoded CSR Information
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row" id="csrDecodedContent">
+                                        <!-- Decoded content will be inserted here -->
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -231,6 +252,149 @@
             button.innerHTML = originalText;
             button.disabled = false;
         }, 2000);
+    }
+
+    function decodeCSR() {
+        const csrContent = document.getElementById('csrContent').value;
+        const decodedDiv = document.getElementById('csrDecoded');
+        const contentDiv = document.getElementById('csrDecodedContent');
+        const decodeButton = document.querySelector('button[onclick="decodeCSR()"]');
+        
+        // Validate CSR content
+        if (!csrContent || !csrContent.trim()) {
+            contentDiv.innerHTML = `
+                <dt class="col-sm-3">Error:</dt>
+                <dd class="col-sm-9 text-danger">No CSR content found</dd>
+            `;
+            decodedDiv.style.display = 'block';
+            return;
+        }
+        
+        // Show loading state
+        const originalButtonText = decodeButton.innerHTML;
+        decodeButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Decoding...';
+        decodeButton.disabled = true;
+        
+        // Send CSR to backend for secure decoding
+        fetch('/lkui/api/csr/decode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                csr_content: csrContent.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                displayCSRInfo(data.data);
+            } else {
+                contentDiv.innerHTML = `
+                    <dt class="col-sm-3">Error:</dt>
+                    <dd class="col-sm-9 text-danger">${escapeHtml(data.message)}</dd>
+                `;
+                decodedDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            contentDiv.innerHTML = `
+                <dt class="col-sm-3">Error:</dt>
+                <dd class="col-sm-9 text-danger">Failed to decode CSR: ${escapeHtml(error.message)}</dd>
+            `;
+            decodedDiv.style.display = 'block';
+        })
+        .finally(() => {
+            // Restore button state
+            decodeButton.innerHTML = originalButtonText;
+            decodeButton.disabled = false;
+        });
+    }
+    
+    function displayCSRInfo(csrInfo) {
+        const contentDiv = document.getElementById('csrDecodedContent');
+        const decodedDiv = document.getElementById('csrDecoded');
+        
+        let html = '';
+        
+        if (csrInfo.subject) {
+            html += `
+                <dt class="col-sm-3">Subject:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.subject)}</dd>
+            `;
+        }
+        
+        if (csrInfo.commonName) {
+            html += `
+                <dt class="col-sm-3">Common Name:</dt>
+                <dd class="col-sm-9"><code>${escapeHtml(csrInfo.commonName)}</code></dd>
+            `;
+        }
+        
+        if (csrInfo.organization) {
+            html += `
+                <dt class="col-sm-3">Organization:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.organization)}</dd>
+            `;
+        }
+        
+        if (csrInfo.organizationalUnit) {
+            html += `
+                <dt class="col-sm-3">Organizational Unit:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.organizationalUnit)}</dd>
+            `;
+        }
+        
+        if (csrInfo.country) {
+            html += `
+                <dt class="col-sm-3">Country:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.country)}</dd>
+            `;
+        }
+        
+        if (csrInfo.state) {
+            html += `
+                <dt class="col-sm-3">State/Province:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.state)}</dd>
+            `;
+        }
+        
+        if (csrInfo.locality) {
+            html += `
+                <dt class="col-sm-3">City/Locality:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.locality)}</dd>
+            `;
+        }
+        
+        if (csrInfo.email) {
+            html += `
+                <dt class="col-sm-3">Email:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.email)}</dd>
+            `;
+        }
+        
+        if (csrInfo.keySize) {
+            html += `
+                <dt class="col-sm-3">Key Size:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.keySize)} bits</dd>
+            `;
+        }
+        
+        if (csrInfo.algorithm) {
+            html += `
+                <dt class="col-sm-3">Algorithm:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.algorithm)}</dd>
+            `;
+        }
+        
+        contentDiv.innerHTML = html;
+        decodedDiv.style.display = 'block';
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     </script>

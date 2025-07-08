@@ -22,7 +22,7 @@ return function ($injector, $renderer, $conn) {
         ['GET', '/hosts/{host_id:\d+}', [$HostCtrl, 'showHostDetail']],
         ['GET', '/order', [$OrderCtrl, 'showCreateOrder']],
         ['GET', '/orders', [$OrderCtrl, 'showOrders']],
-        ['GET', '/orders/{orderId:\d+}', [$OrderCtrl, 'showOrderDetail']],
+        ['GET', '/orders/{order_id:\d+}', [$OrderCtrl, 'showOrderDetail']],
 
         //Templates routes
         ['GET', '/templates', [$TemplatesCtrl, 'showTemplates']],
@@ -37,8 +37,11 @@ return function ($injector, $renderer, $conn) {
 
         // API routes - Order
         ['POST', '/lkui/api/orders', [$OrderCtrl, 'createOrder']],
-        ['GET', '/lkui/api/orders/{orderId:\d+}', [$OrderCtrl, 'getOrder']],
-        ['POST', '/lkui/api/orders/{orderId:\d+}/certificate', [$OrderCtrl, 'updateOrder']],
+        ['GET', '/lkui/api/orders/{order_id:\d+}', [$OrderCtrl, 'getOrder']],
+        ['POST', '/lkui/api/orders/{order_id:\d+}', [$OrderCtrl, 'updateOrder']],
+        ['POST', '/lkui/api/orders/{order_id:\d+}/certificate', [$OrderCtrl, 'updateOrderCertificate']],
+        ['GET', '/lkui/api/orders/{order_id:\d+}/certificate/download', [$OrderCtrl, 'downloadCertificate']],
+        ['POST', '/lkui/api/csr/decode', [$OrderCtrl, 'decodeCSR']],
 
         // API routes - Template
         ['GET', '/lkui/api/templates', [$TemplatesCtrl, 'listTemplates']],

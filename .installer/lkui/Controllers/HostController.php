@@ -180,24 +180,25 @@ class HostController implements ControllerInterface {
     /**
      * API: Get specific host
      */
-    public function getHost($request, $response, $args)
+    public function getHost($host_id)
     {
-        $host_id = $args['id'];
         $host = $this->getHostData($host_id);
         if (!$host) {
-            $response->getBody()->write(json_encode([
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'Host not found'
-            ]));
-            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
         
-        $response->getBody()->write(json_encode([
+        http_response_code(200);
+        header('Content-Type: application/json');
+        echo json_encode([
             'status' => 'success',
             'data' => $host
-        ]));
-        
-        return $response->withHeader('Content-Type', 'application/json');
+        ]);
     }
 
     /**

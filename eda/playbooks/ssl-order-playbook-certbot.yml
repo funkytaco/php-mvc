@@ -52,7 +52,7 @@
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
         method: POST
         headers:
           Content-Type: "application/json"
@@ -70,6 +70,7 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          status: "ORDER_SUCCESS"
-          message: "Certificate issued successfully"
+          status: "ORDER_COMPLETED"
+          order_id: "{{ order_id }}"
+          error_message: "Self-signed certificate generated successfully"
       when: certbot_result is succeeded

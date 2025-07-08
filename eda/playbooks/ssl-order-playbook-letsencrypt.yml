@@ -42,7 +42,7 @@
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
         method: POST
         headers:
           Content-Type: "application/json"
@@ -52,7 +52,7 @@
           error_message: "{{ cert_result.msg | default('Unknown Lets Encrypt error during certificate issuance') }}"
       when: cert_result is failed
 
-    - name: Post success to order endpoint
+    - name: Post certificate to order endpoint
       ansible.builtin.uri:
         url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
         method: POST
@@ -60,6 +60,18 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          status: "ORDER_SUCCESS"
-          message: "Certificate issued successfully"
+          cert_content: "{{cert_result}}" #fixme
+      when: cert_result is succeeded
+
+    - name: Post success to order endpoint
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_COMPLETED"
+          order_id: "{{ order_id }}"
+          error_message: "Self-signed certificate generated successfully"
       when: cert_result is succeeded
