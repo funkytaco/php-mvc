@@ -10,6 +10,7 @@ app/
 .kilocode/
 data/
 html/
+rulebooks/
 eda/letsencrypt
 eda/certbot
 .installer/lkui/certbot
