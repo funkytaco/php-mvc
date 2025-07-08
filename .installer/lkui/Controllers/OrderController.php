@@ -512,9 +512,9 @@ class OrderController implements ControllerInterface {
             return;
         }
 
-        // Set headers for file download
-        $filename = $order['common_name'] . '_certificate.crt';
-        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename); // Sanitize filename
+        // Set headers for .crt file download 
+        $filename = $order['common_name'] . 's.crt';
+        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
         
         header('Content-Type: application/x-pem-file');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
