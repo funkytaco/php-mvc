@@ -53,6 +53,27 @@
       register: cert_content
       when: cert_result is succeeded
 
+    - name: Create certbot live directory for domain for expiry monitoring
+      ansible.builtin.file:
+        path: "/etc/letsencrypt/live/{{ domain }}"
+        state: directory
+        mode: '0755'
+      when: cert_result is succeeded
+
+    - name: Copy certificate to certbot live directory for expiry monitoring
+      ansible.builtin.copy:
+        src: "{{ temp_dir.path }}/certificate.crt"
+        dest: "/etc/letsencrypt/live/{{ domain }}/cert.pem"
+        mode: '0644'
+      when: cert_result is succeeded
+
+    - name: Copy private key to certbot live directory for expiry monitoring
+      ansible.builtin.copy:
+        src: "{{ temp_dir.path }}/private.key"
+        dest: "/etc/letsencrypt/live/{{ domain }}/privkey.pem"
+        mode: '0600'
+      when: cert_result is succeeded
+
     - name: Clean up temporary directory
       ansible.builtin.file:
         path: "{{ temp_dir.path }}"

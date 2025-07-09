@@ -66,12 +66,12 @@
         # Convert to datetime and calculate days
         expiry_epoch: "{{ (expiry_str | to_datetime('%b %d %H:%M:%S %Y %Z')).strftime('%s') | int if expiry_str else 0 }}"
         current_epoch: "{{ ansible_date_time.epoch | int }}"
-        days_diff: "{{ ((expiry_epoch - current_epoch) / 86400) | int if expiry_epoch > 0 else 0 }}"
+        days_diff: "{{ ((expiry_epoch | int - current_epoch | int) / 86400) | int if expiry_epoch | int > 0 else 0 }}"
         file_cert_info:
           domain: "{{ domain_name }}"
           expiry_date: "{{ (expiry_str | to_datetime('%b %d %H:%M:%S %Y %Z')).strftime('%Y-%m-%d') if expiry_str else '' }}"
           days_remaining: "{{ days_diff }}"
-          status: "{{ 'Expired' if days_diff < 0 else ('Expiring Soon' if days_diff <= 30 else 'Valid') }}"
+          status: "{{ 'Expired' if days_diff | int < 0 else ('Expiring Soon' if days_diff | int <= 30 else 'Valid') }}"
       loop: "{{ cert_info_files.results | default([]) }}"
       when: 
         - certificates | length == 0
