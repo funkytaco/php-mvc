@@ -152,25 +152,14 @@ class ExpiryController
     }
 
 
-    public function processExpiryData($data = null) {
+    public function processExpiryData($callback_url = '', $certificates = []) {
         // Process data from EDA webhook
         try {
-            // Get JSON data from request body if not provided
-            if ($data === null) {
-                $data = file_get_contents('php://input');
-            }
-            
-            $jsonData = json_decode($data, true);
-            
-            if (!$jsonData) {
-                throw new Exception('Invalid JSON data received');
-            }
             
             // Clear existing data
-            $this->conn->exec("TRUNCATE TABLE certificate_expiry");
-            
+            $this->conn->exec("TRUNCATE TABLE certificate_expiry");            
             // Check if we have certificates data
-            if (isset($jsonData['certificates']) && is_array($jsonData['certificates'])) {
+            if (isset($certificates) && is_array($certificates)) {
                 // Insert new data
                 $stmt = $this->conn->prepare(
                     "INSERT INTO certificate_expiry 
@@ -178,7 +167,7 @@ class ExpiryController
                     VALUES (:domain, :expiry_date, :days_remaining, :status)"
                 );
                 
-                foreach ($jsonData['certificates'] as $cert) {
+                foreach ($certificates as $cert) {
                     if (isset($cert['domain']) && isset($cert['expiry_date'])) {
                         $stmt->execute([
                             ':domain' => $cert['domain'],

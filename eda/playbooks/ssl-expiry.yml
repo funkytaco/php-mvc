@@ -101,18 +101,25 @@
         var: callback_result
       when: callback_result is defined
 
-    - name: Post error if no certificates found
-      ansible.builtin.uri:
-        url: "{{ callback_url }}"
-        method: POST
-        headers:
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          error: "No certificates found"
-          certbot_output: "{{ certbot_output.stdout | default('') }}"
-        status_code: [200, 201]
-      when: 
-        - callback_url != ""
-        - certificates | length == 0
-      ignore_errors: yes
+    # - name: Post error if no certificates found
+    #   ansible.builtin.uri:
+    #     url: "{{ callback_url }}"
+    #     method: POST
+    #     headers:
+    #       Content-Type: "application/json"
+    #     body_format: json
+    #     body:
+    #       error: "No certificates found. Updating: {{ callback_url }}"
+    #       certbot_output: "{{ certbot_output.stdout | default('') }}"
+    #     status_code: [200, 201]
+    #   register: posterror_result
+
+    #   when: 
+    #     - callback_url != ""
+    #     - certificates | length == 0
+    #   ignore_errors: yes
+
+    # - name: Debug post error result
+    #   ansible.builtin.debug:
+    #     var: "{{ certbot_output.stdout }}"
+    #   when: posterror_result is defined
