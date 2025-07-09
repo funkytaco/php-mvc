@@ -51,6 +51,33 @@ CREATE TABLE IF NOT EXISTS order_updates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Expiry updates tracking table (limited to 5 rows)
+CREATE TABLE IF NOT EXISTS expiry_updates (
+    id SERIAL PRIMARY KEY,
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Function to maintain 5-row limit for expiry_updates
+CREATE OR REPLACE FUNCTION maintain_expiry_updates_limit()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Delete oldest records if we exceed 5 rows
+    DELETE FROM expiry_updates
+    WHERE id NOT IN (
+        SELECT id FROM expiry_updates
+        ORDER BY created_at DESC
+        LIMIT 5
+    );
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Trigger to maintain 5-row limit
+CREATE TRIGGER maintain_expiry_updates_limit_trigger
+    AFTER INSERT ON expiry_updates
+    FOR EACH ROW EXECUTE FUNCTION maintain_expiry_updates_limit();
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_hosts_template_id ON hosts(template_id);
 CREATE INDEX IF NOT EXISTS idx_hosts_status ON hosts(status);

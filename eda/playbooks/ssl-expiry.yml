@@ -101,23 +101,36 @@
         var: callback_result
       when: callback_result is defined
 
-    # - name: Post error if no certificates found
-    #   ansible.builtin.uri:
-    #     url: "{{ callback_url }}"
-    #     method: POST
-    #     headers:
-    #       Content-Type: "application/json"
-    #     body_format: json
-    #     body:
-    #       error: "No certificates found. Updating: {{ callback_url }}"
-    #       certbot_output: "{{ certbot_output.stdout | default('') }}"
-    #     status_code: [200, 201]
-    #   register: posterror_result
+    - name: Post expiry_update if no certificates found
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/eda/api/expiry-updates"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          message: "No certificates found. Certbot output: {{ certbot_output.stdout | default('No output') }}"
+        status_code: [200, 201]
+      register: posterror_result
+      when: 
+        - certificates | length == 0
+      ignore_errors: yes
 
-    #   when: 
-    #     - callback_url != ""
-    #     - certificates | length == 0
-    #   ignore_errors: yes
+    - name: Post expiry_update if certificates found
+      ansible.builtin.uri:
+        url: "http://lkui-app:8080/eda/api/expiry-updates"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          message: "Checked certbot for expiry updates."
+        status_code: [200, 201]
+      register: posterror_result
+      when: 
+        - certificates | length > 0
+      ignore_errors: yes
+
 
     # - name: Debug post error result
     #   ansible.builtin.debug:

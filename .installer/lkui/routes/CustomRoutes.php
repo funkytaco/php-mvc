@@ -53,7 +53,8 @@ return function ($injector, $renderer, $conn) {
 
         // Expiry API routes
         ['GET', '/lkui/api/expiry', [$ExpiryCtrl, 'listCertificates']],
-        ['POST', '/lkui/api/expiry/refresh', [$ExpiryCtrl, 'refreshCertificates']]
+        ['POST', '/lkui/api/expiry/refresh', [$ExpiryCtrl, 'refreshCertificates']],
+        ['POST', '/eda/api/expiry-updates', [$ExpiryCtrl, 'logExpiryUpdate']]
         //['POST', '/lkui/api/ssl-order', [$OrderCtrl, 'forwardSslOrder']],
     ];
 };

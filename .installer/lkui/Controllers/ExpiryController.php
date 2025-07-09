@@ -56,7 +56,16 @@ class ExpiryController
             $this->data['expiries'] = $certificates;
         } catch (PDOException $e) {
             $this->data['expiries'] = [];
-            error_log("Failed to fetch certificates: " . $e->getMessage());
+            //error_log("Failed to fetch certificates: " . $e->getMessage());
+        }
+        
+        // Get expiry_updates logs
+        try {
+            $stmt = $this->conn->query("SELECT * FROM expiry_updates ORDER BY created_at DESC");
+            $this->data['expiry_updates'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            $this->data['expiry_updates'] = [];
+            //error_log("Failed to fetch expiry updates: " . $e->getMessage());
         }
         
         $this->data['title'] = 'SSL Certificate Expiry Monitor';
@@ -127,7 +136,7 @@ class ExpiryController
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             
             if (curl_errno($ch)) {
-                throw new Exception('Failed to trigger EDA webhook: ' . curl_error($ch));
+                throw new Exception('Failed to trigger EDA webhook. If the app just loaded, please wait a few more seconds before trying again.');
             }
             
             curl_close($ch);
@@ -193,6 +202,26 @@ class ExpiryController
                 'status' => 'error',
                 'message' => $e->getMessage()
             ];
+        }
+    }
+
+    public function logExpiryUpdate($message = '') {
+        try {
+            $stmt = $this->conn->prepare(
+                "INSERT INTO expiry_updates (message) VALUES (:message)"
+            );
+            
+            $stmt->execute([':message' => $message]);
+            
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'success']);
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
         }
     }
 }
