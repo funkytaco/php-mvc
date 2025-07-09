@@ -108,6 +108,20 @@
                 </div>
             </div>
         </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Refreshing SSL certificate status...</p>
+                </div>
+            </div>
+        </div>
+    </div>
     </div> <!-- /container -->
 
     <script>
@@ -143,6 +157,10 @@
             return;
         }
         
+        // Show loading modal
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+        
         // First trigger refresh
         fetch('/lkui/api/expiry/refresh', {
             method: 'POST'
@@ -150,20 +168,18 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                // Then get updated data
-                return fetch('/lkui/api/expiry');
-            }
-            throw new Error(data.message);
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                renderExpiries(data.data);
+                // Wait 4 seconds then refresh page
+                setTimeout(() => {
+                    loadingModal.hide();
+                    location.reload();
+                }, 4000);
             } else {
-                alert('Error fetching certificates: ' + data.message);
+                loadingModal.hide();
+                alert('Error refreshing certificates: ' + data.message);
             }
         })
         .catch(error => {
+            loadingModal.hide();
             alert('Error: ' + error.message);
         });
     }
