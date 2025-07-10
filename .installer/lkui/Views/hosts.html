@@ -66,31 +66,7 @@
 
         <div class="row">
             <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Create New Host</h3>
-                    </div>
-                    <div class="card-body">
-                        <form id="createHostForm">
-                            <div class="form-group">
-                                <label for="template">Template:</label>
-                                <select class="form-control" id="template" name="template_id" required>
-                                    <option value="">Select a template...</option>
-                                    <option value="1">RHEL6 (RSA 2048)</option>
-                                    <option value="2">RHEL7 (RSA 2048)</option>
-                                    <option value="3">RHEL8 (RSA 4096)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="commonName">Common Name:</label>
-                                <input type="text" class="form-control" id="commonName" name="common_name" placeholder="*.example.com" value="*.example.com" required>
-                                <small class="form-text text-muted">Enter the domain name for the certificate (e.g., *.example.com, www.example.com)</small>
-                            </div>
-                            <button type="submit" class="btn btn-success">Generate CSR</button>
-                            <button type="button" class="btn btn-secondary" onclick="window.location.reload()">Refresh List</button>
-                        </form>
-                    </div>
-                </div>
+                {{> partials/csr-form}}
             </div>
             
             <div class="col-md-4">
@@ -155,37 +131,10 @@
         </div>
     </div>
 
-    <script>
-    document.getElementById('createHostForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        const data = {
-            template_id: parseInt(formData.get('template_id')),
-            common_name: formData.get('common_name')
-        };
-        
-        fetch('/lkui/api/hosts', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert('Host created successfully! ID: ' + data.data.id);
-                window.location.reload();
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            alert('Error: ' + error.message);
-        });
-    });
+    {{> partials/csr-modals}}
+    {{> partials/csr-scripts}}
 
+    <script>
     function showCreateOrderModal(host_id, host_name) {
         // Set the host details in the modal
         document.getElementById('selectedHostId').value = host_id;
@@ -222,7 +171,7 @@
                 const modal = bootstrap.Modal.getInstance(document.getElementById('createOrderModal'));
                 modal.hide();
                 
-                alert('Order created successfully! ID: ' + data.data.id);
+                //alert('Order created successfully! ID: ' + data.data.id);
                 window.location.href = '/orders';
             } else {
                 alert('Error: ' + data.message);

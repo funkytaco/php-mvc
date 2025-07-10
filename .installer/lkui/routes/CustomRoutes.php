@@ -4,13 +4,22 @@ require_once('Controllers/HostController.php');
 require_once('Controllers/OrderController.php');
 require_once('Controllers/TemplatesController.php');
 require_once('Controllers/ExpiryController.php');
+require_once('Models/TemplateModel.php');
+require_once('Models/HostModel.php');
+require_once('Models/OrderModel.php');
 
 return function ($injector, $renderer, $conn) {
     $mod_date = $injector->make('Main\Modules\Date_Module');
 
-    $HostCtrl = new HostController($renderer, $conn, $mod_date);
+    // Create model instances
+    $templateModel = new \Models\TemplateModel($conn);
+    $hostModel = new \Models\HostModel($conn);
+    $orderModel = new \Models\OrderModel($conn);
+
+    // Create controller instances with model dependencies
+    $HostCtrl = new HostController($renderer, $conn, $mod_date, $templateModel);
     $OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl);
-    $TemplatesCtrl = new TemplatesController($renderer, $conn);
+    $TemplatesCtrl = new TemplatesController($renderer, $conn, $templateModel);
     $ExpiryCtrl = new ExpiryController($renderer, $conn, $mod_date);
 
     return [
@@ -45,7 +54,8 @@ return function ($injector, $renderer, $conn) {
 
         // API routes - Template
         ['GET', '/lkui/api/templates', [$TemplatesCtrl, 'listTemplates']],
-        ['GET', '/lkui/api/templates/{templateName}', [$TemplatesCtrl, 'getTemplate']],
+        //['GET', '/lkui/api/templates/{templateName}', [$TemplatesCtrl, 'getTemplate']],
+        ['GET', '/lkui/api/templates/{templateId:\d+}', [$TemplatesCtrl, 'getTemplateById']],
 
         //EDA API routes
         ['POST', '/eda/api/ssl-order/{order_id:\d+}', [$OrderCtrl, 'submitSslOrder']],

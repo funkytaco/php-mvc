@@ -94,7 +94,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                alert('Host created successfully! ID: ' + data.data.id);
+                //Host created successfully! ID: data.data.id
                 window.location.href = '/hosts/' + data.data.id;
             } else {
                 alert('Error: ' + data.message);

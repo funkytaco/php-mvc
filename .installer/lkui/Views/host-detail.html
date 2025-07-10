@@ -216,7 +216,7 @@
                 const modal = bootstrap.Modal.getInstance(document.getElementById('createOrderModal'));
                 modal.hide();
                 
-                alert('Order created successfully! ID: ' + data.data.id);
+                //alert('Order created successfully! ID: ' + data.data.id);
                 window.location.href = '/orders/' + data.data.id;
             } else {
                 alert('Error: ' + data.message);

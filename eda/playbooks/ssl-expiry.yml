@@ -74,7 +74,6 @@
           status: "{{ 'Expired' if days_diff | int < 0 else ('Expiring Soon' if days_diff | int <= 30 else 'Valid') }}"
       loop: "{{ cert_info_files.results | default([]) }}"
       when: 
-        - certificates | length == 0
         - item.stdout is defined
         - item.stdout != ""
 
@@ -124,7 +123,7 @@
           Content-Type: "application/json"
         body_format: json
         body:
-          message: "Checked certbot for expiry updates."
+          message: "Checked certbot for expiry updates. Found {{ certificates | length }} certificates."
         status_code: [200, 201]
       register: posterror_result
       when: 

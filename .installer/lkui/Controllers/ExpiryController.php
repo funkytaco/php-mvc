@@ -51,6 +51,7 @@ class ExpiryController
                     default:
                         $cert['labelClass'] = 'bg-secondary';
                 }
+            
             }
             
             $this->data['expiries'] = $certificates;
@@ -164,6 +165,14 @@ class ExpiryController
     public function processExpiryData($callback_url = '', $certificates = []) {
         // Process data from EDA webhook
         try {
+            // Get JSON data from request body
+            $input = file_get_contents('php://input');
+            $data = json_decode($input, true);
+            
+            // Use certificates from JSON data if available
+            if (isset($data['certificates']) && is_array($data['certificates'])) {
+                $certificates = $data['certificates'];
+            }
             
             // Clear existing data
             $this->conn->exec("TRUNCATE TABLE certificate_expiry");            

@@ -80,6 +80,12 @@
         state: absent
       when: temp_dir.path is defined
 
+    - name: Clean up any loose key files in letsencrypt directory
+      ansible.builtin.file:
+        path: "/etc/letsencrypt/{{ domain }}.key"
+        state: absent
+      when: cert_result is succeeded
+
     - name: Post certificate to order endpoint
       ansible.builtin.uri:
         url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"

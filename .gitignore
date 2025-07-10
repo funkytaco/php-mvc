@@ -15,3 +15,4 @@ eda/letsencrypt
 eda/certbot
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
+CLAUDE.md

@@ -15,16 +15,19 @@ class HostController implements ControllerInterface {
     protected $renderer;
     protected $conn;
     protected $mod_date;
+    protected $templateModel;
     private $data;
 
     public function __construct(
         Renderer $renderer,
         PDO $conn, 
-        Date_Module $mod_date
+        Date_Module $mod_date,
+        $templateModel = null
     ) {
         $this->renderer = $renderer;
         $this->conn = $conn;
         $this->mod_date = $mod_date;
+        $this->templateModel = $templateModel;
 
         $this->data = [
             'appName' => 'LKUI - License Key UI',
@@ -36,6 +39,10 @@ class HostController implements ControllerInterface {
     public function get() {
         // Add GET parameters to data if needed
         $this->data['getVar'] = $_GET;
+        
+        // Get templates for the create host form
+        $this->data['templates'] = $this->templateModel ? $this->templateModel->getTemplatesForForm() : [];
+        $this->data['redirectToHosts'] = true;
         
         $html = $this->renderer->render('index.html', $this->data);
         echo $html;
@@ -89,9 +96,15 @@ class HostController implements ControllerInterface {
             return ['key' => $key, 'value' => $value];
         }, array_keys($authorities), $authorities);
 
+        // Get templates for the create host form
+        $templates = $this->templateModel ? $this->templateModel->getTemplatesForForm() : [];
+
         $data = [
             'hosts' => $hosts,
-            'certificate_authorities' => $certificate_authorities
+            'certificate_authorities' => $certificate_authorities,
+            'templates' => $templates,
+            'showRefreshButton' => true,
+            'redirectToHosts' => false
         ];
         
         echo $this->renderer->render('hosts.html', $data);

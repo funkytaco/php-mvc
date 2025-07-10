@@ -4,17 +4,21 @@ class TemplatesController
 {
     private $renderer;
     private $conn;
+    private $templateModel;
 
-    public function __construct($renderer, $conn)
+    public function __construct($renderer, $conn, $templateModel = null)
     {
         $this->renderer = $renderer;
         $this->conn = $conn;
+        $this->templateModel = $templateModel;
     }
 
 
     public function showTemplates() {
-        $templates = $this->getTemplatesData();
+        $templates = $this->templateModel ? $this->templateModel->getAllTemplates() : $this->getTemplatesData();
         $data = [
+            'appName' => 'LKUI - License Key UI',
+            'title' => 'SSL Certificate Templates',
             'templates' => $templates
         ];
         echo $this->renderer->render('templates.html', $data);
@@ -39,25 +43,80 @@ class TemplatesController
     /**
      * API: Get specific template by name
      */
-    public function getTemplate($request, $response, $args)
+    public function getTemplate($templateName)
     {
-        $templateName = $args['name'];
         $template = $this->getTemplateByName($templateName);
         
         if (!$template) {
-            $response->getBody()->write(json_encode([
+            header('Content-Type: application/json');
+            http_response_code(404);
+            echo json_encode([
                 'status' => 'error',
                 'message' => 'Template not found'
-            ]));
-            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            ]);
+            return;
         }
         
-        $response->getBody()->write(json_encode([
+        header('Content-Type: application/json');
+        echo json_encode([
             'status' => 'success',
             'data' => $template
-        ]));
-        
-        return $response->withHeader('Content-Type', 'application/json');
+        ]);
+    }
+
+    /**
+     * API: Get specific template by ID
+     */
+    public function getTemplateById($templateId = null)
+    {
+        if (!$templateId) {
+            header('Content-Type: application/json');
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Template ID is required'
+            ]);
+            return;
+        }
+
+        try {
+            $stmt = $this->conn->prepare("
+                SELECT id, name, description, os_version, common_name, csr_options, 
+                       cert_path, key_path, ca_path, ca_enabled, service_restart_command, 
+                       created_at 
+                FROM templates 
+                WHERE id = ?
+            ");
+            $stmt->execute([$templateId]);
+            $template = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$template) {
+                header('Content-Type: application/json');
+                http_response_code(404);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Template not found'
+                ]);
+                return;
+            }
+
+            if ($template['csr_options']) {
+                $template['csr_options'] = json_decode($template['csr_options'], true);
+            }
+            
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status' => 'success',
+                'data' => $template
+            ]);
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
     }
 
     /**
@@ -67,7 +126,9 @@ class TemplatesController
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT id, name, common_name, csr_options, created_at 
+                SELECT id, name, description, os_version, common_name, csr_options, 
+                       cert_path, key_path, ca_path, ca_enabled, service_restart_command, 
+                       created_at 
                 FROM templates 
                 ORDER BY name ASC
             ");
@@ -94,7 +155,9 @@ class TemplatesController
     {
         try {
             $stmt = $this->conn->prepare("
-                SELECT id, name, common_name, csr_options, created_at 
+                SELECT id, name, description, os_version, common_name, csr_options, 
+                       cert_path, key_path, ca_path, ca_enabled, service_restart_command, 
+                       created_at 
                 FROM templates 
                 WHERE name = ?
             ");

@@ -5,12 +5,19 @@
 -- CREATE DATABASE IF NOT EXISTS lkui;
 -- USE lkui;
 
--- Templates table for RHEL6, RHEL7, RHEL8 defaults
+-- Templates table for SSL certificate deployment configurations
 CREATE TABLE IF NOT EXISTS templates (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT,
+    os_version VARCHAR(50),
     common_name VARCHAR(255) NOT NULL DEFAULT '*.example.com',
     csr_options TEXT, -- JSON string containing CSR configuration
+    cert_path VARCHAR(500) NOT NULL, -- SSL certificate deployment path
+    key_path VARCHAR(500) NOT NULL, -- Private key deployment path
+    ca_path VARCHAR(500), -- CA certificate path
+    ca_enabled BOOLEAN DEFAULT FALSE, -- Whether to deploy CA certificate
+    service_restart_command VARCHAR(255), -- Command to restart service after cert deployment
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -85,10 +92,16 @@ CREATE INDEX IF NOT EXISTS idx_orders_host_id ON orders(host_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
 -- Insert default templates
-INSERT INTO templates (name, common_name, csr_options) VALUES 
-('RHEL6', '*.example.com', '{"key_type":"RSA","key_size":2048,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}'),
-('RHEL7', '*.example.com', '{"key_type":"RSA","key_size":2048,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}'),
-('RHEL8', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}')
+INSERT INTO templates (name, description, os_version, common_name, csr_options, cert_path, key_path, ca_path, ca_enabled, service_restart_command) VALUES 
+('RHEL6', 'Red Hat Enterprise Linux 6 default SSL configuration', 'RHEL 6', '*.example.com', '{"key_type":"RSA","key_size":2048,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/pki/tls/certs/localhost.crt', '/etc/pki/tls/private/localhost.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart httpd'),
+('RHEL7', 'Red Hat Enterprise Linux 7 default SSL configuration', 'RHEL 7', '*.example.com', '{"key_type":"RSA","key_size":2048,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/pki/tls/certs/localhost.crt', '/etc/pki/tls/private/localhost.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart httpd'),
+('RHEL8', 'Red Hat Enterprise Linux 8 default SSL configuration', 'RHEL 8', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/pki/tls/certs/localhost.crt', '/etc/pki/tls/private/localhost.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart httpd'),
+('RHEL9', 'Red Hat Enterprise Linux 9 default SSL configuration', 'RHEL 9', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/pki/tls/certs/localhost.crt', '/etc/pki/tls/private/localhost.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart httpd'),
+('RHEL10', 'Red Hat Enterprise Linux 10 default SSL configuration', 'RHEL 10', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/pki/tls/certs/localhost.crt', '/etc/pki/tls/private/localhost.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart httpd'),
+('AAP', 'Ansible Automation Platform SSL configuration', 'RHEL 8+', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/tower/tower.cert', '/etc/tower/tower.key', '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem', false, 'systemctl restart automation-controller'),
+('SATELLITE', 'Red Hat Satellite SSL configuration', 'RHEL 8+', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/usr/share/katello/certs/katello-apache.crt', '/usr/share/katello/certs/katello-apache.key', '/usr/share/katello/certs/katello-default-ca.crt', false, 'systemctl restart httpd'),
+('GITLAB', 'GitLab SSL configuration', 'RHEL 7+', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/gitlab/ssl/gitlab.example.com.crt', '/etc/gitlab/ssl/gitlab.example.com.key', '/opt/gitlab/embedded/ssl/certs/cacert.pem', false, 'gitlab-ctl restart'),
+('COCKPIT', 'RHEL Cockpit SSL configuration', 'RHEL 7+', '*.example.com', '{"key_type":"RSA","key_size":4096,"digest_alg":"sha256","organization":"Example Organization","organizational_unit":"IT Department","locality":"City","state":"State","country":"US"}', '/etc/cockpit/ws-certs.d/0-self-signed.cert', '/etc/cockpit/ws-certs.d/0-self-signed.key', '/etc/pki/tls/certs/ca-bundle.crt', false, 'systemctl restart cockpit')
 ON CONFLICT (name) DO NOTHING;
 
 -- Create a function to update the updated_at timestamp
