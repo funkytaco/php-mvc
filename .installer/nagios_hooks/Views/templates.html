@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{appName}} - SSL Certificate Templates</title>
+    {{> partials/header}}
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-templates}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Manage SSL certificate deployment templates for different systems and applications.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">SSL Certificate Templates</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>OS Version</th>
+                                <th>Certificate Path</th>
+                                <th>Key Path</th>
+                                <th>CA Enabled</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#templates}}
+                            <tr>
+                                <td><strong>{{name}}</strong></td>
+                                <td>{{description}}</td>
+                                <td>{{os_version}}</td>
+                                <td><code>{{cert_path}}</code></td>
+                                <td><code>{{key_path}}</code></td>
+                                <td>
+                                    {{#ca_enabled}}
+                                    <span class="label bg-success">Yes</span>
+                                    {{/ca_enabled}}
+                                    {{^ca_enabled}}
+                                    <span class="label bg-secondary">No</span>
+                                    {{/ca_enabled}}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewTemplate({{id}})">View Details</button>
+                                    <button class="btn btn-sm btn-primary" onclick="useTemplate({{id}})">Use Template</button>
+                                </td>
+                            </tr>
+                            {{/templates}}
+                            </tbody>
+                        </table>
+                        </div>
+                        {{^templates}}
+                        <div class="alert alert-info">
+                            <strong>No templates found.</strong> Templates will be loaded from the database.
+                        </div>
+                        {{/templates}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Template Details Modal -->
+        <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="templateModalLabel">Template Details</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="templateDetails">
+                            <!-- Template details will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="useCurrentTemplate()">Use This Template</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Available Template Types</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Operating Systems</h5>
+                                <ul class="list-unstyled">
+                                    <li><strong>RHEL6-10:</strong> Standard Red Hat Enterprise Linux configurations</li>
+                                    <li><strong>Cockpit:</strong> RHEL web console SSL certificates</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Applications</h5>
+                                <ul class="list-unstyled">
+                                    <li><strong>AAP:</strong> Ansible Automation Platform</li>
+                                    <li><strong>Satellite:</strong> Red Hat Satellite server</li>
+                                    <li><strong>GitLab:</strong> GitLab community/enterprise</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Template Features</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li>✓ Predefined certificate paths</li>
+                            <li>✓ Service restart commands</li>
+                            <li>✓ CA certificate support</li>
+                            <li>✓ OS-specific configurations</li>
+                            <li>✓ Application-specific paths</li>
+                        </ul>
+                        <hr>
+                        <p><small>Templates define where certificates, keys, and CA files should be deployed on target systems.</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- /container -->
+
+    <script>
+    let currentTemplateId = null;
+
+    function viewTemplate(templateId) {
+        currentTemplateId = templateId;
+        
+        fetch('/lkui/api/templates/' + templateId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const template = data.data;
+                const csrOptions = typeof template.csr_options === 'string' ? JSON.parse(template.csr_options) : template.csr_options;
+                
+                document.getElementById('templateDetails').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Basic Information</h6>
+                            <p><strong>Name:</strong> ${template.name}</p>
+                            <p><strong>Description:</strong> ${template.description || 'N/A'}</p>
+                            <p><strong>OS Version:</strong> ${template.os_version || 'N/A'}</p>
+                            <p><strong>Common Name:</strong> ${template.common_name}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Deployment Paths</h6>
+                            <p><strong>Certificate:</strong> <code>${template.cert_path}</code></p>
+                            <p><strong>Private Key:</strong> <code>${template.key_path}</code></p>
+                            <p><strong>CA Certificate:</strong> <code>${template.ca_path || 'N/A'}</code></p>
+                            <p><strong>CA Enabled:</strong> ${template.ca_enabled ? 'Yes' : 'No'}</p>
+                            <p><strong>Restart Command:</strong> <code>${template.service_restart_command || 'N/A'}</code></p>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <h6>CSR Options</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Key Type:</strong> ${csrOptions.key_type || 'N/A'}</p>
+                                    <p><strong>Key Size:</strong> ${csrOptions.key_size || 'N/A'}</p>
+                                    <p><strong>Digest Algorithm:</strong> ${csrOptions.digest_alg || 'N/A'}</p>
+                                    <p><strong>Organization:</strong> ${csrOptions.organization || 'N/A'}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Organizational Unit:</strong> ${csrOptions.organizational_unit || 'N/A'}</p>
+                                    <p><strong>Locality:</strong> ${csrOptions.locality || 'N/A'}</p>
+                                    <p><strong>State:</strong> ${csrOptions.state || 'N/A'}</p>
+                                    <p><strong>Country:</strong> ${csrOptions.country || 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const modal = new bootstrap.Modal(document.getElementById('templateModal'));
+                modal.show();
+            } else {
+                alert('Error loading template: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    }
+
+    function useTemplate(templateId) {
+        currentTemplateId = templateId;
+        if (confirm('Use this template to create a new host?')) {
+            window.location.href = '/hosts?template_id=' + templateId;
+        }
+    }
+
+    function useCurrentTemplate() {
+        if (currentTemplateId) {
+            useTemplate(currentTemplateId);
+        }
+    }
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
+</body>
+</html>

@@ -44,14 +44,13 @@
         "install-mvc" : "Tasks\\ApplicationTasks::InstallMvc",
         "install-semanticui" : "Tasks\\ApplicationTasks::InstallSemanticUi",
         "install-lkui" : "Tasks\\ApplicationTasks::InstallLkui",
+        "install-nagios" : "Tasks\\ApplicationTasks::InstallNagios",
         "unlock" : "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [  "Tasks\\ApplicationTasks::postInstall" ],
         "post-update-cmd": [  "Tasks\\ApplicationTasks::postUpdate",
                                 "Google_Task_Composer::cleanup"
          ]
     },
-
-
     "extra": {
         "lkui-assets": {
             "copy-assets": true,
@@ -78,6 +77,35 @@
             },
             "config": {
                 "source": ".installer/lkui/app.config.php",
+                "target": "app/app.config.php",
+                "isFile": true
+            }
+        },
+        "nagios-assets": {
+            "copy-assets": true,
+            "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "html/assets/bootstrap/dist", "isFile": false},
+            "views": {
+                "source": ".installer/nagios_hooks/Views",
+                "target": "app/Views",
+                "isFile": false
+            },
+            "controllers": {
+                "source": ".installer/nagios_hooks/Controllers",
+                "target": "app/Controllers",
+                "isFile": false
+            },
+            "models": {
+                "source": ".installer/nagios_hooks/Models",
+                "target": "app/Models",
+                "isFile": false
+            },
+            "routes": {
+                "source": ".installer/nagios_hooks/routes/CustomRoutes.php",
+                "target": "app/CustomRoutes.php",
+                "isFile": true
+            },
+            "config": {
+                "source": ".installer/nagios_hooks/app.config.php",
                 "target": "app/app.config.php",
                 "isFile": true
             }

@@ -277,6 +277,12 @@ class ApplicationTasks {
         self::copy_extra_assets('lkui-assets', $event);
     }
 
+    public static function InstallNagios(Event $event) {
+        if (!self::AreComposerPackagesInstalled($event)) exit('Please run composer install first.');
+        echo self::ansiFormat('RUNNING>', 'Installing Nagios Hook Template...');
+        self::copy_extra_assets('nagios-assets', $event);
+    }
+
     public static function copyAssets($source, $destination, $isFile, $event) {
 
 

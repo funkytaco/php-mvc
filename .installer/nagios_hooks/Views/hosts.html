@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{appName}} - Hosts Management</title>
+    {{> partials/header}}
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-hosts}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Manage SSL certificate hosts and CSR generation.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Hosts List</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Common Name</th>
+                                <th>Template</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#hosts}}
+                            <tr>
+                                <td>{{id}}</td>
+                                <td>{{common_name}}</td>
+                                <td>{{template_name}}</td>
+                                <td>
+                                <span class="badge {{labelClass}}">{{status}}</span>
+                                </td>
+                                <td>{{created_at}}</td>
+                                <td>
+                                <a href="/hosts/{{id}}" class="btn btn-sm btn-primary">View</a>
+                                <button class="btn btn-sm btn-success" onclick="showCreateOrderModal({{id}}, '{{common_name}}')">Create Order</button>
+                                </td>
+                            </tr>
+                            {{/hosts}}
+                            </tbody>
+                        </table>
+                        </div>
+                        {{^hosts}}
+                        <div class="alert alert-info">
+                            <strong>No hosts found.</strong> Create your first host using the form below.
+                        </div>
+                        {{/hosts}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                {{> partials/csr-form}}
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Template Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li><strong>RHEL6:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL7:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL8:</strong> RSA 4096-bit key</li>
+                        </ul>
+                        <hr>
+                        <p><small>All templates use SHA-256 digest algorithm and include standard organization details.</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- /container -->
+
+    <!-- Create Order Modal -->
+    <div class="modal fade" id="createOrderModal" tabindex="-1" aria-labelledby="createOrderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createOrderModalLabel">Create SSL Certificate Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createOrderForm">
+                        <input type="hidden" id="selectedHostId" value="">
+                        
+                        <div class="mb-3">
+                            <label for="certificateAuthority" class="form-label">Certificate Authority:</label>
+                            <select class="form-select" id="certificateAuthority" name="certificate_authority" required>
+                                <option value="">Select certificate authority...</option>
+                                {{#certificate_authorities}}
+                                <option value="{{key}}">{{value}}</option>
+                                {{/certificate_authorities}}
+                            </select>
+                            <div class="form-text">Choose the certificate authority to process this order.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Host Details:</label>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <p class="mb-0"><strong>Common Name:</strong> <span id="selectedHostName"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="submitCreateOrderFromModal()">
+                        <i class="bi bi-plus-circle"></i> Create Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{> partials/csr-modals}}
+    {{> partials/csr-scripts}}
+
+    <script>
+    function showCreateOrderModal(host_id, host_name) {
+        // Set the host details in the modal
+        document.getElementById('selectedHostId').value = host_id;
+        document.getElementById('selectedHostName').textContent = host_name;
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('createOrderModal'));
+        modal.show();
+    }
+    
+    function submitCreateOrderFromModal() {
+        const certificateAuthority = document.getElementById('certificateAuthority').value;
+        const host_id = document.getElementById('selectedHostId').value;
+        
+        if (!certificateAuthority) {
+            alert('Please select a certificate authority');
+            return;
+        }
+        
+        fetch('/lkui/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                host_id: parseInt(host_id),
+                certificate_authority: certificateAuthority
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createOrderModal'));
+                modal.hide();
+                
+                //alert('Order created successfully! ID: ' + data.data.id);
+                window.location.href = '/orders';
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    }
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
+</body>
+</html>

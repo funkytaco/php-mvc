@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{appName}} - Orders Management</title>
+    {{> partials/header}}
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Manage SSL certificate orders.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Orders List</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Common Name</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#orders}}
+                            <tr>
+                                <td>{{id}}</td>
+                                <td>{{common_name}}</td>
+                                <td>{{order_type}}</td>
+                                <td>
+                                <span>{{status}}</span>
+                                </td>
+                                <td>{{created_at}}</td>
+                                <td>
+                                <a href="/orders/{{id}}" class="btn btn-sm btn-primary">View</a>
+                                </td>
+                            </tr>
+                            {{/orders}}
+                            </tbody>
+                        </table>
+                        </div>
+                        {{^orders}}
+                        <div class="alert alert-info">
+                            <strong>No orders found.</strong> Create your first order using the form below.
+                        </div>
+                        {{/orders}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> <!-- /container -->
+
+    <script>
+    function submitOrder(orderId) {
+        if (confirm('Submit an order for this host?')) {
+            alert('demo payload fixme');
+            const payload = {
+                action: "order_ssl_certbot",
+                csr: "-----BEGIN CERTIFICATE REQUEST-----\nMIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==\n-----END CERTIFICATE REQUEST-----",
+                domain: "example.com",
+                email: "admin@example.com",
+                order_id: orderId,
+                timestamp: new Date().toISOString(),
+                certificate_authority: "certbot",
+                validation_method: "dns"
+            };
+
+            payload.csr = payload.csr.replace('...', 'MIIBvTCCASYCAQAwejELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQH\nDA1TYW4gRnJhbmNpc2NvMRAwDgYDVQQKDAdDb21wYW55MRAwDgYDVQQLDAdTZWN0\naW9uMSIwIAYDVQQDDBlleGFtcGxlLmNvbSBDZXJ0aWZpY2F0ZQ==');
+
+            fetch('/eda/api/ssl-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const payload = JSON.parse(data.data);
+                    setTimeout(() => {
+                        window.location.href = `/orders/${payload.order_id}?status=${data.status}`;
+                    }, 2000); 
+                } else {
+                    alert('Error: ' + payload.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+    </script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
+</body>
+</html>
