@@ -5,6 +5,12 @@
             "template": "nimbus-demo",
             "created": "2025-07-11 02:02:03",
             "installed": false
+        },
+        "app-alpha": {
+            "name": "app-alpha",
+            "template": "nimbus-demo",
+            "created": "2025-07-11 02:12:16",
+            "installed": false
         }
     }
 }

@@ -34,6 +34,7 @@
         "psr-4": {
             "Main\\": "src/",
             "Nimbus\\": "src/Nimbus/",
+            "App\\": "app/",
             "Tasks\\": "."
         }
     },
@@ -55,7 +56,8 @@
             "Tasks\\ApplicationTasks::postUpdate",
             "Google_Task_Composer::cleanup"
         ],
-        "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp"
+        "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
@@ -200,6 +202,10 @@
         ],
         "test-app-assets": {
             "app-name": "test-app",
+            "copy-assets": true
+        },
+        "app-alpha-assets": {
+            "app-name": "app-alpha",
             "copy-assets": true
         }
     }

@@ -183,7 +183,7 @@ class Application
                     $routes = $customRouteFactory($this->injector, $this->renderer, $this->conn);
                     if (is_array($routes)) {
                         foreach ($routes as [$method, $path, $handler]) {
-                            if (is_callable($handler)) {
+                            if (is_callable($handler) || (is_array($handler) && count($handler) === 2)) {
                                 $r->addRoute($method, $path, $handler);
                             }
                         }

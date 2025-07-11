@@ -1,7 +1,7 @@
 <?php
 //echo VIEWS_DIR;exit;
 $injector = new \Auryn\Injector;
-$mustache_options =  array('extension' => '.html');
+$mustache_options =  array('extension' => '.mustache');
 
 $injector->alias('Main\Renderer\Renderer', 'Main\Renderer\MustacheRenderer');
 $injector->alias('Main\Router\RouteCollector', 'FastRoute\RouteCollector');

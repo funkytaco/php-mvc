@@ -16,3 +16,17 @@ eda/certbot
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
 CLAUDE.md
+
+# Generated files - DO NOT COMMIT
+*-compose.yml
+vendor/
+composer.lock
+
+# App instances created by nimbus:create
+.installer/apps.json
+
+# Database data
+data/
+
+# Container logs
+*.log
