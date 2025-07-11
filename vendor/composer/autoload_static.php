@@ -48,6 +48,10 @@ class ComposerStaticInitb5298e34361e95284376a1d4be0ec124
             'PhpOffice\\PhpSpreadsheet\\' => 25,
             'ParagonIE\\ConstantTime\\' => 23,
         ),
+        'N' => 
+        array (
+            'Nimbus\\' => 7,
+        ),
         'M' => 
         array (
             'Monolog\\' => 8,
@@ -132,6 +136,10 @@ class ComposerStaticInitb5298e34361e95284376a1d4be0ec124
         'ParagonIE\\ConstantTime\\' => 
         array (
             0 => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src',
+        ),
+        'Nimbus\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/src/Nimbus',
         ),
         'Monolog\\' => 
         array (

@@ -1,7 +1,10 @@
 {
     "name": "funkytaco/php-mvc",
     "description": "A modular PHP MVC Framework",
-    "keywords": ["template", "seed"],
+    "keywords": [
+        "template",
+        "seed"
+    ],
     "license": "MIT",
     "authors": [
         {
@@ -20,7 +23,6 @@
         "rdlowrey/auryn": "^1.4",
         "twbs/bootstrap": "^5.3",
         "semantic/ui": "^2.0"
-
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5",
@@ -28,33 +30,41 @@
         "phpstan/phpstan": "^1.10",
         "roave/security-advisories": "dev-latest"
     },
-
     "autoload": {
         "psr-4": {
             "Main\\": "src/",
-            "Tasks\\" : "."
-
+            "Nimbus\\": "src/Nimbus/",
+            "Tasks\\": "."
         }
     },
-
-
     "scripts": {
-        "serve" : "Tasks\\ApplicationTasks::startDevelopmentWebServer",
-        "commit" : "Tasks\\ApplicationTasks::commitToInstallerDirectory",
-        "install-mvc" : "Tasks\\ApplicationTasks::InstallMvc",
-        "install-semanticui" : "Tasks\\ApplicationTasks::InstallSemanticUi",
-        "install-lkui" : "Tasks\\ApplicationTasks::InstallLkui",
-        "install-nagios" : "Tasks\\ApplicationTasks::InstallNagios",
-        "unlock" : "Tasks\\ApplicationTasks::DeleteLockFile",
-        "post-install-cmd": [  "Tasks\\ApplicationTasks::postInstall" ],
-        "post-update-cmd": [  "Tasks\\ApplicationTasks::postUpdate",
-                                "Google_Task_Composer::cleanup"
-         ]
+        "serve": "Tasks\\ApplicationTasks::startDevelopmentWebServer",
+        "commit": "Tasks\\ApplicationTasks::commitToInstallerDirectory",
+        "install-mvc": "Tasks\\ApplicationTasks::InstallMvc",
+        "install-semanticui": "Tasks\\ApplicationTasks::InstallSemanticUi",
+        "install-lkui": "Tasks\\ApplicationTasks::InstallLkui",
+        "install-nagios": "Tasks\\ApplicationTasks::InstallNagios",
+        "nimbus:create": "Tasks\\ApplicationTasks::nimbusCreate",
+        "nimbus:install": "Tasks\\ApplicationTasks::nimbusInstall",
+        "nimbus:list": "Tasks\\ApplicationTasks::nimbusList",
+        "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
+        "post-install-cmd": [
+            "Tasks\\ApplicationTasks::postInstall"
+        ],
+        "post-update-cmd": [
+            "Tasks\\ApplicationTasks::postUpdate",
+            "Google_Task_Composer::cleanup"
+        ],
+        "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
             "copy-assets": true,
-            "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "html/assets/bootstrap/dist", "isFile": false},
+            "dist": {
+                "source": "vendor/twbs/bootstrap/dist",
+                "target": "html/assets/bootstrap/dist",
+                "isFile": false
+            },
             "views": {
                 "source": ".installer/lkui/Views",
                 "target": "app/Views",
@@ -83,7 +93,11 @@
         },
         "nagios-assets": {
             "copy-assets": true,
-            "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "html/assets/bootstrap/dist", "isFile": false},
+            "dist": {
+                "source": "vendor/twbs/bootstrap/dist",
+                "target": "html/assets/bootstrap/dist",
+                "isFile": false
+            },
             "views": {
                 "source": ".installer/nagios_hooks/Views",
                 "target": "app/Views",
@@ -111,29 +125,82 @@
             }
         },
         "mvc-assets": {
-            "copy-assets" : true,
-            "dist": { "source": "vendor/twbs/bootstrap/dist", "target": "public/assets/bootstrap/dist", "isFile": false},
-            "views": { "source": ".installer/mvc/Views", "target": "app/Views", "isFile": false},
-            "controllers": { "source": ".installer/mvc/Controllers", "target": "app/Controllers", "isFile": false},
-            "routes": { "source": ".installer/mvc/routes/CustomRoutes.php", "target": "app/CustomRoutes.php", "isFile": true},
-            "config": { "source": ".installer/mvc/app.config.php", "target": "app/app.config.php", "isFile": true},
-            "dashboard-css": { "source": "vendor/twbs/bootstrap/site/src/assets/examples/dashboard", "target": "public/assets/css/themes", "isFile": false},
-            "lockFile": { "source": ".installer/app.lock", "target": "src/.lock/app.lock", "isFile": true}
-
+            "copy-assets": true,
+            "dist": {
+                "source": "vendor/twbs/bootstrap/dist",
+                "target": "public/assets/bootstrap/dist",
+                "isFile": false
+            },
+            "views": {
+                "source": ".installer/mvc/Views",
+                "target": "app/Views",
+                "isFile": false
+            },
+            "controllers": {
+                "source": ".installer/mvc/Controllers",
+                "target": "app/Controllers",
+                "isFile": false
+            },
+            "routes": {
+                "source": ".installer/mvc/routes/CustomRoutes.php",
+                "target": "app/CustomRoutes.php",
+                "isFile": true
+            },
+            "config": {
+                "source": ".installer/mvc/app.config.php",
+                "target": "app/app.config.php",
+                "isFile": true
+            },
+            "dashboard-css": {
+                "source": "vendor/twbs/bootstrap/site/src/assets/examples/dashboard",
+                "target": "public/assets/css/themes",
+                "isFile": false
+            },
+            "lockFile": {
+                "source": ".installer/app.lock",
+                "target": "src/.lock/app.lock",
+                "isFile": true
+            }
         },
         "semanticui-assets": {
-            "copy-assets" : true,
-            "dist": { "source": "vendor/semantic/ui/dist", "target": "public/assets/semantic/ui/dist", "isFile": false},
-            "examples": { "source": "vendor/semantic/ui/examples", "target": "public/assets/semantic/ui/examples", "isFile": false},
-            "views": { "source": ".installer/semantic-ui/Views", "target": "app/Views", "isFile": false},
-            "controllers": { "source": ".installer/semantic-ui/Controllers", "target": "app/Controllers", "isFile": false},
-            "config": { "source": ".installer/semantic-ui/app.config.php", "target": "app/app.config.php", "isFile": true},
-            "routes": { "source": ".installer/semantic-ui/routes/CustomRoutes.php", "target": "app/CustomRoutes.php", "isFile": true}
+            "copy-assets": true,
+            "dist": {
+                "source": "vendor/semantic/ui/dist",
+                "target": "public/assets/semantic/ui/dist",
+                "isFile": false
+            },
+            "examples": {
+                "source": "vendor/semantic/ui/examples",
+                "target": "public/assets/semantic/ui/examples",
+                "isFile": false
+            },
+            "views": {
+                "source": ".installer/semantic-ui/Views",
+                "target": "app/Views",
+                "isFile": false
+            },
+            "controllers": {
+                "source": ".installer/semantic-ui/Controllers",
+                "target": "app/Controllers",
+                "isFile": false
+            },
+            "config": {
+                "source": ".installer/semantic-ui/app.config.php",
+                "target": "app/app.config.php",
+                "isFile": true
+            },
+            "routes": {
+                "source": ".installer/semantic-ui/routes/CustomRoutes.php",
+                "target": "app/CustomRoutes.php",
+                "isFile": true
+            }
         },
         "google/apiclient-services": [
             "Sheets"
-        ]
-
+        ],
+        "test-app-assets": {
+            "app-name": "test-app",
+            "copy-assets": true
+        }
     }
-
 }

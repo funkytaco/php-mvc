@@ -283,6 +283,79 @@ class ApplicationTasks {
         self::copy_extra_assets('nagios-assets', $event);
     }
 
+    public static function nimbusCreate(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? $io->ask('App name: ');
+        $template = $args[1] ?? 'nimbus-demo';
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $manager->createFromTemplate($appName, $template);
+            
+            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  1. composer nimbus:install $appName" . PHP_EOL;
+            echo "  2. podman-compose -f $appName-compose.yml up -d" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusInstall(Event $event) {
+        $args = $event->getArguments();
+        $appName = $args[0] ?? null;
+        
+        if (!$appName) {
+            $manager = new \Nimbus\App\AppManager();
+            $apps = $manager->listApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
+                return;
+            }
+            
+            $io = $event->getIO();
+            $appNames = array_keys($apps);
+            $appName = $io->select('Select app to install:', $appNames);
+        }
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $manager->install($appName);
+            
+            echo self::ansiFormat('SUCCESS', "App '$appName' installed successfully!");
+            echo self::ansiFormat('INFO', "Container config generated: $appName-compose.yml");
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to install app: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusList(Event $event) {
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $apps = $manager->listApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('INFO', 'No apps created yet.');
+                echo self::ansiFormat('INFO', 'Create one with: composer nimbus:create my-app');
+                return;
+            }
+            
+            echo self::ansiFormat('INFO', 'Available apps:');
+            foreach ($apps as $name => $info) {
+                $status = $info['installed'] ? 'installed' : 'created';
+                echo "  $name ($status) - {$info['template']}" . PHP_EOL;
+            }
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
+        }
+    }
+
     public static function copyAssets($source, $destination, $isFile, $event) {
 
 

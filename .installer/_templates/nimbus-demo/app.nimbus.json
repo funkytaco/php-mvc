@@ -1,0 +1,52 @@
+{
+    "name": "{{APP_NAME}}",
+    "version": "1.0.0",
+    "type": "nimbus-demo",
+    "description": "A minimal Nimbus framework demo application",
+    "features": {
+        "database": true,
+        "eda": false,
+        "certbot": false
+    },
+    "containers": {
+        "app": {
+            "port": "{{APP_PORT}}"
+        },
+        "db": {
+            "engine": "postgres",
+            "version": "14"
+        }
+    },
+    "database": {
+        "name": "{{DB_NAME}}",
+        "user": "{{DB_USER}}",
+        "password": "{{DB_PASSWORD}}"
+    },
+    "assets": {
+        "controllers": {
+            "source": "Controllers",
+            "target": "app/Controllers",
+            "isFile": false
+        },
+        "models": {
+            "source": "Models",
+            "target": "app/Models",
+            "isFile": false
+        },
+        "views": {
+            "source": "Views",
+            "target": "app/Views",
+            "isFile": false
+        },
+        "routes": {
+            "source": "routes/CustomRoutes.php",
+            "target": "app/CustomRoutes.php",
+            "isFile": true
+        },
+        "config": {
+            "source": "app.config.php",
+            "target": "app/app.config.php",
+            "isFile": true
+        }
+    }
+}

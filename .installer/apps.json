@@ -1,0 +1,10 @@
+{
+    "apps": {
+        "test-app": {
+            "name": "test-app",
+            "template": "nimbus-demo",
+            "created": "2025-07-11 02:02:03",
+            "installed": false
+        }
+    }
+}
