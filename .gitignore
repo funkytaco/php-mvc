@@ -13,6 +13,7 @@ html/
 rulebooks/
 eda/letsencrypt
 eda/certbot
+.installer/app-*
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
 CLAUDE.md

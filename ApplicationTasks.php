@@ -304,6 +304,29 @@ class ApplicationTasks {
         }
     }
 
+    public static function nimbusCreateWithEda(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? $io->ask('App name: ');
+        $template = $args[1] ?? 'nimbus-demo';
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $manager->createFromTemplate($appName, $template);
+            $manager->setEda($appName, true);
+            
+            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template' with EDA enabled!");
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  1. composer nimbus:install $appName" . PHP_EOL;
+            echo "  2. podman-compose -f $appName-compose.yml up -d" . PHP_EOL;
+            echo self::ansiFormat('INFO', "EDA container will be included with webhook listener on port 5000");
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
+        }
+    }
+
     public static function nimbusInstall(Event $event) {
         $args = $event->getArguments();
         $appName = $args[0] ?? null;
@@ -353,6 +376,183 @@ class ApplicationTasks {
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusUp(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        // Check if podman-compose is installed
+        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
+        if (!$composeCheck['installed']) {
+            echo self::ansiFormat('ERROR', $composeCheck['error']);
+            return;
+        }
+        
+        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $startableApps = $manager->getStartableApps();
+            
+            if (empty($startableApps)) {
+                echo self::ansiFormat('INFO', 'No apps found with compose files.');
+                echo self::ansiFormat('INFO', 'Create and install an app first:');
+                echo "  1. composer nimbus:create my-app" . PHP_EOL;
+                echo "  2. composer nimbus:install my-app" . PHP_EOL;
+                return;
+            }
+            
+            // If app name provided as argument, start that specific app
+            $targetApp = $args[0] ?? null;
+            
+            if ($targetApp) {
+                $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
+                if (empty($app)) {
+                    echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
+                    return;
+                }
+                $app = array_values($app)[0];
+                self::startApp($app);
+                return;
+            }
+            
+            // Otherwise, show list and let user choose
+            echo self::ansiFormat('INFO', 'Available apps to start:');
+            $choices = [];
+            $index = 1;
+            
+            foreach ($startableApps as $app) {
+                $imageStatus = $app['has_image'] ? '✓ built' : '✗ not built';
+                $runningStatus = self::formatRunningStatus($app);
+                $healthStatus = self::formatHealthStatus($app);
+                
+                echo "  [$index] {$app['name']} ($imageStatus, $runningStatus, $healthStatus)" . PHP_EOL;
+                
+                // Show container details if running
+                if ($app['is_running']) {
+                    foreach ($app['containers'] as $containerName => $status) {
+                        $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
+                        $healthIcon = self::getHealthIcon($status['health']);
+                        echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
+                    }
+                }
+                
+                $choices[$index] = $app;
+                $index++;
+            }
+            
+            $choice = $io->ask('Select app to start (number): ');
+            
+            if (!isset($choices[(int)$choice])) {
+                echo self::ansiFormat('ERROR', 'Invalid selection.');
+                return;
+            }
+            
+            $selectedApp = $choices[(int)$choice];
+            self::startApp($selectedApp);
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to start app: ' . $e->getMessage());
+        }
+    }
+    
+    private static function startApp(array $app) {
+        $appName = $app['name'];
+        $composeFile = $app['compose_file'];
+        
+        // Check if already running and healthy
+        if ($app['is_running'] && $app['health_status'] === 'healthy') {
+            echo self::ansiFormat('INFO', "App '$appName' is already running and healthy!");
+            self::showAppStatus($app);
+            return;
+        }
+        
+        if (!$app['has_image']) {
+            echo self::ansiFormat('WARNING', "App '$appName' image not built. Building now...");
+            $buildCommand = "podman-compose -f $composeFile up --build -d";
+        } else {
+            echo self::ansiFormat('INFO', "Starting app '$appName'...");
+            $buildCommand = "podman-compose -f $composeFile up -d";
+        }
+        
+        echo self::ansiFormat('INFO', "Running: $buildCommand");
+        $output = shell_exec($buildCommand . ' 2>&1');
+        
+        if ($output) {
+            echo $output;
+        }
+        
+        // Check if containers are running
+        $statusOutput = shell_exec("podman-compose -f $composeFile ps --format table 2>/dev/null");
+        if ($statusOutput) {
+            echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
+            echo $statusOutput;
+        }
+    }
+    
+    private static function formatRunningStatus(array $app): string {
+        if (!$app['is_running']) {
+            return '⏹️ stopped';
+        }
+        
+        $running = $app['running_count'] ?? 0;
+        $total = $app['total_count'] ?? 0;
+        
+        // If counts are 0, calculate from containers directly
+        if ($total === 0 && !empty($app['containers'])) {
+            $total = count($app['containers']);
+            $running = 0;
+            foreach ($app['containers'] as $container) {
+                if ($container['state'] === 'running') {
+                    $running++;
+                }
+            }
+        }
+        
+        if ($running === $total) {
+            return "▶️ running ($running/$total)";
+        } else {
+            return "⚠️ partial ($running/$total)";
+        }
+    }
+    
+    private static function formatHealthStatus(array $app): string {
+        switch ($app['health_status']) {
+            case 'healthy':
+                return '✅ healthy';
+            case 'running-unhealthy':
+                return '⚠️ unhealthy';
+            case 'partial':
+                return '🔄 partial';
+            case 'stopped':
+                return '⏸️ stopped';
+            default:
+                return '❓ unknown';
+        }
+    }
+    
+    private static function getHealthIcon(string $health): string {
+        switch ($health) {
+            case 'healthy':
+                return '✅';
+            case 'unhealthy':
+                return '❌';
+            case 'starting':
+                return '🔄';
+            case 'none':
+                return '➖';
+            default:
+                return '❓';
+        }
+    }
+    
+    private static function showAppStatus(array $app): void {
+        foreach ($app['containers'] as $containerName => $status) {
+            $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
+            $healthIcon = self::getHealthIcon($status['health']);
+            echo "  └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
         }
     }
 

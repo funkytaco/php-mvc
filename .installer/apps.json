@@ -11,6 +11,12 @@
             "template": "nimbus-demo",
             "created": "2025-07-11 02:12:16",
             "installed": false
+        },
+        "app-beta": {
+            "name": "app-beta",
+            "template": "nimbus-demo",
+            "created": "2025-07-11 02:52:01",
+            "installed": false
         }
     }
 }

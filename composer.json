@@ -46,8 +46,10 @@
         "install-lkui": "Tasks\\ApplicationTasks::InstallLkui",
         "install-nagios": "Tasks\\ApplicationTasks::InstallNagios",
         "nimbus:create": "Tasks\\ApplicationTasks::nimbusCreate",
+        "nimbus:create-with-eda": "Tasks\\ApplicationTasks::nimbusCreateWithEda",
         "nimbus:install": "Tasks\\ApplicationTasks::nimbusInstall",
         "nimbus:list": "Tasks\\ApplicationTasks::nimbusList",
+        "nimbus:up": "Tasks\\ApplicationTasks::nimbusUp",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"
@@ -57,7 +59,8 @@
             "Google_Task_Composer::cleanup"
         ],
         "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp"
+        "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-app-beta": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
@@ -206,6 +209,10 @@
         },
         "app-alpha-assets": {
             "app-name": "app-alpha",
+            "copy-assets": true
+        },
+        "app-beta-assets": {
+            "app-name": "app-beta",
             "copy-assets": true
         }
     }
