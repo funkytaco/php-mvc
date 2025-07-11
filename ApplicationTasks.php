@@ -393,7 +393,7 @@ class ApplicationTasks {
                 $nonEdaApps = [];
                 
                 foreach ($apps as $name => $info) {
-                    $configFile = getcwd() . '/.installer/' . $name . '/app.nimbus.json';
+                    $configFile = getcwd() . '/.installer/apps/' . $name . '/app.nimbus.json';
                     if (file_exists($configFile)) {
                         $config = json_decode(file_get_contents($configFile), true);
                         if (!($config['features']['eda'] ?? false)) {
@@ -443,7 +443,7 @@ class ApplicationTasks {
             echo self::ansiFormat('INFO', "Next steps:");
             echo "  1. composer nimbus:install $appName (to update app files)" . PHP_EOL;
             echo "  2. composer nimbus:up $appName" . PHP_EOL;
-            echo "  3. Customize rulebooks in .installer/$appName/rulebooks/" . PHP_EOL;
+            echo "  3. Customize rulebooks in .installer/apps/$appName/rulebooks/" . PHP_EOL;
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to add EDA: ' . $e->getMessage());

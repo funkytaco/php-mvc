@@ -13,6 +13,7 @@ html/
 rulebooks/
 eda/letsencrypt
 eda/certbot
+.installer/apps/*
 .installer/app-*
 .installer/apps.json
 .installer/lkui/certbot
