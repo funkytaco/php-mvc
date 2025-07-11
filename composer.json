@@ -66,7 +66,10 @@
         "install-app-with-rulebooks": "Tasks\\ApplicationTasks::installNimbusApp",
         "install-eda-example": "Tasks\\ApplicationTasks::installNimbusApp",
         "install-test-eda-fix": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-eda-is-cool": "Tasks\\ApplicationTasks::installNimbusApp"
+        "install-eda-is-cool": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-eda-two": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-threeda": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-fourda": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
@@ -208,34 +211,6 @@
         },
         "google/apiclient-services": [
             "Sheets"
-        ],
-        "test-app-assets": {
-            "app-name": "test-app",
-            "copy-assets": true
-        },
-        "app-alpha-assets": {
-            "app-name": "app-alpha",
-            "copy-assets": true
-        },
-        "app-beta-assets": {
-            "app-name": "app-beta",
-            "copy-assets": true
-        },
-        "app-with-rulebooks-assets": {
-            "app-name": "app-with-rulebooks",
-            "copy-assets": true
-        },
-        "eda-example-assets": {
-            "app-name": "eda-example",
-            "copy-assets": true
-        },
-        "test-eda-fix-assets": {
-            "app-name": "test-eda-fix",
-            "copy-assets": true
-        },
-        "eda-is-cool-assets": {
-            "app-name": "eda-is-cool",
-            "copy-assets": true
-        }
+        ]
     }
 }

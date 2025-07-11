@@ -2,19 +2,26 @@
 - name: {{APP_NAME}} API Notification
   hosts: localhost
   connection: local
-  gather_facts: false
+  gather_facts: true
   
   tasks:
-    - name: Log notification
+    - name: Log webhook event
       debug:
-        msg: "Received notification for {{APP_NAME}}"
+        msg: "Received {{ event_type }} event from {{ source }} for app {{ app_name }}"
     
-    - name: Send API call
+    - name: Add demo item via API
       uri:
-        url: "http://{{APP_NAME}}-app:8080/api/webhook"
+        url: "{{ api_url }}/items"
         method: POST
         body_format: json
         body:
-          event: "eda_notification"
-          app: "{{APP_NAME}}"
-          timestamp: "{{ ansible_date_time.iso8601 }}"
+          name: "EDA Generated Item"
+          description: "Created by Ansible EDA at {{ ansible_date_time.iso8601 }}"
+        headers:
+          Content-Type: "application/json"
+        status_code: 201
+      register: create_result
+      
+    - name: Log creation result
+      debug:
+        msg: "Item created successfully with ID: {{ create_result.json.id | default('unknown') }}"

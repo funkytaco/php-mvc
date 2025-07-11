@@ -34,6 +34,8 @@ class DemoController extends AbstractController
         
         if ($hasEda) {
             $features[] = 'Event-Driven Ansible (EDA)';
+        } else {
+            $features[] = 'Event-Driven Ansible (EDA) - Not enabled';
         }
         
         $data = [
@@ -141,5 +143,52 @@ class DemoController extends AbstractController
         } catch (\Exception $e) {
             $this->error($e->getMessage(), 500);
         }
+    }
+    
+    /**
+     * EDA webhook proxy to avoid CORS issues
+     */
+    public function edaWebhook()
+    {
+        $config = $this->getConfig();
+        $hasEda = $config['has_eda'] ?? false;
+        
+        if (!$hasEda) {
+            $this->error('EDA is not enabled for this app', 404);
+            return;
+        }
+        
+        $edaPort = $config['eda_port'] ?? 5000;
+        $requestData = $this->getRequestData();
+        
+        // Forward the request to the EDA container
+        $edaUrl = "http://{{APP_NAME}}-eda:5000/endpoint";
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $edaUrl);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestData));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($curlError) {
+            $this->error('Failed to reach EDA container: ' . $curlError, 502);
+            return;
+        }
+        
+        // Return success regardless of EDA response
+        $this->json([
+            'success' => true,
+            'message' => 'Webhook forwarded to EDA',
+            'eda_response_code' => $httpCode
+        ]);
     }
 }

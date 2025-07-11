@@ -11,5 +11,8 @@ return function ($injector, $renderer, $conn) {
         ['POST', '/api/items', ['App\Controllers\DemoController', 'apiCreate']],
         ['PUT', '/api/items/{id:\d+}', ['App\Controllers\DemoController', 'apiUpdate']],
         ['DELETE', '/api/items/{id:\d+}', ['App\Controllers\DemoController', 'apiDelete']],
+        
+        // EDA webhook proxy route
+        ['POST', '/api/eda/webhook', ['App\Controllers\DemoController', 'edaWebhook']],
     ];
 };

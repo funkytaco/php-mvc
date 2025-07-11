@@ -7,13 +7,13 @@
         edaStatusEl.textContent = 'Processing webhook...';
         
         try {
-            const response = await fetch('http://localhost:{{eda_port}}/endpoint', {
+            const response = await fetch('/api/eda/webhook', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    event: 'test_webhook',
+                    event: 'add_item',
                     source: 'nimbus_demo_ui',
                     timestamp: new Date().toISOString()
                 })

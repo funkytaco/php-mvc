@@ -1,28 +1,5 @@
 {
     "apps": {
-        "test-app": {
-            "name": "test-app",
-            "template": "nimbus-demo",
-            "created": "2025-07-11 02:02:03",
-            "installed": false
-        },
-        "app-alpha": {
-            "name": "app-alpha",
-            "template": "nimbus-demo",
-            "created": "2025-07-11 02:12:16",
-            "installed": false
-        },
-        "app-beta": {
-            "name": "app-beta",
-            "template": "nimbus-demo",
-            "created": "2025-07-11 02:52:01",
-            "installed": false
-        },
-        "app-with-rulebooks": {
-            "name": "app-with-rulebooks",
-            "template": "nimbus-demo",
-            "created": "2025-07-11 03:53:12",
-            "installed": false
-        }
+
     }
 }
