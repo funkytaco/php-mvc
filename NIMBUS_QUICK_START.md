@@ -1,24 +1,57 @@
 # Nimbus Framework Quick Start Guide
 
 ## Overview
-Nimbus transforms your PHP MVC framework into a modular, container-ready platform with built-in EDA support.
+Nimbus is a complete PHP MVC framework with built-in container orchestration, EDA (Event-Driven Ansible) support, and automated app management. It replaces manual processes with powerful CLI commands.
 
-## Key Changes
+## Quick Commands
 
-### 1. Namespace Migration
-- **Before**: `Main\*` namespace with components in `src/`
-- **After**: `Nimbus\*` namespace with modular components
+### App Lifecycle
+```bash
+# Create basic app
+composer nimbus:create my-app
+
+# Create app with EDA enabled
+composer nimbus:create-with-eda my-app
+
+# Add EDA to existing app
+composer nimbus:add-eda my-app
+
+# Install app (copy files to containers)
+composer nimbus:install my-app
+
+# List all apps
+composer nimbus:list
+
+# Start apps with status monitoring
+composer nimbus:up              # Interactive mode
+composer nimbus:up my-app       # Start specific app
+```
+
+### Status Monitoring
+The `nimbus:up` command shows comprehensive status:
+- ✅ **Image built status** - Shows if container images exist
+- 🟢 **Running status** - Shows running/stopped with container counts  
+- ✅ **Health status** - Displays overall health (healthy/unhealthy/partial)
+- 📊 **Individual containers** - Shows each container's state and health
+
+## Key Improvements
+
+### 1. Bootstrap Replacement
+- **Before**: `Bootstrap.php` with hardcoded configuration
+- **After**: `Nimbus\Core\Application` with dynamic config loading
 
 ### 2. Controller Enhancement
 ```php
-// Before
+// Before (manual dependency injection)
 class OrderController implements ControllerInterface {
     public function get() {
-        // Manual dependency injection
+        $injector = new Injector();
+        $db = $injector->make('PDO');
+        $renderer = $injector->make('Renderer');
     }
 }
 
-// After
+// After (automatic injection)
 class OrderController extends \Nimbus\Controller\AbstractController {
     public function listOrders() {
         $orders = $this->db->query("SELECT * FROM orders")->fetchAll();
@@ -27,24 +60,25 @@ class OrderController extends \Nimbus\Controller\AbstractController {
 }
 ```
 
-### 3. Simplified App Creation
+### 3. Automated App Management
 
 **Before** (Manual Process):
 1. Copy files to `.installer/app-name/`
 2. Edit `composer.json` to add install command
-3. Modify `ApplicationTasks.php`
-4. Create container configs manually
+3. Manually create container configs
+4. Update ApplicationTasks.php
 
-**After** (Automated):
+**After** (Fully Automated):
 ```bash
-# Create new EDA-enabled app
-composer nimbus:create my-app --template=eda-enabled
+# One command creates everything
+composer nimbus:create-with-eda monitoring
 
-# Install the app
-composer nimbus:install my-app
-
-# Generate containers
-composer nimbus:containers my-app
+# Automatically generates:
+# - App directory structure
+# - Container configurations  
+# - EDA rulebooks and playbooks
+# - Database schema
+# - Compose files with YAML validation
 ```
 
 ## App Configuration (app.nimbus.json)
@@ -52,7 +86,9 @@ composer nimbus:containers my-app
 ```json
 {
     "name": "my-app",
-    "type": "themed-app",
+    "version": "1.0.0",
+    "type": "nimbus-demo",
+    "description": "A Nimbus framework application",
     "features": {
         "database": true,
         "eda": true,
@@ -60,79 +96,127 @@ composer nimbus:containers my-app
     },
     "containers": {
         "app": {
-            "ports": ["8080:8080"]
+            "port": "8080"
         },
         "db": {
             "engine": "postgres",
             "version": "14"
         },
         "eda": {
-            "rulebooks": ["monitoring", "webhooks"]
+            "image": "quay.io/ansible/eda-server:latest",
+            "rulebooks_dir": "rulebooks"
         }
+    },
+    "database": {
+        "name": "my-app_db",
+        "user": "my-app_user", 
+        "password": "auto-generated"
     }
 }
 ```
 
-## Directory Structure
+## Current Directory Structure
 
 ```
-my-project/
+php-mvc-lkui/
 ├── src/
-│   └── Nimbus/           # Framework core
-├── app/                  # Active app files
+│   ├── Nimbus/              # ✅ Framework core (IMPLEMENTED)
+│   │   ├── Core/
+│   │   │   └── Application.php   # Replaces Bootstrap.php
+│   │   ├── Controller/
+│   │   │   └── AbstractController.php
+│   │   └── App/
+│   │       └── AppManager.php    # Handles app lifecycle
+├── app/                     # Active app files (generated)
+├── public/
+│   └── index.php           # ✅ Updated to use Nimbus
 ├── .installer/
-│   ├── _templates/       # App templates
-│   ├── apps.json        # App registry
-│   └── my-app/          # Your app
-│       ├── app.nimbus.json
-│       ├── Controllers/
-│       ├── Views/
-│       ├── Models/
-│       ├── database/
-│       └── containers/
-└── eda/
-    └── my-app/
-        ├── rulebooks/
-        └── playbooks/
+│   ├── _templates/          # ✅ App templates
+│   │   └── nimbus-demo/     # Default template with EDA
+│   ├── apps.json           # ✅ App registry
+│   ├── app-alpha/          # ✅ Example apps
+│   ├── app-beta/           
+│   └── test-app/
+├── data/                    # Container data volumes
+└── *-compose.yml           # ✅ Generated compose files
 ```
 
-## Migration Path
+## Container Architecture
 
-1. **Phase 1**: Install Nimbus core without breaking existing code
-2. **Phase 2**: Migrate controllers to extend AbstractController
-3. **Phase 3**: Switch to Nimbus app management
-4. **Phase 4**: Enable advanced features (EDA, monitoring)
+Each app generates a complete container stack:
 
-## Benefits
+### Standard App (2 containers):
+- **app-name-app**: PHP/Apache application server
+- **app-name-postgres**: PostgreSQL database with health checks
 
-✅ **Less Code**: No more manual copying in ApplicationTasks.php
-✅ **Consistency**: All apps follow the same structure
-✅ **Flexibility**: Swap template engines, databases easily
-✅ **Scalability**: Each app runs in isolated containers
-✅ **Power**: Built-in EDA for event-driven automation
+### EDA-Enabled App (3 containers):
+- **app-name-app**: PHP/Apache application server  
+- **app-name-postgres**: PostgreSQL database
+- **app-name-eda**: Ansible EDA server with webhook listener
 
-## Example: Creating a Monitoring Dashboard
+## Real-World Examples
+
+### Create a Simple API
+```bash
+composer nimbus:create customer-api
+composer nimbus:install customer-api
+composer nimbus:up customer-api
+# → Running at http://localhost:8XXX (auto-assigned port)
+```
+
+### Create Event-Driven App  
+```bash
+composer nimbus:create-with-eda order-processor
+composer nimbus:install order-processor
+composer nimbus:up order-processor
+# → App + Database + EDA automation running
+# → Webhook listener on port 5000
+```
+
+### Add EDA to Existing App
+```bash
+composer nimbus:add-eda customer-api
+composer nimbus:install customer-api
+composer nimbus:up customer-api
+# → Now includes EDA container with rulebooks
+```
+
+## Status Monitoring Example
 
 ```bash
-# Create app with EDA support
-composer nimbus:create monitoring --template=eda-enabled
-
-# The system automatically:
-# - Creates directory structure
-# - Generates container configs
-# - Sets up EDA rulebooks
-# - Configures database
-# - Registers in apps.json
-
-# Install and run
-composer nimbus:install monitoring
-podman-compose -f monitoring-compose.yml up -d
+$ composer nimbus:up
+Available apps to start:
+  [1] app-alpha (✓ built, ▶️ running (3/3), ✅ healthy)
+      └─ app-alpha-app: running 🟢 ➖
+      └─ app-alpha-postgres: running 🟢 ✅
+      └─ app-alpha-eda: running 🟢 ➖
+  [2] customer-api (✗ not built, ⏹️ stopped, ⏸️ stopped)
+  [3] order-processor (✓ built, ⚠️ partial (2/3), 🔄 partial)
 ```
 
-## Next Implementation Steps
+## Implementation Status
 
-1. Create `src/Nimbus/` directory structure
-2. Move Bootstrap.php logic to Nimbus\Core\Application  
-3. Create AbstractController base class
-4. Implement AppManager for automated installations
-5. Test with existing lkui app
+✅ **Core Framework**: Complete
+- Nimbus\Core\Application replaces Bootstrap.php
+- AbstractController with dependency injection
+- Dynamic configuration loading
+
+✅ **App Management**: Complete  
+- Automated app creation and installation
+- Template system with placeholder replacement
+- Container generation with YAML validation
+
+✅ **EDA Integration**: Complete
+- EDA-enabled app creation
+- Rulebook and playbook templating  
+- Ansible EDA container orchestration
+
+✅ **Container Orchestration**: Complete
+- Multi-container app stacks
+- Health monitoring and status reporting
+- Automatic port assignment and networking
+
+✅ **CLI Commands**: Complete
+- Full app lifecycle management
+- Interactive and direct command modes
+- Comprehensive status monitoring

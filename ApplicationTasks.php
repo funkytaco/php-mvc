@@ -379,6 +379,77 @@ class ApplicationTasks {
         }
     }
 
+    public static function nimbusAddEda(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? null;
+        
+        if (!$appName) {
+            // Show available apps without EDA
+            try {
+                $manager = new \Nimbus\App\AppManager();
+                $apps = $manager->listApps();
+                $nonEdaApps = [];
+                
+                foreach ($apps as $name => $info) {
+                    $configFile = getcwd() . '/.installer/' . $name . '/app.nimbus.json';
+                    if (file_exists($configFile)) {
+                        $config = json_decode(file_get_contents($configFile), true);
+                        if (!($config['features']['eda'] ?? false)) {
+                            $nonEdaApps[] = $name;
+                        }
+                    }
+                }
+                
+                if (empty($nonEdaApps)) {
+                    echo self::ansiFormat('INFO', 'No apps found that can have EDA added.');
+                    echo self::ansiFormat('INFO', 'All existing apps already have EDA enabled.');
+                    return;
+                }
+                
+                echo self::ansiFormat('INFO', 'Apps available for EDA:');
+                foreach ($nonEdaApps as $name) {
+                    echo "  - $name" . PHP_EOL;
+                }
+                
+                $appName = $io->ask('Select app to add EDA to: ');
+                
+                if (!$appName || !in_array($appName, $nonEdaApps)) {
+                    echo self::ansiFormat('ERROR', 'Invalid app selection.');
+                    return;
+                }
+            } catch (\Exception $e) {
+                echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
+                return;
+            }
+        }
+        
+        if (!$appName) {
+            echo self::ansiFormat('ERROR', 'App name is required.');
+            return;
+        }
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $manager->addEda($appName);
+            
+            echo self::ansiFormat('SUCCESS', "EDA functionality added to '$appName' successfully!");
+            echo self::ansiFormat('INFO', "Changes made:");
+            echo "  ✓ Enabled EDA in app configuration" . PHP_EOL;
+            echo "  ✓ Created rulebooks directory with demo files" . PHP_EOL;
+            echo "  ✓ Regenerated compose file with EDA container" . PHP_EOL;
+            echo "  ✓ Validated YAML syntax" . PHP_EOL;
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  1. composer nimbus:install $appName (to update app files)" . PHP_EOL;
+            echo "  2. podman-compose -f $appName-compose.yml up --build -d" . PHP_EOL;
+            echo "  3. Customize rulebooks in .installer/$appName/rulebooks/" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to add EDA: ' . $e->getMessage());
+        }
+    }
+
     public static function nimbusUp(Event $event) {
         $io = $event->getIO();
         $args = $event->getArguments();

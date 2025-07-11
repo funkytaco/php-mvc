@@ -5,7 +5,7 @@
     "description": "A minimal Nimbus framework demo application",
     "features": {
         "database": true,
-        "eda": false,
+        "eda": true,
         "certbot": false
     },
     "containers": {
@@ -15,6 +15,10 @@
         "db": {
             "engine": "postgres",
             "version": "14"
+        },
+        "eda": {
+            "image": "quay.io\/ansible\/eda-server:latest",
+            "rulebooks_dir": "rulebooks"
         }
     },
     "database": {
@@ -25,27 +29,27 @@
     "assets": {
         "controllers": {
             "source": "Controllers",
-            "target": "app/Controllers",
+            "target": "app\/Controllers",
             "isFile": false
         },
         "models": {
             "source": "Models",
-            "target": "app/Models",
+            "target": "app\/Models",
             "isFile": false
         },
         "views": {
             "source": "Views",
-            "target": "app/Views",
+            "target": "app\/Views",
             "isFile": false
         },
         "routes": {
-            "source": "routes/CustomRoutes.php",
-            "target": "app/CustomRoutes.php",
+            "source": "routes\/CustomRoutes.php",
+            "target": "app\/CustomRoutes.php",
             "isFile": true
         },
         "config": {
             "source": "app.config.php",
-            "target": "app/app.config.php",
+            "target": "app\/app.config.php",
             "isFile": true
         }
     }
