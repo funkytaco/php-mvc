@@ -21,7 +21,7 @@ class TemplatesController
             'title' => 'SSL Certificate Templates',
             'templates' => $templates
         ];
-        echo $this->renderer->render('templates.html', $data);
+        echo $this->renderer->render('templates', $data);
     }
 
 

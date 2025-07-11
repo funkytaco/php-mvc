@@ -4,7 +4,7 @@
 
     $arrDbSettings = [
     'dsn' => '',
-    'username' => 'luki',
+    'username' => 'lkui',
     'password' => 'lkui_secure_password_2024',
     'options' => null
     ];

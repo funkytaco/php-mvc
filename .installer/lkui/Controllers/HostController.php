@@ -44,7 +44,7 @@ class HostController implements ControllerInterface {
         $this->data['templates'] = $this->templateModel ? $this->templateModel->getTemplatesForForm() : [];
         $this->data['redirectToHosts'] = true;
         
-        $html = $this->renderer->render('index.html', $this->data);
+        $html = $this->renderer->render('index', $this->data);
         echo $html;
     }
 
@@ -59,7 +59,7 @@ class HostController implements ControllerInterface {
             'title' => 'License Key Management System'
         ];
         
-        return $this->renderer->render($response, 'index.html', $data);
+        return $this->renderer->render($response, 'index', $data);
     }
 
     /**
@@ -107,7 +107,7 @@ class HostController implements ControllerInterface {
             'redirectToHosts' => false
         ];
         
-        echo $this->renderer->render('hosts.html', $data);
+        echo $this->renderer->render('hosts', $data);
     }
 
     /**
@@ -131,11 +131,11 @@ class HostController implements ControllerInterface {
         if (!$this->data['host']) {
             // Return 404 or error page
             $this->data = ['error' => 'Host not found'];
-            echo $this->renderer->render('error.html', $this->data);
+            echo $this->renderer->render('error', $this->data);
             return;
         }
 
-        echo $this->renderer->render('host-detail.html', $this->data);
+        echo $this->renderer->render('host-detail', $this->data);
         
 
     }

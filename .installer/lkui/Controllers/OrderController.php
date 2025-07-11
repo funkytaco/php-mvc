@@ -34,7 +34,7 @@ class OrderController implements ControllerInterface {
         // Add GET parameters to data if needed
         $this->data['getVar'] = $_GET;
         
-        $html = $this->renderer->render('order-detail.html', $this->data);
+        $html = $this->renderer->render('order-detail', $this->data);
         echo $html;
     }
 
@@ -53,7 +53,7 @@ class OrderController implements ControllerInterface {
             'orders' => $orders
         ];
         
-        echo $this->renderer->render('orders.html', $data);
+        echo $this->renderer->render('orders', $data);
     }
 
     /**
@@ -66,7 +66,7 @@ class OrderController implements ControllerInterface {
         
         if (!$order) {
             $data = ['error' => 'Order not found'];
-            echo $this->renderer->render('error.html', $data);
+            echo $this->renderer->render('error', $data);
             return;
         }
         
@@ -82,7 +82,7 @@ class OrderController implements ControllerInterface {
             'order' => $order
         ];
         
-        $html = $this->renderer->render('order-detail.html', $data);
+        $html = $this->renderer->render('order-detail', $data);
         echo $html;
     }
 
@@ -115,11 +115,11 @@ class OrderController implements ControllerInterface {
         //     $this->data = ['error' => 'Host not found'];
 
             
-        //     echo $this->renderer->render('error.html', $this->data);
+        //     echo $this->renderer->render('error', $this->data);
         //     return;
         // } 
         
-        echo $this->renderer->render('order-create.html', $this->data);
+        echo $this->renderer->render('order-create', $this->data);
 
 
     }

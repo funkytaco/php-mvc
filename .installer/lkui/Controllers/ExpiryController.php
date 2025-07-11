@@ -70,7 +70,7 @@ class ExpiryController
         }
         
         $this->data['title'] = 'SSL Certificate Expiry Monitor';
-        $html = $this->renderer->render('expiry.html', $this->data);
+        $html = $this->renderer->render('expiry', $this->data);
         echo $html;
     }
 
