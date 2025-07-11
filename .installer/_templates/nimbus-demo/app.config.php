@@ -12,5 +12,7 @@ return [
     ],
     'app_name' => '{{APP_NAME_UPPER}} Demo',
     'base_url' => '/',
-    'debug' => true
+    'debug' => true,
+    'has_eda' => false,
+    'eda_port' => {{EDA_PORT}}
 ];

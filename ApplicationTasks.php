@@ -297,7 +297,7 @@ class ApplicationTasks {
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
             echo self::ansiFormat('INFO', "Next steps:");
             echo "  1. composer nimbus:install $appName" . PHP_EOL;
-            echo "  2. podman-compose -f $appName-compose.yml up -d" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName" . PHP_EOL;
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -314,12 +314,12 @@ class ApplicationTasks {
         try {
             $manager = new \Nimbus\App\AppManager();
             $manager->createFromTemplate($appName, $template);
-            $manager->setEda($appName, true);
+            $manager->addEda($appName);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template' with EDA enabled!");
             echo self::ansiFormat('INFO', "Next steps:");
             echo "  1. composer nimbus:install $appName" . PHP_EOL;
-            echo "  2. podman-compose -f $appName-compose.yml up -d" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName" . PHP_EOL;
             echo self::ansiFormat('INFO', "EDA container will be included with webhook listener on port 5000");
             
         } catch (\Exception $e) {
@@ -442,7 +442,7 @@ class ApplicationTasks {
             echo "  ✓ Validated YAML syntax" . PHP_EOL;
             echo self::ansiFormat('INFO', "Next steps:");
             echo "  1. composer nimbus:install $appName (to update app files)" . PHP_EOL;
-            echo "  2. podman-compose -f $appName-compose.yml up --build -d" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName" . PHP_EOL;
             echo "  3. Customize rulebooks in .installer/$appName/rulebooks/" . PHP_EOL;
             
         } catch (\Exception $e) {

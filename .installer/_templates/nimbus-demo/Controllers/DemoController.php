@@ -22,16 +22,27 @@ class DemoController extends AbstractController
      */
     public function index()
     {
+        $config = $this->getConfig();
+        $hasEda = $config['has_eda'] ?? false;
+        
+        $features = [
+            'MVC Architecture',
+            'Database Integration',
+            'Container Ready',
+            'RESTful API Support'
+        ];
+        
+        if ($hasEda) {
+            $features[] = 'Event-Driven Ansible (EDA)';
+        }
+        
         $data = [
             'title' => '{{APP_NAME_UPPER}} Demo',
             'message' => 'Welcome to your Nimbus application!',
-            'features' => [
-                'MVC Architecture',
-                'Database Integration',
-                'Container Ready',
-                'RESTful API Support'
-            ],
-            'stats' => $this->demoModel->getStats()
+            'features' => $features,
+            'stats' => $this->demoModel->getStats(),
+            'has_eda' => $hasEda,
+            'eda_port' => $config['eda_port'] ?? 5000
         ];
         
         $html = $this->render('demo/index', $data);

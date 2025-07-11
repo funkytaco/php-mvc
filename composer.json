@@ -63,7 +63,10 @@
         "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp",
         "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp",
         "install-app-beta": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-with-rulebooks": "Tasks\\ApplicationTasks::installNimbusApp"
+        "install-app-with-rulebooks": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-eda-example": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-test-eda-fix": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-eda-is-cool": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
@@ -220,6 +223,18 @@
         },
         "app-with-rulebooks-assets": {
             "app-name": "app-with-rulebooks",
+            "copy-assets": true
+        },
+        "eda-example-assets": {
+            "app-name": "eda-example",
+            "copy-assets": true
+        },
+        "test-eda-fix-assets": {
+            "app-name": "test-eda-fix",
+            "copy-assets": true
+        },
+        "eda-is-cool-assets": {
+            "app-name": "eda-is-cool",
             "copy-assets": true
         }
     }

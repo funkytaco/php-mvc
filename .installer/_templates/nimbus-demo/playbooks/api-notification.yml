@@ -1,0 +1,20 @@
+---
+- name: {{APP_NAME}} API Notification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  tasks:
+    - name: Log notification
+      debug:
+        msg: "Received notification for {{APP_NAME}}"
+    
+    - name: Send API call
+      uri:
+        url: "http://{{APP_NAME}}-app:8080/api/webhook"
+        method: POST
+        body_format: json
+        body:
+          event: "eda_notification"
+          app: "{{APP_NAME}}"
+          timestamp: "{{ ansible_date_time.iso8601 }}"
