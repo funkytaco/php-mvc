@@ -1,0 +1,69 @@
+<script>
+    async function triggerWebhook() {
+        const statusEl = document.getElementById('webhook-status');
+        const edaStatusEl = document.getElementById('eda-status');
+        
+        statusEl.textContent = 'Sending webhook...';
+        edaStatusEl.textContent = 'Processing webhook...';
+        
+        try {
+            const response = await fetch('http://localhost:5000/endpoint', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    event: 'test_webhook',
+                    source: 'nimbus_demo_ui',
+                    timestamp: new Date().toISOString()
+                })
+            });
+            
+            if (response.ok) {
+                statusEl.textContent = 'Webhook sent!';
+                edaStatusEl.textContent = 'Webhook received by EDA';
+                
+                // Auto-refresh item count after a brief delay
+                setTimeout(() => {
+                    checkItemCount();
+                }, 2000);
+            } else {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } catch (error) {
+            statusEl.textContent = 'Error: ' + error.message;
+            edaStatusEl.textContent = 'Failed to reach EDA container';
+            console.error('Webhook error:', error);
+        }
+    }
+    
+    async function checkItemCount() {
+        const countEl = document.getElementById('item-count');
+        const statusEl = document.getElementById('webhook-status');
+        
+        statusEl.textContent = 'Checking count...';
+        
+        try {
+            const response = await fetch('/api/items');
+            const data = await response.json();
+            
+            if (response.ok) {
+                const count = Array.isArray(data) ? data.length : (data.count || 0);
+                countEl.textContent = count;
+                statusEl.textContent = `Updated! (${count} items)`;
+                
+                if (count > {{stats.total_items}}) {
+                    document.getElementById('eda-status').textContent = 'New items detected!';
+                }
+            } else {
+                throw new Error('Failed to fetch items');
+            }
+        } catch (error) {
+            statusEl.textContent = 'Error checking count';
+            console.error('Count check error:', error);
+        }
+    }
+    
+    // Auto-check item count every 10 seconds if EDA is enabled
+    setInterval(checkItemCount, 10000);
+</script>

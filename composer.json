@@ -62,7 +62,8 @@
         ],
         "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp",
         "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-beta": "Tasks\\ApplicationTasks::installNimbusApp"
+        "install-app-beta": "Tasks\\ApplicationTasks::installNimbusApp",
+        "install-app-with-rulebooks": "Tasks\\ApplicationTasks::installNimbusApp"
     },
     "extra": {
         "lkui-assets": {
@@ -215,6 +216,10 @@
         },
         "app-beta-assets": {
             "app-name": "app-beta",
+            "copy-assets": true
+        },
+        "app-with-rulebooks-assets": {
+            "app-name": "app-with-rulebooks",
             "copy-assets": true
         }
     }

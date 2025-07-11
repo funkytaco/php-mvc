@@ -17,6 +17,12 @@
             "template": "nimbus-demo",
             "created": "2025-07-11 02:52:01",
             "installed": false
+        },
+        "app-with-rulebooks": {
+            "name": "app-with-rulebooks",
+            "template": "nimbus-demo",
+            "created": "2025-07-11 03:53:12",
+            "installed": false
         }
     }
 }

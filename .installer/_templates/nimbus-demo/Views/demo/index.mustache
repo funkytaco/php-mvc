@@ -68,6 +68,56 @@
             border-radius: 3px;
             font-family: monospace;
         }
+        .eda-section {
+            background: #e8f5e8;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+        }
+        .webhook-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin: 1rem 0;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-success:hover {
+            background: #1e7e34;
+        }
+        .data-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #28a745; }
+        .status-warning { background: #ffc107; }
+        .status-error { background: #dc3545; }
     </style>
 </head>
 <body>
@@ -116,6 +166,10 @@
             </div>
         </div>
 
+        {{#has_eda}}
+        {{> partials/eda-section}}
+        {{/has_eda}}
+
         <div class="card">
             <h2>Next Steps</h2>
             <ul>
@@ -126,5 +180,9 @@
             </ul>
         </div>
     </div>
+
+    {{#has_eda}}
+    {{> partials/eda-scripts}}
+    {{/has_eda}}
 </body>
 </html>
