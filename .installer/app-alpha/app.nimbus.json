@@ -17,7 +17,7 @@
             "version": "14"
         },
         "eda": {
-            "image": "quay.io\/ansible\/eda-server:latest",
+            "image": "registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest",
             "rulebooks_dir": "rulebooks"
         }
     },

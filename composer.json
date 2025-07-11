@@ -50,6 +50,7 @@
         "nimbus:install": "Tasks\\ApplicationTasks::nimbusInstall",
         "nimbus:list": "Tasks\\ApplicationTasks::nimbusList",
         "nimbus:up": "Tasks\\ApplicationTasks::nimbusUp",
+        "nimbus:down": "Tasks\\ApplicationTasks::nimbusDown",
         "nimbus:add-eda": "Tasks\\ApplicationTasks::nimbusAddEda",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [

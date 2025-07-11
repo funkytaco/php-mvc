@@ -450,6 +450,170 @@ class ApplicationTasks {
         }
     }
 
+    public static function nimbusDown(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        // Check if podman-compose is installed
+        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
+        if (!$composeCheck['installed']) {
+            echo self::ansiFormat('ERROR', $composeCheck['error']);
+            return;
+        }
+        
+        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $runningApps = $manager->getRunningApps();
+            
+            if (empty($runningApps)) {
+                echo self::ansiFormat('INFO', 'No running apps found.');
+                return;
+            }
+            
+            // If app name provided as argument, stop that specific app
+            $targetApp = $args[0] ?? null;
+            
+            if ($targetApp) {
+                $app = array_filter($runningApps, fn($a) => $a['name'] === $targetApp);
+                if (empty($app)) {
+                    echo self::ansiFormat('ERROR', "App '$targetApp' is not running or not found.");
+                    return;
+                }
+                $app = array_values($app)[0];
+                self::stopApp($manager, $app, $io);
+                return;
+            }
+            
+            // Otherwise, show list and let user choose
+            echo self::ansiFormat('INFO', 'Running apps:');
+            $choices = [];
+            $index = 1;
+            
+            foreach ($runningApps as $app) {
+                $runningStatus = self::formatRunningStatus($app);
+                $healthStatus = self::formatHealthStatus($app);
+                
+                echo "  [$index] {$app['name']} ($runningStatus, $healthStatus)" . PHP_EOL;
+                
+                // Show container details
+                foreach ($app['containers'] as $containerName => $status) {
+                    $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
+                    $healthIcon = self::getHealthIcon($status['health']);
+                    echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
+                }
+                
+                $choices[$index] = $app;
+                $index++;
+            }
+            
+            // Add option to stop all
+            echo "  [all] Stop all running apps" . PHP_EOL;
+            
+            $choice = $io->ask('Select app to stop (number or "all"): ');
+            
+            if (strtolower($choice ?? '') === 'all') {
+                self::stopAllApps($manager, $runningApps, $io);
+                return;
+            }
+            
+            if (!isset($choices[(int)$choice])) {
+                echo self::ansiFormat('ERROR', 'Invalid selection.');
+                return;
+            }
+            
+            $selectedApp = $choices[(int)$choice];
+            self::stopApp($manager, $selectedApp, $io);
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to stop app: ' . $e->getMessage());
+        }
+    }
+    
+    private static function stopApp($manager, array $app, $io) {
+        $appName = $app['name'];
+        
+        // Ask for stop options
+        $removeVolumes = $io->askConfirmation('Remove volumes? [y/N]: ', false);
+        $removeContainers = $io->askConfirmation('Remove containers completely? [y/N]: ', false);
+        $removeImages = $io->askConfirmation('Remove app images? [y/N]: ', false);
+        
+        $options = [
+            'remove_volumes' => $removeVolumes,
+            'remove_containers' => $removeContainers,
+            'remove_images' => $removeImages,
+            'timeout' => 10
+        ];
+        
+        echo self::ansiFormat('INFO', "Stopping app '$appName'...");
+        
+        $results = $manager->stopApp($appName, $options);
+        
+        if ($results['stopped']) {
+            echo self::ansiFormat('SUCCESS', "App '$appName' stopped successfully!");
+            
+            if ($results['removed']) {
+                echo self::ansiFormat('INFO', "✓ Containers removed");
+            }
+            if ($results['cleaned']) {
+                echo self::ansiFormat('INFO', "✓ Images removed");
+            }
+            if ($removeVolumes) {
+                echo self::ansiFormat('INFO', "✓ Volumes removed");
+            }
+        }
+        
+        // Show output if there are any issues
+        if ($results['output'] && (strpos($results['output'], 'Error') !== false || strpos($results['output'], 'error') !== false)) {
+            echo self::ansiFormat('WARNING', "Output:");
+            echo $results['output'];
+        }
+    }
+    
+    private static function stopAllApps($manager, array $runningApps, $io) {
+        $confirmed = $io->askConfirmation("Stop all " . count($runningApps) . " running apps? [y/N]: ", false);
+        
+        if (!$confirmed) {
+            echo self::ansiFormat('INFO', 'Operation cancelled.');
+            return;
+        }
+        
+        $removeVolumes = $io->askConfirmation('Remove volumes for all apps? [y/N]: ', false);
+        $removeContainers = $io->askConfirmation('Remove containers for all apps? [y/N]: ', false);
+        $removeImages = $io->askConfirmation('Remove images for all apps? [y/N]: ', false);
+        
+        $options = [
+            'remove_volumes' => $removeVolumes,
+            'remove_containers' => $removeContainers,
+            'remove_images' => $removeImages,
+            'timeout' => 10
+        ];
+        
+        $stopped = 0;
+        $failed = 0;
+        
+        foreach ($runningApps as $app) {
+            try {
+                echo self::ansiFormat('INFO', "Stopping {$app['name']}...");
+                $results = $manager->stopApp($app['name'], $options);
+                
+                if ($results['stopped']) {
+                    $stopped++;
+                    echo self::ansiFormat('SUCCESS', "✓ {$app['name']} stopped");
+                } else {
+                    $failed++;
+                    echo self::ansiFormat('ERROR', "✗ Failed to stop {$app['name']}");
+                }
+            } catch (\Exception $e) {
+                $failed++;
+                echo self::ansiFormat('ERROR', "✗ Error stopping {$app['name']}: " . $e->getMessage());
+            }
+        }
+        
+        echo self::ansiFormat('SUCCESS', "Stopped $stopped apps" . ($failed > 0 ? ", $failed failed" : ""));
+    }
+
     public static function nimbusUp(Event $event) {
         $io = $event->getIO();
         $args = $event->getArguments();

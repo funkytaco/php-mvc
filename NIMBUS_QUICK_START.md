@@ -25,6 +25,10 @@ composer nimbus:list
 # Start apps with status monitoring
 composer nimbus:up              # Interactive mode
 composer nimbus:up my-app       # Start specific app
+
+# Stop apps with cleanup options
+composer nimbus:down            # Interactive mode
+composer nimbus:down my-app     # Stop specific app
 ```
 
 ### Status Monitoring
@@ -33,6 +37,14 @@ The `nimbus:up` command shows comprehensive status:
 - 🟢 **Running status** - Shows running/stopped with container counts  
 - ✅ **Health status** - Displays overall health (healthy/unhealthy/partial)
 - 📊 **Individual containers** - Shows each container's state and health
+
+### App Shutdown
+The `nimbus:down` command provides flexible stopping options:
+- 🛑 **Graceful shutdown** - Stops containers with configurable timeout
+- 🗑️ **Volume cleanup** - Option to remove persistent data
+- 📦 **Container removal** - Option to completely remove containers
+- 💿 **Image cleanup** - Option to remove built images
+- 🔄 **Bulk operations** - Stop all running apps at once
 
 ## Key Improvements
 
