@@ -59,17 +59,7 @@
         "post-update-cmd": [
             "Tasks\\ApplicationTasks::postUpdate",
             "Google_Task_Composer::cleanup"
-        ],
-        "install-test-app": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-alpha": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-beta": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-app-with-rulebooks": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-eda-example": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-test-eda-fix": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-eda-is-cool": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-eda-two": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-threeda": "Tasks\\ApplicationTasks::installNimbusApp",
-        "install-fourda": "Tasks\\ApplicationTasks::installNimbusApp"
+        ]
     },
     "extra": {
         "lkui-assets": {
