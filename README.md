@@ -1,26 +1,114 @@
-# php-mvc
+# Nimbus Framework
 
-A modular 'no framework' MVC framework in PHP5.
+A containerized PHP MVC application generator with Event-Driven Automation (EDA) support. Nimbus replaces manual development workflows with automated app creation, container orchestration, and optional Ansible EDA integration.
 
-Build Status - Untracked
+## 🚀 Quick Start
+
+```bash
+# Create a new app with EDA
+composer nimbus:create-with-eda my-app
+
+# Install and start the app
+composer nimbus:install my-app
+composer nimbus:up my-app
+
+# Your app is running at http://localhost:8XXX (auto-assigned port)
+```
+
+Build Status - Active Development
 
 ## Installation
 
-```sh
-$ composer install
+```bash
+# Install dependencies
+composer install
+
+# Install legacy MVC template (optional)
+composer install-mvc
+
+# Install LKUI template (for SSL certificate management)
+composer install-lkui
 ```
 
-```sh
-$ composer install-mvc
-```
-## Usage
-To run a development server on localhost port 8000:
-```sh
-$ composer serve
-```
-The port can be changed in **DevTasks.php**, which is a Composer scripts PHP file.
+## Nimbus Commands
 
-## Usage ##
+### App Lifecycle Management
+```bash
+# Create basic app
+composer nimbus:create my-app
+
+# Create app with EDA enabled
+composer nimbus:create-with-eda my-app
+
+# Add EDA to existing app
+composer nimbus:add-eda my-app
+
+# Install app (copy files and generate containers)
+composer nimbus:install my-app
+
+# List all apps with status
+composer nimbus:list
+```
+
+### Container Management
+```bash
+# Start apps (interactive mode)
+composer nimbus:up
+
+# Start specific app
+composer nimbus:up my-app
+
+# Stop apps (interactive mode)
+composer nimbus:down
+
+# Stop specific app with cleanup options
+composer nimbus:down my-app
+```
+
+## Nimbus Architecture
+
+### What You Get
+Each Nimbus app generates a complete containerized stack:
+
+**Standard App (2 containers):**
+- **app-name-app**: PHP 8.2 + Apache application server
+- **app-name-postgres**: PostgreSQL 14 database with health checks
+
+**EDA-Enabled App (3 containers):**
+- **app-name-app**: PHP 8.2 + Apache application server  
+- **app-name-postgres**: PostgreSQL 14 database
+- **app-name-eda**: Ansible EDA server with webhook listener on port 5000
+
+### Features
+- ✅ **Zero Configuration**: Apps work out-of-the-box
+- ✅ **Automatic Port Assignment**: No port conflicts between apps
+- ✅ **Health Monitoring**: Container status and health checks
+- ✅ **Live Development**: Files mounted for immediate changes
+- ✅ **Database Integration**: Schema loading with sample data
+- ✅ **EDA Automation**: Event-driven Ansible playbooks
+- ✅ **Template System**: Extensible app templates
+
+### App Structure
+```
+.installer/apps/my-app/
+├── app.nimbus.json       # App configuration
+├── Controllers/          # MVC Controllers  
+├── Models/              # Data models
+├── Views/               # Mustache templates (.mustache)
+├── routes/              # Custom API routes
+├── database/            # Schema and migrations
+├── rulebooks/           # EDA rulebooks (if enabled)
+├── playbooks/           # Ansible playbooks (if enabled)
+└── logs/                # Application logs
+```
+
+## Legacy Usage
+To run a development server for legacy templates:
+```bash
+composer serve
+```
+
+## Legacy Development (Pre-Nimbus) ##
 ### 1) Create your own View ###
 - add a template view in **app/Views/** by default, this is a [Mustache]() template. (It is possible to change the rendering engine).
     - add a controller in src/Controllers/ which uses the view.

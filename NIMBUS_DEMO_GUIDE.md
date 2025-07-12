@@ -3,32 +3,49 @@
 ## 🎯 Purpose
 The `nimbus-demo` template demonstrates the complete Nimbus framework functionality with minimal code. Users can create a working app without writing any code.
 
-## ✅ What Was Successfully Tested
+## ✅ What Is Currently Working
 
-### 1. App Creation
+### 1. App Creation (All Commands Working)
 ```bash
+# Basic app creation
 composer nimbus:create test-app
+
+# EDA-enabled app creation
+composer nimbus:create-with-eda test-app  
+
+# Add EDA to existing app
+composer nimbus:add-eda test-app
 ```
+
+**What Works:**
 - ✅ Created from nimbus-demo template
-- ✅ Generated unique port (8447)
-- ✅ Created secure database password
+- ✅ Generated unique port based on app name hash
+- ✅ Created secure randomly-generated database password
 - ✅ Replaced all placeholders with app-specific values
-- ✅ Registered in apps.json
-- ✅ Updated composer.json automatically
+- ✅ Registered in .installer/apps.json
+- ✅ Auto-creates app.nimbus.json configuration
+- ✅ EDA rulebooks and playbooks generated when enabled
 
-### 2. App Installation
+### 2. App Installation & Management
 ```bash
+# Install app files and generate containers
 composer nimbus:install test-app
-```
-- ✅ Copied all assets to active directories
-- ✅ Generated podman-compose.yml file
-- ✅ Created proper container configuration
 
-### 3. App Management
-```bash
+# List all apps with status
 composer nimbus:list
+
+# Start/stop apps with monitoring
+composer nimbus:up test-app
+composer nimbus:down test-app
 ```
-- ✅ Lists all created apps with status
+
+**What Works:**
+- ✅ Copied all assets to active directories (app/Controllers, app/Views, etc.)
+- ✅ Generated {app-name}-compose.yml file with proper YAML format
+- ✅ Created container configuration with networking and volumes
+- ✅ Lists all created apps with installation and running status
+- ✅ Interactive start/stop with health monitoring
+- ✅ Container status display with icons and health checks
 
 ## 📁 What Gets Created
 
@@ -93,28 +110,38 @@ nimbus-demo/
 
 ## 🧪 Testing the Demo
 
-### Start the containers
+### Start the containers (Nimbus Way)
+```bash
+# Nimbus handles everything automatically
+composer nimbus:up test-app
+```
+
+**OR manually:**
 ```bash
 podman-compose -f test-app-compose.yml up -d
 ```
 
 ### Test the web interface
 ```bash
-curl http://localhost:8447/
+# Port is generated based on app name hash
+curl http://localhost:$(cat .installer/apps/test-app/app.nimbus.json | grep -o '"port": "[^"]*' | cut -d'"' -f4)/
 ```
 
 ### Test the API
 ```bash
+# Find your app's port first
+APP_PORT=$(cat .installer/apps/test-app/app.nimbus.json | grep -o '"port": "[^"]*' | cut -d'"' -f4)
+
 # List items
-curl http://localhost:8447/api/items
+curl http://localhost:$APP_PORT/api/items
 
 # Create item
-curl -X POST http://localhost:8447/api/items \
+curl -X POST http://localhost:$APP_PORT/api/items \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Item","description":"Created via API"}'
 
 # Get single item
-curl http://localhost:8447/api/items/1
+curl http://localhost:$APP_PORT/api/items/1
 ```
 
 ## 🎯 Success Criteria
