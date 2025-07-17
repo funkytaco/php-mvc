@@ -614,6 +614,73 @@ class ApplicationTasks {
         echo self::ansiFormat('SUCCESS', "Stopped $stopped apps" . ($failed > 0 ? ", $failed failed" : ""));
     }
 
+    public static function nimbusStatus(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        // Check if podman-compose is installed
+        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
+        if (!$composeCheck['installed']) {
+            echo self::ansiFormat('ERROR', $composeCheck['error']);
+            return;
+        }
+        
+        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
+        
+        
+            $manager = new \Nimbus\App\AppManager();
+            $startableApps = $manager->getStartableApps();
+            
+            if (empty($startableApps)) {
+                echo self::ansiFormat('INFO', 'No apps found with compose files.');
+                echo self::ansiFormat('INFO', 'Create and install an app first:');
+                echo "  1. composer nimbus:create my-app" . PHP_EOL;
+                echo "  2. composer nimbus:install my-app" . PHP_EOL;
+                return;
+            }
+            
+            // If app name provided as argument, start that specific app
+            $targetApp = $args[0] ?? null;
+            
+            if ($targetApp) {
+                $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
+                if (empty($app)) {
+                    echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
+                    return;
+                }
+                $app = array_values($app)[0];
+                self::startApp($app);
+                return;
+            }
+            
+            // Otherwise, show list and let user choose
+            echo self::ansiFormat('INFO', 'App Status:');
+            $choices = [];
+            $index = 1;
+            
+            foreach ($startableApps as $app) {
+                $imageStatus = $app['has_image'] ? '✓ built' : '✗ not built';
+                $runningStatus = self::formatRunningStatus($app);
+                $healthStatus = self::formatHealthStatus($app);
+                
+                echo "  [$index] {$app['name']} ($imageStatus, $runningStatus, $healthStatus)" . PHP_EOL;
+                
+                // Show container details if running
+                if ($app['is_running']) {
+                    foreach ($app['containers'] as $containerName => $status) {
+                        $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
+                        $healthIcon = self::getHealthIcon($status['health']);
+                        echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
+                    }
+                }
+                
+                $choices[$index] = $app;
+                $index++;
+            }
+            
+            
+    }
+
     public static function nimbusUp(Event $event) {
         $io = $event->getIO();
         $args = $event->getArguments();
