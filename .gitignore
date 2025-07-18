@@ -2,7 +2,7 @@
 src/.lock/app.lock
 .DS_Store
 public/assets/
-app/
+/app/
 *.xlsx
 **/credentials.json
 .clinerules
@@ -10,7 +10,7 @@ app/
 .kilocode/
 data/
 html/
-rulebooks/
+/rulebooks/
 eda/letsencrypt
 eda/certbot
 .installer/apps/*
