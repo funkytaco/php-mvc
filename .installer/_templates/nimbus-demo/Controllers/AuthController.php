@@ -125,7 +125,7 @@ class AuthController extends AbstractController
         // Send to EDA for processing
         $this->sendToEDA($config);
         
-        return $this->json(['success' => true, 'message' => 'Configuration sent to EDA for processing']);
+        echo $this->json(['success' => true, 'message' => 'Configuration sent to EDA for processing']);
     }
     
     private function sendToEDA($config)

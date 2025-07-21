@@ -670,7 +670,7 @@ class ApplicationTasks {
                     foreach ($app['containers'] as $containerName => $status) {
                         $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
                         $healthIcon = self::getHealthIcon($status['health']);
-                        echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
+                        echo "      └─ $stateIcon $containerName: {$status['state']} $healthIcon" . PHP_EOL;
                     }
                 }
                 

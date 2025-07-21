@@ -881,6 +881,11 @@ class AppManager
             if ($config['features']['eda'] ?? false) {
                 $containers[] = $appName . '-eda';
             }
+            // Check if Keycloak is enabled for this app
+            if ($config['features']['keycloak'] ?? false) {
+                $containers[] = $appName . '-keycloak';
+                $containers[] = $appName . '-keycloak-db';
+            }
         }
         
         return $containers;
