@@ -14,5 +14,12 @@ return function ($injector, $renderer, $conn) {
         
         // EDA webhook proxy route
         ['POST', '/api/eda/webhook', ['App\Controllers\DemoController', 'edaWebhook']],
+        
+        // Auth routes (Keycloak)
+        ['GET', '/auth/login', ['App\Controllers\AuthController', 'login']],
+        ['GET', '/auth/callback', ['App\Controllers\AuthController', 'callback']],
+        ['GET', '/auth/logout', ['App\Controllers\AuthController', 'logout']],
+        ['GET', '/auth/configure', ['App\Controllers\AuthController', 'configure']],
+        ['POST', '/auth/save-config', ['App\Controllers\AuthController', 'saveConfiguration']],
     ];
 };

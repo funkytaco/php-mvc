@@ -23,7 +23,7 @@ class AppManager
     /**
      * Create a new app from template
      */
-    public function createFromTemplate(string $appName, string $template = 'nimbus-demo'): bool
+    public function createFromTemplate(string $appName, string $template = 'nimbus-demo', array $config = []): bool
     {
         $this->validateAppName($appName);
         
@@ -41,8 +41,8 @@ class AppManager
         // Copy template to new app
         $this->copyDirectory($templatePath, $targetPath);
         
-        // Replace placeholders in files
-        $this->replacePlaceholders($targetPath, [
+        // Prepare placeholders
+        $placeholders = [
             '{{APP_NAME}}' => $appName,
             '{{APP_NAME_UPPER}}' => strtoupper($appName),
             '{{APP_NAME_LOWER}}' => strtolower($appName),
@@ -51,7 +51,55 @@ class AppManager
             '{{DB_NAME}}' => $appName . '_db',
             '{{DB_USER}}' => $appName . '_user',
             '{{DB_PASSWORD}}' => $this->generatePassword()
-        ]);
+        ];
+        
+        // Add EDA placeholder
+        if (isset($config['features']['eda']) && $config['features']['eda']) {
+            $placeholders['{{HAS_EDA}}'] = 'true';
+        } else {
+            $placeholders['{{HAS_EDA}}'] = 'false';
+        }
+        
+        // Add Keycloak placeholders if enabled
+        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'true';
+            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = $this->generatePassword();
+            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = $this->generatePassword();
+            $placeholders['{{KEYCLOAK_REALM}}'] = $appName . '-realm';
+            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = $appName . '-client';
+            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $this->generatePassword(32);
+        } else {
+            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
+        }
+        
+        // Replace placeholders in files
+        $this->replacePlaceholders($targetPath, $placeholders);
+        
+        // Update app.nimbus.json with enabled features
+        if (!empty($config['features'])) {
+            $appConfigPath = $targetPath . '/app.nimbus.json';
+            if (file_exists($appConfigPath)) {
+                $appConfig = json_decode(file_get_contents($appConfigPath), true);
+                
+                // Merge features
+                foreach ($config['features'] as $feature => $enabled) {
+                    $appConfig['features'][$feature] = $enabled;
+                }
+                
+                // Add Keycloak configuration if enabled
+                if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+                    $appConfig['keycloak'] = [
+                        'realm' => $placeholders['{{KEYCLOAK_REALM}}'],
+                        'client_id' => $placeholders['{{KEYCLOAK_CLIENT_ID}}'],
+                        'client_secret' => $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'],
+                        'auth_url' => "http://{$appName}-keycloak:8080",
+                        'redirect_uri' => "http://localhost:" . $placeholders['{{APP_PORT}}'] . "/auth/callback"
+                    ];
+                }
+                
+                file_put_contents($appConfigPath, json_encode($appConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            }
+        }
         
         // Register app in apps.json
         $this->registerApp($appName, $template);
@@ -106,6 +154,15 @@ class AppManager
         
         $apps = json_decode(file_get_contents($appsFile), true);
         return $apps['apps'] ?? [];
+    }
+    
+    /**
+     * Check if an app exists
+     */
+    public function appExists(string $appName): bool
+    {
+        $apps = $this->listApps();
+        return isset($apps[$appName]);
     }
     
     /**
@@ -222,6 +279,68 @@ class AppManager
             ];
         }
         
+        // Keycloak containers
+        if ($config['features']['keycloak'] ?? false) {
+            // Keycloak database container
+            $compose['services'][$appName . '-keycloak-db'] = [
+                'image' => $config['containers']['keycloak-db']['image'] ?? 'postgres:14',
+                'container_name' => $appName . '-keycloak-db',
+                'environment' => [
+                    'POSTGRES_DB' => $config['containers']['keycloak-db']['database'] ?? 'keycloak_db',
+                    'POSTGRES_USER' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
+                    'POSTGRES_PASSWORD' => $config['containers']['keycloak-db']['password'] ?? 'keycloak'
+                ],
+                'volumes' => [
+                    './data/' . $appName . '-keycloak:/var/lib/postgresql/data:Z'
+                ],
+                'networks' => [$appName . '-net'],
+                'healthcheck' => [
+                    'test' => ['CMD-SHELL', 'pg_isready -U keycloak -d keycloak_db'],
+                    'interval' => '5s',
+                    'timeout' => '5s',
+                    'retries' => 5
+                ]
+            ];
+            
+            // Keycloak container
+            $compose['services'][$appName . '-keycloak'] = [
+                'image' => $config['containers']['keycloak']['image'] ?? 'quay.io/keycloak/keycloak:latest',
+                'container_name' => $appName . '-keycloak',
+                'command' => ['start-dev'],
+                'environment' => [
+                    'KC_DB' => 'postgres',
+                    'KC_DB_URL' => 'jdbc:postgresql://' . $appName . '-keycloak-db:5432/keycloak_db',
+                    'KC_DB_USERNAME' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
+                    'KC_DB_PASSWORD' => $config['containers']['keycloak-db']['password'] ?? 'keycloak',
+                    'KEYCLOAK_ADMIN' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
+                    'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
+                    'KC_HOSTNAME_STRICT' => '"false"',
+                    'KC_HTTP_ENABLED' => '"true"'
+                ],
+                'ports' => ['8080:8080'],
+                'depends_on' => [
+                    $appName . '-keycloak-db' => [
+                        'condition' => 'service_healthy'
+                    ]
+                ],
+                'networks' => [$appName . '-net'],
+                'healthcheck' => [
+                    'test' => ['CMD-SHELL', 'exec 3<>/dev/tcp/127.0.0.1/8080'],
+                    'interval' => '10s',
+                    'timeout' => '5s',
+                    'retries' => 10,
+                    'start_period' => '40s'
+                ]
+            ];
+            
+            // Update app container dependencies to include Keycloak
+            if (isset($compose['services'][$appName . '-app']['depends_on'])) {
+                if (is_array($compose['services'][$appName . '-app']['depends_on'])) {
+                    $compose['services'][$appName . '-app']['depends_on'][] = $appName . '-keycloak';
+                }
+            }
+        }
+        
         return $compose;
     }
     
@@ -264,20 +383,28 @@ class AppManager
     }
     
     /**
-     * Replace placeholders in files
+     * Replace placeholders in files or content
      */
-    private function replacePlaceholders(string $path, array $replacements): void
+    private function replacePlaceholders($target, array $replacements): string
     {
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS)
-        );
-        
-        foreach ($iterator as $file) {
-            if ($file->isFile()) {
-                $content = file_get_contents($file);
-                $content = str_replace(array_keys($replacements), array_values($replacements), $content);
-                file_put_contents($file, $content);
+        // If $target is a path (directory)
+        if (is_dir($target)) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($target, \RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                    $content = file_get_contents($file);
+                    $content = str_replace(array_keys($replacements), array_values($replacements), $content);
+                    file_put_contents($file, $content);
+                }
             }
+            return '';
+        }
+        // If $target is content (string)
+        else {
+            return str_replace(array_keys($replacements), array_values($replacements), $target);
         }
     }
     
@@ -348,9 +475,20 @@ class AppManager
     /**
      * Generate secure password
      */
-    private function generatePassword(): string
+    private function generatePassword(int $length = 16): string
     {
-        return bin2hex(random_bytes(16));
+        // For compatibility, if length is 16, use the original hex method
+        if ($length === 16) {
+            return bin2hex(random_bytes(16));
+        }
+        
+        // For other lengths, use character-based generation
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
+        $password = '';
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return $password;
     }
     
     /**
@@ -906,5 +1044,151 @@ class AppManager
         }
         
         return $yaml;
+    }
+    
+    /**
+     * Add Keycloak support to an existing app
+     */
+    public function addKeycloak(string $appName): bool
+    {
+        $appDir = $this->installerDir . '/' . $appName;
+        if (!is_dir($appDir)) {
+            throw new \Exception("App directory not found: $appDir");
+        }
+        
+        // Load app configuration
+        $configFile = $appDir . '/app.nimbus.json';
+        if (!file_exists($configFile)) {
+            throw new \Exception("App configuration not found");
+        }
+        
+        $config = json_decode(file_get_contents($configFile), true);
+        
+        // Check if Keycloak is already enabled
+        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+            throw new \Exception("Keycloak is already enabled for this app");
+        }
+        
+        // Enable Keycloak feature
+        $config['features']['keycloak'] = true;
+        
+        // Add Keycloak containers configuration
+        $config['containers']['keycloak'] = [
+            'image' => 'quay.io/keycloak/keycloak:latest',
+            'port' => '8080',
+            'admin_user' => 'admin',
+            'admin_password' => $this->generatePassword(),
+            'database' => 'keycloak_db'
+        ];
+        
+        $config['containers']['keycloak-db'] = [
+            'image' => 'postgres:14',
+            'database' => 'keycloak_db',
+            'user' => 'keycloak',
+            'password' => $this->generatePassword()
+        ];
+        
+        // Add Keycloak configuration
+        $config['keycloak'] = [
+            'realm' => $appName . '-realm',
+            'client_id' => $appName . '-client',
+            'client_secret' => $this->generatePassword(32),
+            'auth_url' => "http://{$appName}-keycloak:8080",
+            'redirect_uri' => "http://localhost:" . ($config['containers']['app']['port'] ?? '8080') . "/auth/callback"
+        ];
+        
+        // Save updated configuration
+        file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        
+        // Update compose file
+        $this->regenerateComposeFile($appName, $config);
+        
+        // Copy Keycloak-specific files from template
+        $this->copyKeycloakFiles($appName);
+        
+        // Update app.config.php to enable Keycloak
+        $this->updateAppConfig($appDir, null, true);
+        
+        return true;
+    }
+    
+    /**
+     * Copy Keycloak-specific files from template
+     */
+    private function copyKeycloakFiles(string $appName): void
+    {
+        $appDir = $this->installerDir . '/' . $appName;
+        $templateDir = $this->templatesDir . '/nimbus-demo';
+        
+        // Files to copy for Keycloak
+        $keycloakFiles = [
+            'Controllers/AuthController.php',
+            'Views/auth/configure.mustache',
+            'Views/partials/keycloak-section.mustache',
+            'rulebooks/keycloak-config.yml',
+            'playbooks/configure-keycloak.yml',
+            'playbooks/keycloak-health.yml'
+        ];
+        
+        foreach ($keycloakFiles as $file) {
+            $sourcePath = $templateDir . '/' . $file;
+            $targetPath = $appDir . '/' . $file;
+            
+            if (file_exists($sourcePath)) {
+                // Ensure target directory exists
+                $targetDir = dirname($targetPath);
+                if (!is_dir($targetDir)) {
+                    mkdir($targetDir, 0755, true);
+                }
+                
+                // Read content and replace placeholders
+                $content = file_get_contents($sourcePath);
+                $content = $this->replacePlaceholders($content, [
+                    'APP_NAME' => $appName,
+                    'APP_NAME_UPPER' => strtoupper($appName),
+                    'APP_PORT' => '8080',
+                    'KEYCLOAK_ADMIN_PASSWORD' => 'admin',
+                    'KEYCLOAK_REALM' => $appName . '-realm',
+                    'KEYCLOAK_CLIENT_ID' => $appName . '-client'
+                ]);
+                
+                file_put_contents($targetPath, $content);
+            }
+        }
+    }
+    
+    /**
+     * Update app.config.php to enable/disable features
+     */
+    private function updateAppConfig(string $appDir, bool $hasEda = null, bool $hasKeycloak = null): void
+    {
+        $appConfigFile = $appDir . '/app.config.php';
+        if (!file_exists($appConfigFile)) {
+            return;
+        }
+        
+        $content = file_get_contents($appConfigFile);
+        
+        // Update has_eda if specified
+        if ($hasEda !== null) {
+            $edaValue = $hasEda ? 'true' : 'false';
+            $content = preg_replace(
+                "/'has_eda'\s*=>\s*(true|false)/",
+                "'has_eda' => $edaValue",
+                $content
+            );
+        }
+        
+        // Update Keycloak enabled status if specified
+        if ($hasKeycloak !== null) {
+            $keycloakValue = $hasKeycloak ? 'true' : 'false';
+            $content = preg_replace(
+                "/'enabled'\s*=>\s*\{\{KEYCLOAK_ENABLED\}\}/",
+                "'enabled' => $keycloakValue",
+                $content
+            );
+        }
+        
+        file_put_contents($appConfigFile, $content);
     }
 }

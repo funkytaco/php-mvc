@@ -1,0 +1,55 @@
+<div class="card" style="background: #e8f0ff; border: 2px solid #1976d2;">
+    <h2>🔐 Keycloak SSO Integration</h2>
+    
+    {{^user}}
+    <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; margin: 1rem 0;">
+        <strong>⚠️ Not Authenticated</strong>
+        <p>Click the "Login with Keycloak" button above to authenticate.</p>
+    </div>
+    
+    <div style="margin-top: 1rem;">
+        <h3>Configuration Status</h3>
+        <p>Keycloak is enabled but may need configuration. If you haven't configured Keycloak yet:</p>
+        <a href="/auth/configure" class="btn btn-success">Configure Keycloak</a>
+    </div>
+    {{/user}}
+    
+    {{#user}}
+    <div style="background: #d4edda; padding: 1rem; border-radius: 4px; margin: 1rem 0;">
+        <strong>✅ Authenticated</strong>
+        <p>You are currently logged in as:</p>
+        <ul>
+            <li><strong>Name:</strong> {{user.name}}</li>
+            <li><strong>Email:</strong> {{user.email}}</li>
+            <li><strong>Username:</strong> {{user.username}}</li>
+        </ul>
+    </div>
+    {{/user}}
+    
+    <div style="margin-top: 1.5rem;">
+        <h3>Protected Resources</h3>
+        <p>When Keycloak is enabled, you can protect routes and resources based on authentication status.</p>
+        
+        <h4>Example Protected Routes:</h4>
+        <ul>
+            <li><code>/admin/*</code> - Admin panel (requires authentication)</li>
+            <li><code>/api/secure/*</code> - Secured API endpoints</li>
+            <li><code>/profile</code> - User profile page</li>
+        </ul>
+        
+        <h4>Integration Features:</h4>
+        <ul>
+            <li>Single Sign-On (SSO) across applications</li>
+            <li>Role-based access control (RBAC)</li>
+            <li>OAuth 2.0 / OpenID Connect compliance</li>
+            <li>User federation and identity brokering</li>
+        </ul>
+    </div>
+    
+    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
+        <h4>Development Info</h4>
+        <p><strong>Keycloak Admin Console:</strong> <a href="http://localhost:8080" target="_blank">http://localhost:8080</a></p>
+        <p><strong>Default Admin:</strong> admin / {{KEYCLOAK_ADMIN_PASSWORD}}</p>
+        <p><strong>Realm:</strong> {{KEYCLOAK_REALM}}</p>
+    </div>
+</div>

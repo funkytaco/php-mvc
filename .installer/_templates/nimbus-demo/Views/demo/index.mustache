@@ -124,6 +124,17 @@
     <div class="header">
         <h1>{{title}}</h1>
         <p>{{message}}</p>
+        {{#has_keycloak}}
+        <div style="margin-top: 1rem;">
+            {{#user}}
+            <p>Welcome, {{user.name}}!</p>
+            <a href="/auth/logout" class="btn" style="background: #dc3545;">Logout</a>
+            {{/user}}
+            {{^user}}
+            <a href="/auth/login" class="btn">Login with Keycloak</a>
+            {{/user}}
+        </div>
+        {{/has_keycloak}}
     </div>
 
     <div class="container">
@@ -169,6 +180,10 @@
         {{#has_eda}}
         {{> partials/eda-section}}
         {{/has_eda}}
+
+        {{#has_keycloak}}
+        {{> partials/keycloak-section}}
+        {{/has_keycloak}}
 
         <div class="card">
             <h2>Next Steps</h2>

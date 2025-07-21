@@ -24,6 +24,8 @@ class DemoController extends AbstractController
     {
         $config = $this->getConfig();
         $hasEda = $config['has_eda'] ?? false;
+        $keycloakConfig = $config['keycloak'] ?? null;
+        $hasKeycloak = $keycloakConfig && ($keycloakConfig['enabled'] ?? false);
         
         $features = [
             'MVC Architecture',
@@ -38,13 +40,19 @@ class DemoController extends AbstractController
             $features[] = 'Event-Driven Ansible (EDA) - Not enabled';
         }
         
+        if ($hasKeycloak) {
+            $features[] = 'Keycloak SSO Integration';
+        }
+        
         $data = [
             'title' => '{{APP_NAME_UPPER}} Demo',
             'message' => 'Welcome to your Nimbus application!',
             'features' => $features,
             'stats' => $this->demoModel->getStats(),
             'has_eda' => $hasEda,
-            'eda_port' => $config['eda_port'] ?? 5000
+            'eda_port' => $config['eda_port'] ?? 5000,
+            'has_keycloak' => $hasKeycloak,
+            'user' => $_SESSION['user'] ?? null
         ];
         
         $html = $this->render('demo/index', $data);

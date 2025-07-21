@@ -791,6 +791,9 @@ class ApplicationTasks {
         if ($statusOutput) {
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
             echo $statusOutput;
+            
+            // Display Keycloak admin credentials if Keycloak is enabled
+            self::displayKeycloakCredentials($appName);
         }
     }
     
@@ -955,5 +958,132 @@ class ApplicationTasks {
         }
     }
 
+
+    public static function nimbusCreateEdaKeycloak(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? $io->ask('App name: ');
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            
+            // Create app with EDA and Keycloak enabled
+            $config = [
+                'features' => [
+                    'eda' => true,
+                    'keycloak' => true
+                ]
+            ];
+            
+            $manager->createFromTemplate($appName, 'nimbus-demo', $config);
+            
+            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully with EDA and Keycloak!");
+            echo self::ansiFormat('INFO', "Features enabled:");
+            echo "  ✅ Event-Driven Ansible (EDA)" . PHP_EOL;
+            echo "  ✅ Keycloak SSO Integration" . PHP_EOL;
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  1. composer nimbus:install $appName" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName" . PHP_EOL;
+            echo "  3. Access Keycloak admin at http://localhost:8080" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
+        }
+    }
+    
+    public static function nimbusAddKeycloak(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? null;
+        
+        if (!$appName) {
+            $manager = new \Nimbus\App\AppManager();
+            $apps = $manager->listApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
+                return;
+            }
+            
+            $appNames = array_keys($apps);
+            $choice = $io->select('Select app to add Keycloak to:', $appNames);
+            $appName = $appNames[$choice];
+        }
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            
+            // Check if app exists
+            if (!$manager->appExists($appName)) {
+                echo self::ansiFormat('ERROR', "App '$appName' not found!");
+                return;
+            }
+            
+            // Add Keycloak to the app
+            $manager->addKeycloak($appName);
+            
+            echo self::ansiFormat('SUCCESS', "Keycloak added to app '$appName' successfully!");
+            echo self::ansiFormat('INFO', "Keycloak containers configured:");
+            echo "  🔐 Keycloak server on port 8080" . PHP_EOL;
+            echo "  💾 Keycloak database (PostgreSQL)" . PHP_EOL;
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  1. composer nimbus:up $appName (if not already running)" . PHP_EOL;
+            echo "  2. Access Keycloak admin at http://localhost:8080" . PHP_EOL;
+            echo "  3. Use admin credentials displayed when app starts" . PHP_EOL;
+            echo "  4. Configure realm and client in the app at /auth/configure" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "💡 To retrieve admin password anytime, run:");
+            echo "  podman inspect $appName-keycloak --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to add Keycloak: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Display Keycloak admin credentials if Keycloak is enabled for the app
+     */
+    private static function displayKeycloakCredentials(string $appName): void
+    {
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $config = $manager->loadAppConfig($appName);
+            
+            // Check if Keycloak is enabled
+            if (!isset($config['features']['keycloak']) || !$config['features']['keycloak']) {
+                return;
+            }
+            
+            // Try to get the admin password from the container
+            $containerName = $appName . '-keycloak';
+            $inspectCmd = "podman inspect $containerName --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2";
+            $adminPassword = trim(shell_exec($inspectCmd));
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🔐 Keycloak Admin Console Access:");
+            echo "  URL: http://localhost:8080" . PHP_EOL;
+            echo "  Username: admin" . PHP_EOL;
+            
+            if (!empty($adminPassword)) {
+                echo "  Password: $adminPassword" . PHP_EOL;
+            } else {
+                echo "  Password: (use command below to retrieve)" . PHP_EOL;
+            }
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "💡 To retrieve admin password later, run:");
+            echo "  podman inspect $containerName --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🚀 Next steps:");
+            echo "  1. Access Keycloak admin console (URL above)" . PHP_EOL;
+            echo "  2. Configure realm and client at http://localhost:" . ($config['containers']['app']['port'] ?? '8080') . "/auth/configure" . PHP_EOL;
+            echo "  3. Test SSO integration in your app" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            // Silently fail - don't disrupt the main app startup process
+        }
+    }
 
 }

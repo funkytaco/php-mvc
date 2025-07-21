@@ -53,6 +53,8 @@
         "nimbus:down": "Tasks\\ApplicationTasks::nimbusDown",
         "nimbus:add-eda": "Tasks\\ApplicationTasks::nimbusAddEda",
         "nimbus:status": "Tasks\\ApplicationTasks::nimbusStatus",
+        "nimbus:create-eda-keycloak": "Tasks\\ApplicationTasks::nimbusCreateEdaKeycloak",
+        "nimbus:add-keycloak": "Tasks\\ApplicationTasks::nimbusAddKeycloak",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"
