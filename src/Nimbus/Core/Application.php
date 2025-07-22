@@ -198,6 +198,11 @@ class Application
      */
     public function run(): void
     {
+        // Start session for authentication
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
         // Handle CORS if needed
         $this->handleCors();
         

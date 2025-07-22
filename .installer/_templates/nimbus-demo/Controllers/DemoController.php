@@ -14,6 +14,11 @@ class DemoController extends AbstractController
     
     protected function initialize(): void
     {
+        // Ensure session is started
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
         $this->demoModel = new DemoModel($this->getDb());
     }
     
@@ -44,6 +49,22 @@ class DemoController extends AbstractController
             $features[] = 'Keycloak SSO Integration';
         }
         
+        // Get Keycloak details from app config if available
+        $keycloakAdminPassword = '';
+        $keycloakRealm = '{{APP_NAME}}-realm';
+        
+        // Try to read from app.nimbus.json for runtime values
+        $appConfigFile = dirname(__DIR__, 2) . '/.installer/{{APP_NAME}}/app.nimbus.json';
+        if (file_exists($appConfigFile)) {
+            $appConfig = json_decode(file_get_contents($appConfigFile), true);
+            if (isset($appConfig['containers']['keycloak']['admin_password'])) {
+                $keycloakAdminPassword = $appConfig['containers']['keycloak']['admin_password'];
+            }
+            if (isset($appConfig['keycloak']['realm'])) {
+                $keycloakRealm = $appConfig['keycloak']['realm'];
+            }
+        }
+        
         $data = [
             'title' => '{{APP_NAME_UPPER}} Demo',
             'message' => 'Welcome to your Nimbus application!',
@@ -52,7 +73,10 @@ class DemoController extends AbstractController
             'has_eda' => $hasEda,
             'eda_port' => $config['eda_port'] ?? 5000,
             'has_keycloak' => $hasKeycloak,
-            'user' => $_SESSION['user'] ?? null
+            'user' => $_SESSION['user'] ?? null,
+            'app_name' => '{{APP_NAME}}',
+            'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
+            'KEYCLOAK_REALM' => $keycloakRealm
         ];
         
         $html = $this->render('demo/index', $data);

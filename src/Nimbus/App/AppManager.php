@@ -70,6 +70,11 @@ class AppManager
             $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $this->generatePassword(32);
         } else {
             $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
+            // Set empty placeholders so they get replaced in templates
+            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = '';
+            $placeholders['{{KEYCLOAK_REALM}}'] = '';
+            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = '';
+            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = '';
         }
         
         // Replace placeholders in files
@@ -94,6 +99,22 @@ class AppManager
                         'client_secret' => $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'],
                         'auth_url' => "http://{$appName}-keycloak:8080",
                         'redirect_uri' => "http://localhost:" . $placeholders['{{APP_PORT}}'] . "/auth/callback"
+                    ];
+                    
+                    // Add Keycloak container configuration
+                    $appConfig['containers']['keycloak'] = [
+                        'image' => 'quay.io/keycloak/keycloak:latest',
+                        'port' => '8080',
+                        'admin_user' => 'admin',
+                        'admin_password' => $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'],
+                        'database' => 'keycloak_db'
+                    ];
+                    
+                    $appConfig['containers']['keycloak-db'] = [
+                        'image' => 'postgres:14',
+                        'database' => 'keycloak_db',
+                        'user' => 'keycloak',
+                        'password' => $placeholders['{{KEYCLOAK_DB_PASSWORD}}']
                     ];
                 }
                 
@@ -1218,13 +1239,17 @@ class AppManager
                 
                 // Read content and replace placeholders
                 $content = file_get_contents($sourcePath);
+                
+                // Load the app config to get the actual values
+                $config = $this->loadAppConfig($appName);
+                
                 $content = $this->replacePlaceholders($content, [
-                    'APP_NAME' => $appName,
-                    'APP_NAME_UPPER' => strtoupper($appName),
-                    'APP_PORT' => '8080',
-                    'KEYCLOAK_ADMIN_PASSWORD' => 'admin',
-                    'KEYCLOAK_REALM' => $appName . '-realm',
-                    'KEYCLOAK_CLIENT_ID' => $appName . '-client'
+                    '{{APP_NAME}}' => $appName,
+                    '{{APP_NAME_UPPER}}' => strtoupper($appName),
+                    '{{APP_PORT}}' => $config['containers']['app']['port'] ?? '8080',
+                    '{{KEYCLOAK_ADMIN_PASSWORD}}' => $config['containers']['keycloak']['admin_password'] ?? '',
+                    '{{KEYCLOAK_REALM}}' => $config['keycloak']['realm'] ?? $appName . '-realm',
+                    '{{KEYCLOAK_CLIENT_ID}}' => $config['keycloak']['client_id'] ?? $appName . '-client'
                 ]);
                 
                 file_put_contents($targetPath, $content);

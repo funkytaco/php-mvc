@@ -11,6 +11,11 @@ class AuthController extends AbstractController
     
     protected function initialize(): void
     {
+        // Ensure session is started
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
         $config = $this->getConfig();
         $keycloakConfig = $config['keycloak'] ?? null;
         
@@ -106,7 +111,7 @@ class AuthController extends AbstractController
             'keycloak_enabled' => $this->keycloakConfig ? true : false
         ];
         
-        return $this->render('auth/configure', $data);
+        return $this->json($data);
     }
     
     public function saveConfiguration()
