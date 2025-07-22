@@ -1054,6 +1054,76 @@ class AppManager
     /**
      * Add Keycloak support to an existing app
      */
+    public function deleteApp(string $appName, array $options = []): bool
+    {
+        $appDir = $this->installerDir . '/' . $appName;
+        if (!is_dir($appDir)) {
+            throw new \RuntimeException("App '$appName' not found");
+        }
+
+        // Stop and remove containers first
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        if (file_exists($composeFile)) {
+            $downCommand = "podman-compose -f $composeFile down";
+            if ($options['remove_volumes'] ?? false) {
+                $downCommand .= ' --volumes';
+            }
+            shell_exec($downCommand . ' 2>&1');
+        }
+
+        // Remove app directory
+        $this->deleteDirectory($appDir);
+
+        // Remove from apps registry
+        $appsFile = $this->baseDir . '/.installer/apps.json';
+        if (file_exists($appsFile)) {
+            $apps = json_decode(file_get_contents($appsFile), true);
+            unset($apps['apps'][$appName]);
+            file_put_contents($appsFile, json_encode($apps, JSON_PRETTY_PRINT));
+        }
+
+        // Remove compose file
+        if (file_exists($composeFile)) {
+            unlink($composeFile);
+        }
+
+        // Remove data volumes
+        $dataDir = $this->baseDir . '/data/' . $appName;
+        if (is_dir($dataDir)) {
+            $this->deleteDirectory($dataDir);
+        }
+
+        // Remove Keycloak data if exists
+        $keycloakDataDir = $this->baseDir . '/data/' . $appName . '-keycloak';
+        if (is_dir($keycloakDataDir)) {
+            $this->deleteDirectory($keycloakDataDir);
+        }
+
+        return true;
+    }
+
+    private function deleteDirectory(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($files as $file) {
+            if ($file->isDir()) {
+                rmdir($file->getRealPath());
+            } else {
+                unlink($file->getRealPath());
+            }
+        }
+
+        rmdir($path);
+    }
+
     public function addKeycloak(string $appName): bool
     {
         $appDir = $this->installerDir . '/' . $appName;

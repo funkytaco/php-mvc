@@ -959,6 +959,123 @@ class ApplicationTasks {
     }
 
 
+    public static function nimbusDelete(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            $apps = $manager->listApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('INFO', 'No apps found to delete.');
+                return;
+            }
+            
+            // If no argument provided, ask for app name or show list
+            if (empty($args)) {
+                echo self::ansiFormat('INFO', 'Available apps:');
+                $index = 1;
+                $appList = [];
+                foreach ($apps as $name => $info) {
+                    echo "  [$index] $name" . PHP_EOL;
+                    $appList[$index] = $name;
+                    $index++;
+                }
+                echo "  [all] Delete ALL apps" . PHP_EOL;
+                
+                $choice = $io->ask('Enter app number, name, or "all": ');
+                
+                if (strtolower($choice) === 'all') {
+                    self::deleteAllApps($manager, $apps, $io);
+                    return;
+                } elseif (is_numeric($choice) && isset($appList[(int)$choice])) {
+                    $appName = $appList[(int)$choice];
+                } else {
+                    $appName = $choice;
+                }
+            } else {
+                $appName = $args[0];
+                if (strtolower($appName) === 'all') {
+                    self::deleteAllApps($manager, $apps, $io);
+                    return;
+                }
+            }
+            
+            // Check if app exists
+            if (!isset($apps[$appName])) {
+                echo self::ansiFormat('ERROR', "App '$appName' not found!");
+                return;
+            }
+            
+            // Show what will be deleted
+            $appPath = getcwd() . '/.installer/apps/' . $appName;
+            $composeFile = getcwd() . '/' . $appName . '-compose.yml';
+            
+            echo self::ansiFormat('WARNING', "This will PERMANENTLY delete:");
+            echo "  - App directory: $appPath" . PHP_EOL;
+            echo "  - Compose file: $composeFile" . PHP_EOL;
+            echo "  - Any associated containers and volumes" . PHP_EOL;
+            
+            if (!$io->askConfirmation(self::ansiFormat('CONFIRM: Y/N', 'Are you sure you want to delete this app?'), false)) {
+                echo self::ansiFormat('INFO', 'Deletion cancelled');
+                return;
+            }
+            
+            // Perform deletion
+            $manager->deleteApp($appName, [
+                'remove_volumes' => $io->askConfirmation('Remove volumes? [y/N]: ', false),
+                'remove_containers' => $io->askConfirmation('Remove containers? [y/N]: ', false)
+            ]);
+            
+            echo self::ansiFormat('SUCCESS', "App '$appName' deleted successfully!");
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to delete app: ' . $e->getMessage());
+        }
+    }
+    
+    private static function deleteAllApps($manager, array $apps, $io) {
+        $count = count($apps);
+        echo self::ansiFormat('WARNING', "This will PERMANENTLY delete ALL $count apps!");
+        echo self::ansiFormat('WARNING', "This action cannot be undone!");
+        
+        if (!$io->askConfirmation(self::ansiFormat('CONFIRM: Y/N', 'Are you absolutely sure you want to delete ALL apps?'), false)) {
+            echo self::ansiFormat('INFO', 'Deletion cancelled');
+            return;
+        }
+        
+        // Double confirmation for safety
+        $confirmText = $io->ask('Type "DELETE ALL" to confirm: ');
+        if ($confirmText !== 'DELETE ALL') {
+            echo self::ansiFormat('INFO', 'Deletion cancelled - confirmation text did not match');
+            return;
+        }
+        
+        $options = [
+            'remove_volumes' => $io->askConfirmation('Remove all volumes? [y/N]: ', false),
+            'remove_containers' => $io->askConfirmation('Remove all containers? [y/N]: ', false)
+        ];
+        
+        $deleted = 0;
+        $failed = 0;
+        
+        foreach ($apps as $appName => $info) {
+            try {
+                echo self::ansiFormat('INFO', "Deleting $appName...");
+                $manager->deleteApp($appName, $options);
+                $deleted++;
+                echo self::ansiFormat('SUCCESS', "✓ $appName deleted");
+            } catch (\Exception $e) {
+                $failed++;
+                echo self::ansiFormat('ERROR', "✗ Failed to delete $appName: " . $e->getMessage());
+            }
+        }
+        
+        echo PHP_EOL;
+        echo self::ansiFormat('SUCCESS', "Deleted $deleted apps" . ($failed > 0 ? ", $failed failed" : ""));
+    }
+
     public static function nimbusCreateEdaKeycloak(Event $event) {
         $io = $event->getIO();
         $args = $event->getArguments();
