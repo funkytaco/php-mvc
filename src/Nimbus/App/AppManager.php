@@ -184,7 +184,7 @@ class AppManager
     /**
      * Load app configuration
      */
-    private function loadAppConfig(string $appName): array
+    public function loadAppConfig(string $appName): array
     {
         $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
         
