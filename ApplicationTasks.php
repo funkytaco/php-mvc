@@ -297,18 +297,9 @@ class ApplicationTasks {
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
             echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
             echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🚀 Next steps:");
-            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName         # Start containers" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "📋 Optional enhancements:");
-            echo "  • composer nimbus:add-eda $appName       # Add Event-Driven Ansible" . PHP_EOL;
-            echo "  • composer nimbus:add-keycloak $appName  # Add Keycloak SSO" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "💡 Other useful commands:");
-            echo "  • composer nimbus:status               # Check app status" . PHP_EOL;
-            echo "  • composer nimbus:down $appName        # Stop containers" . PHP_EOL;
-            echo "  • composer nimbus:delete $appName      # Delete app" . PHP_EOL;
+            
+            // Interactive walkthrough
+            self::interactiveNextSteps($appName, $io, $manager);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -330,18 +321,11 @@ class ApplicationTasks {
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template' with EDA enabled!");
             echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
             echo self::ansiFormat('INFO', "✅ Features enabled: Event-Driven Ansible (EDA)");
+            echo self::ansiFormat('INFO', "📡 EDA will run on port 5000 with rulebooks in .installer/apps/$appName/rulebooks/");
             echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🚀 Next steps:");
-            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName         # Start containers (including EDA)" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "📡 EDA Configuration:");
-            echo "  • Webhook listener port: 5000" . PHP_EOL;
-            echo "  • Rulebooks directory: .installer/apps/$appName/rulebooks/" . PHP_EOL;
-            echo "  • Test webhook endpoint: http://localhost:<app-port>/eda/webhook" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "📋 Additional options:");
-            echo "  • composer nimbus:add-keycloak $appName  # Add Keycloak SSO" . PHP_EOL;
+            
+            // Interactive walkthrough with EDA feature
+            self::interactiveNextSteps($appName, $io, $manager, ['eda']);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -461,10 +445,10 @@ class ApplicationTasks {
             echo "  ✓ Created rulebooks directory with demo files" . PHP_EOL;
             echo "  ✓ Regenerated compose file with EDA container" . PHP_EOL;
             echo "  ✓ Validated YAML syntax" . PHP_EOL;
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  1. composer nimbus:install $appName (to update app files)" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName" . PHP_EOL;
-            echo "  3. Customize rulebooks in .installer/apps/$appName/rulebooks/" . PHP_EOL;
+            echo PHP_EOL;
+            
+            // Use interactive walkthrough for next steps
+            self::interactiveNextSteps($appName, $io, $manager, ['eda'], false);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to add EDA: ' . $e->getMessage());
@@ -1096,6 +1080,180 @@ class ApplicationTasks {
         echo PHP_EOL;
         echo self::ansiFormat('SUCCESS', "Deleted $deleted apps" . ($failed > 0 ? ", $failed failed" : ""));
     }
+    
+    /**
+     * Interactive step-by-step walkthrough after app creation
+     */
+    private static function interactiveNextSteps(string $appName, $io, $manager, array $features = [], bool $isNewApp = true) {
+        echo self::ansiFormat('INFO', "🚀 Next steps:");
+        echo PHP_EOL;
+        
+        // Check if app is already running (for existing apps)
+        $wasRunning = false;
+        if (!$isNewApp) {
+            $apps = $manager->getStartableApps();
+            $app = array_filter($apps, fn($a) => $a['name'] === $appName);
+            if (!empty($app)) {
+                $appInfo = array_values($app)[0];
+                $wasRunning = $appInfo['is_running'] ?? false;
+            }
+        }
+        
+        $needsReinstall = false;
+        $addedFeatures = [];
+        
+        // Step 1: Optional enhancements (before install)
+        if (!in_array('eda', $features) || !in_array('keycloak', $features)) {
+            echo "  1. Optional enhancements" . PHP_EOL;
+            
+            if (!in_array('eda', $features)) {
+                if ($io->askConfirmation("     Add Event-Driven Ansible (EDA)? [y/N]: ", false)) {
+                    try {
+                        $manager->addEda($appName);
+                        echo self::ansiFormat('SUCCESS', "     ✓ EDA added successfully!");
+                        $addedFeatures[] = 'eda';
+                    } catch (\Exception $e) {
+                        echo self::ansiFormat('ERROR', '     ✗ Failed to add EDA: ' . $e->getMessage());
+                    }
+                }
+            }
+            
+            if (!in_array('keycloak', $features)) {
+                if ($io->askConfirmation("     Add Keycloak SSO? [y/N]: ", false)) {
+                    try {
+                        $manager->addKeycloak($appName);
+                        echo self::ansiFormat('SUCCESS', "     ✓ Keycloak added successfully!");
+                        $addedFeatures[] = 'keycloak';
+                    } catch (\Exception $e) {
+                        echo self::ansiFormat('ERROR', '     ✗ Failed to add Keycloak: ' . $e->getMessage());
+                    }
+                }
+            }
+            
+            echo PHP_EOL;
+        }
+        
+        // Update features list with any newly added features
+        $allFeatures = array_unique(array_merge($features, $addedFeatures));
+        
+        // Step 2: Install
+        echo "  2. Generate container configuration" . PHP_EOL;
+        if ($io->askConfirmation("     Run 'composer nimbus:install $appName' now? [Y/n]: ", true)) {
+            echo PHP_EOL;
+            try {
+                $manager->install($appName);
+                echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
+                echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
+            } catch (\Exception $e) {
+                echo self::ansiFormat('ERROR', '✗ Failed to install app: ' . $e->getMessage());
+                return;
+            }
+        } else {
+            echo self::ansiFormat('INFO', "  Skipped - run 'composer nimbus:install $appName' later");
+            self::showRemainingSteps($appName, $allFeatures);
+            return;
+        }
+        
+        echo PHP_EOL;
+        
+        // Step 3: Start/Restart containers
+        $actionVerb = ($wasRunning && !empty($addedFeatures)) ? "Restart" : "Start";
+        echo "  3. $actionVerb containers" . PHP_EOL;
+        
+        // If app was running and we added features, we need to restart
+        if ($wasRunning && !empty($addedFeatures)) {
+            echo self::ansiFormat('INFO', "     App needs restart to activate new features");
+            if ($io->askConfirmation("     Restart app now? [Y/n]: ", true)) {
+                echo PHP_EOL;
+                echo self::ansiFormat('INFO', "Stopping app...");
+                
+                try {
+                    // Stop the app first
+                    $manager->stopApp($appName, ['remove_volumes' => false, 'remove_containers' => false]);
+                    echo self::ansiFormat('SUCCESS', "✓ App stopped");
+                    
+                    // Then start it again
+                    echo self::ansiFormat('INFO', "Starting app with new configuration...");
+                    $apps = $manager->getStartableApps();
+                    $app = array_filter($apps, fn($a) => $a['name'] === $appName);
+                    
+                    if (!empty($app)) {
+                        self::startApp(array_values($app)[0]);
+                        self::showFeatureInfo($appName, $allFeatures);
+                    }
+                } catch (\Exception $e) {
+                    echo self::ansiFormat('ERROR', '✗ Failed to restart app: ' . $e->getMessage());
+                }
+            } else {
+                echo self::ansiFormat('INFO', "  Skipped - restart manually with:");
+                echo "     composer nimbus:down $appName && composer nimbus:up $appName" . PHP_EOL;
+            }
+        } else {
+            // Normal start for new apps or apps that weren't running
+            if ($io->askConfirmation("     Run 'composer nimbus:up $appName' now? [Y/n]: ", true)) {
+                echo PHP_EOL;
+                
+                // Get the app details to pass to startApp
+                $apps = $manager->getStartableApps();
+                $app = array_filter($apps, fn($a) => $a['name'] === $appName);
+                
+                if (!empty($app)) {
+                    self::startApp(array_values($app)[0]);
+                    self::showFeatureInfo($appName, $allFeatures);
+                } else {
+                    echo self::ansiFormat('ERROR', '✗ Failed to find app details');
+                }
+            } else {
+                echo self::ansiFormat('INFO', "  Skipped - run 'composer nimbus:up $appName' later");
+                self::showRemainingSteps($appName, $allFeatures);
+                return;
+            }
+        }
+        
+        echo PHP_EOL;
+        self::showUsefulCommands($appName);
+    }
+    
+    private static function showRemainingSteps(string $appName, array $features) {
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', "📋 Remaining steps:");
+        echo "  • composer nimbus:install $appName   # Generate container configuration" . PHP_EOL;
+        echo "  • composer nimbus:up $appName        # Start containers" . PHP_EOL;
+        
+        // Only show add commands if features weren't already enabled
+        if (!in_array('eda', $features)) {
+            echo "  • composer nimbus:add-eda $appName      # (Optional) Add Event-Driven Ansible" . PHP_EOL;
+        }
+        if (!in_array('keycloak', $features)) {
+            echo "  • composer nimbus:add-keycloak $appName # (Optional) Add Keycloak SSO" . PHP_EOL;
+        }
+        
+        echo PHP_EOL;
+        self::showUsefulCommands($appName);
+    }
+    
+    private static function showUsefulCommands(string $appName) {
+        echo self::ansiFormat('INFO', "💡 Other useful commands:");
+        echo "  • composer nimbus:status            # Check app status" . PHP_EOL;
+        echo "  • composer nimbus:down $appName     # Stop containers" . PHP_EOL;
+        echo "  • composer nimbus:delete $appName   # Delete app" . PHP_EOL;
+    }
+    
+    private static function showFeatureInfo(string $appName, array $features) {
+        // Show additional info based on features
+        echo PHP_EOL;
+        if (in_array('keycloak', $features)) {
+            self::displayKeycloakCredentials($appName);
+        }
+        
+        // Show feature-specific info
+        if (in_array('eda', $features)) {
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "📡 EDA is running:");
+            echo "  • Webhook endpoint: http://localhost:<app-port>/eda/webhook" . PHP_EOL;
+            echo "  • Rulebooks: .installer/apps/$appName/rulebooks/" . PHP_EOL;
+        }
+    }
 
     public static function nimbusCreateEdaKeycloak(Event $event) {
         $io = $event->getIO();
@@ -1122,18 +1280,9 @@ class ApplicationTasks {
             echo "  • Event-Driven Ansible (EDA)" . PHP_EOL;
             echo "  • Keycloak SSO Integration" . PHP_EOL;
             echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🚀 Next steps:");
-            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName         # Start all containers" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "📡 Service endpoints:");
-            echo "  • App URL: http://localhost:<port>        # Main application" . PHP_EOL;
-            echo "  • Keycloak: http://localhost:8080         # Admin console" . PHP_EOL;
-            echo "  • EDA webhook: http://localhost:<port>/eda/webhook" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🔐 Keycloak credentials:");
-            echo "  • Admin credentials will be displayed when app starts" . PHP_EOL;
-            echo "  • Configure SSO at: http://localhost:<port>/auth/configure" . PHP_EOL;
+            
+            // Interactive walkthrough with both features
+            self::interactiveNextSteps($appName, $io, $manager, ['eda', 'keycloak']);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -1176,14 +1325,10 @@ class ApplicationTasks {
             echo self::ansiFormat('INFO', "Keycloak containers configured:");
             echo "  🔐 Keycloak server on port 8080" . PHP_EOL;
             echo "  💾 Keycloak database (PostgreSQL)" . PHP_EOL;
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  1. composer nimbus:up $appName (if not already running)" . PHP_EOL;
-            echo "  2. Access Keycloak admin at http://localhost:8080" . PHP_EOL;
-            echo "  3. Use admin credentials displayed when app starts" . PHP_EOL;
-            echo "  4. Configure realm and client in the app at /auth/configure" . PHP_EOL;
             echo PHP_EOL;
-            echo self::ansiFormat('INFO', "💡 To retrieve admin password anytime, run:");
-            echo "  podman inspect $appName-keycloak --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2" . PHP_EOL;
+            
+            // Use interactive walkthrough for next steps
+            self::interactiveNextSteps($appName, $io, $manager, ['keycloak'], false);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to add Keycloak: ' . $e->getMessage());
