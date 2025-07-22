@@ -47,9 +47,20 @@
     </div>
     
     <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
-        <h4>Development Info</h4>
-        <p><strong>Keycloak Admin Console:</strong> <a href="http://localhost:8080" target="_blank">http://localhost:8080</a></p>
-        <p><strong>Default Admin:</strong> admin / {{KEYCLOAK_ADMIN_PASSWORD}}</p>
+        <h4>🔐 Keycloak Admin Console Access</h4>
+        <p><strong>URL:</strong> <a href="http://localhost:8080" target="_blank">http://localhost:8080</a></p>
+        <p><strong>Username:</strong> admin</p>
+        {{#KEYCLOAK_ADMIN_PASSWORD}}
+        <p><strong>Password:</strong> {{KEYCLOAK_ADMIN_PASSWORD}}</p>
+        {{/KEYCLOAK_ADMIN_PASSWORD}}
+        {{^KEYCLOAK_ADMIN_PASSWORD}}
+        <p><strong>Password:</strong> (use command below to retrieve)</p>
+        {{/KEYCLOAK_ADMIN_PASSWORD}}
         <p><strong>Realm:</strong> {{KEYCLOAK_REALM}}</p>
+        
+        <div style="margin-top: 1rem; font-size: 0.9em; background: #e9ecef; padding: 0.5rem; border-radius: 4px;">
+            <p><strong>To retrieve admin password:</strong></p>
+            <code>podman inspect {{app_name}}-keycloak --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2</code>
+        </div>
     </div>
 </div>
