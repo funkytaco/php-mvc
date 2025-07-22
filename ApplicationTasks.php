@@ -295,9 +295,20 @@ class ApplicationTasks {
             $manager->createFromTemplate($appName, $template);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  1. composer nimbus:install $appName" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName" . PHP_EOL;
+            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🚀 Next steps:");
+            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName         # Start containers" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "📋 Optional enhancements:");
+            echo "  • composer nimbus:add-eda $appName       # Add Event-Driven Ansible" . PHP_EOL;
+            echo "  • composer nimbus:add-keycloak $appName  # Add Keycloak SSO" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "💡 Other useful commands:");
+            echo "  • composer nimbus:status               # Check app status" . PHP_EOL;
+            echo "  • composer nimbus:down $appName        # Stop containers" . PHP_EOL;
+            echo "  • composer nimbus:delete $appName      # Delete app" . PHP_EOL;
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -317,10 +328,20 @@ class ApplicationTasks {
             $manager->addEda($appName);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template' with EDA enabled!");
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  1. composer nimbus:install $appName" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName" . PHP_EOL;
-            echo self::ansiFormat('INFO', "EDA container will be included with webhook listener on port 5000");
+            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
+            echo self::ansiFormat('INFO', "✅ Features enabled: Event-Driven Ansible (EDA)");
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🚀 Next steps:");
+            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName         # Start containers (including EDA)" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "📡 EDA Configuration:");
+            echo "  • Webhook listener port: 5000" . PHP_EOL;
+            echo "  • Rulebooks directory: .installer/apps/$appName/rulebooks/" . PHP_EOL;
+            echo "  • Test webhook endpoint: http://localhost:<app-port>/eda/webhook" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "📋 Additional options:");
+            echo "  • composer nimbus:add-keycloak $appName  # Add Keycloak SSO" . PHP_EOL;
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
@@ -1096,13 +1117,23 @@ class ApplicationTasks {
             $manager->createFromTemplate($appName, 'nimbus-demo', $config);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully with EDA and Keycloak!");
-            echo self::ansiFormat('INFO', "Features enabled:");
-            echo "  ✅ Event-Driven Ansible (EDA)" . PHP_EOL;
-            echo "  ✅ Keycloak SSO Integration" . PHP_EOL;
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  1. composer nimbus:install $appName" . PHP_EOL;
-            echo "  2. composer nimbus:up $appName" . PHP_EOL;
-            echo "  3. Access Keycloak admin at http://localhost:8080" . PHP_EOL;
+            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
+            echo self::ansiFormat('INFO', "✅ Features enabled:");
+            echo "  • Event-Driven Ansible (EDA)" . PHP_EOL;
+            echo "  • Keycloak SSO Integration" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🚀 Next steps:");
+            echo "  1. composer nimbus:install $appName    # Generate container configuration" . PHP_EOL;
+            echo "  2. composer nimbus:up $appName         # Start all containers" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "📡 Service endpoints:");
+            echo "  • App URL: http://localhost:<port>        # Main application" . PHP_EOL;
+            echo "  • Keycloak: http://localhost:8080         # Admin console" . PHP_EOL;
+            echo "  • EDA webhook: http://localhost:<port>/eda/webhook" . PHP_EOL;
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🔐 Keycloak credentials:");
+            echo "  • Admin credentials will be displayed when app starts" . PHP_EOL;
+            echo "  • Configure SSO at: http://localhost:<port>/auth/configure" . PHP_EOL;
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
