@@ -2,12 +2,14 @@
 
 namespace App\Controllers;
 
-use Auryn\Injector;
 use Nimbus\Controller\AbstractController;
 
+/**
+ * AuthController - Handles Keycloak authentication with zero-config auto-setup
+ */
 class AuthController extends AbstractController
 {
-    private $keycloakConfig;
+    private array $keycloakConfig;
     
     protected function initialize(): void
     {
@@ -16,42 +18,202 @@ class AuthController extends AbstractController
             session_start();
         }
         
+        // Load Keycloak configuration
         $config = $this->getConfig();
-        $keycloakConfig = $config['keycloak'] ?? null;
+        $this->keycloakConfig = $config['keycloak'] ?? [];
+    }
+    
+    /**
+     * Initiate login with Keycloak
+     */
+    public function login()
+    {
+        if (!$this->isKeycloakEnabled()) {
+            $this->error('Keycloak is not enabled', 404);
+            return;
+        }
         
-        if ($keycloakConfig && ($keycloakConfig['enabled'] ?? false)) {
-            $this->keycloakConfig = $keycloakConfig;
+        $redirectUri = $_GET['redirect'] ?? '/';
+        $_SESSION['login_redirect'] = $redirectUri;
+        
+        $authUrl = $this->buildAuthUrl();
+        header('Location: ' . $authUrl);
+        exit;
+    }
+    
+    /**
+     * Handle callback from Keycloak
+     */
+    public function callback()
+    {
+        if (!$this->isKeycloakEnabled()) {
+            $this->error('Keycloak is not enabled', 404);
+            return;
+        }
+        
+        $code = $_GET['code'] ?? null;
+        $state = $_GET['state'] ?? null;
+        
+        if (!$code) {
+            $this->error('Authorization code not provided', 400);
+            return;
+        }
+        
+        try {
+            // Exchange code for tokens
+            $tokenData = $this->exchangeCodeForToken($code);
+            
+            if (!$tokenData) {
+                $this->error('Failed to get access token', 400);
+                return;
+            }
+            
+            // Get user info
+            $userInfo = $this->getUserInfo($tokenData['access_token']);
+            
+            if (!$userInfo) {
+                $this->error('Failed to get user information', 400);
+                return;
+            }
+            
+            // Store in session
+            $_SESSION['keycloak_token'] = $tokenData['access_token'];
+            $_SESSION['refresh_token'] = $tokenData['refresh_token'] ?? null;
+            $_SESSION['token_expires_at'] = time() + ($tokenData['expires_in'] ?? 300) - 60; // 60 second buffer
+            $_SESSION['user'] = [
+                'id' => $userInfo['sub'],
+                'username' => $userInfo['preferred_username'] ?? $userInfo['sub'],
+                'email' => $userInfo['email'] ?? '',
+                'name' => $userInfo['name'] ?? $userInfo['preferred_username'] ?? '',
+                'roles' => $this->extractRoles($tokenData['access_token'])
+            ];
+            
+            // Redirect to originally requested page or home
+            $redirectUri = $_SESSION['login_redirect'] ?? '/';
+            unset($_SESSION['login_redirect']);
+            
+            header('Location: ' . $redirectUri);
+            exit;
+            
+        } catch (\Exception $e) {
+            error_log('Keycloak callback error: ' . $e->getMessage());
+            $this->error('Authentication failed: ' . $e->getMessage(), 500);
         }
     }
     
-    public function login()
+    /**
+     * Logout from Keycloak
+     */
+    public function logout()
     {
-        if (!$this->keycloakConfig) {
-            return $this->redirect('/');
+        if (!$this->isKeycloakEnabled()) {
+            session_destroy();
+            header('Location: /');
+            exit;
         }
         
-        $authUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
+        $logoutUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
+        $logoutUrl .= '?redirect_uri=' . urlencode($this->getBaseUrl());
+        
+        // Clear session
+        session_destroy();
+        
+        // Redirect to Keycloak logout
+        header('Location: ' . $logoutUrl);
+        exit;
+    }
+    
+    /**
+     * Show Keycloak configuration page
+     */
+    public function configure()
+    {
+        $data = [
+            'title' => 'Keycloak Configuration',
+            'keycloak_config' => $this->keycloakConfig,
+            'keycloak_admin_url' => $this->keycloakConfig['auth_url'] . '/admin',
+            'app_name' => '{{APP_NAME}}',
+            'realm_name' => $this->keycloakConfig['realm'] ?? '{{APP_NAME}}-realm',
+            'client_id' => $this->keycloakConfig['client_id'] ?? '{{APP_NAME}}-client',
+            'keycloak_enabled' => $this->isKeycloakEnabled(),
+            'setup_complete' => $this->isKeycloakSetupComplete()
+        ];
+        
+        $html = $this->render('auth/configure', $data);
+        echo $html;
+    }
+    
+    /**
+     * Save Keycloak configuration (for runtime updates)
+     */
+    public function saveConfiguration()
+    {
+        $data = $this->getRequestData();
+        
+        // Validate required fields
+        $requiredFields = ['realm', 'client_id', 'client_secret'];
+        foreach ($requiredFields as $field) {
+            if (empty($data[$field])) {
+                $this->error("Field '$field' is required", 400);
+                return;
+            }
+        }
+        
+        try {
+            // Update configuration file
+            $configFile = dirname(__DIR__, 2) . '/app/app.config.php';
+            if (file_exists($configFile)) {
+                $config = include $configFile;
+                $config['keycloak']['realm'] = $data['realm'];
+                $config['keycloak']['client_id'] = $data['client_id'];
+                $config['keycloak']['client_secret'] = $data['client_secret'];
+                $config['keycloak']['enabled'] = 'true';
+                
+                // Write back to file (this is a simplified approach)
+                $configContent = "<?php\n\nreturn " . var_export($config, true) . ";\n";
+                file_put_contents($configFile, $configContent);
+                
+                $this->json([
+                    'success' => true,
+                    'message' => 'Configuration saved successfully'
+                ]);
+            } else {
+                $this->error('Configuration file not found', 500);
+            }
+        } catch (\Exception $e) {
+            $this->error('Failed to save configuration: ' . $e->getMessage(), 500);
+        }
+    }
+    
+    /**
+     * Build authorization URL
+     */
+    private function buildAuthUrl(): string
+    {
         $params = [
             'client_id' => $this->keycloakConfig['client_id'],
             'redirect_uri' => $this->keycloakConfig['redirect_uri'],
             'response_type' => 'code',
-            'scope' => 'openid profile email'
+            'scope' => 'openid profile email',
+            'state' => bin2hex(random_bytes(16))
         ];
         
-        $this->redirect($authUrl . '?' . http_build_query($params));
+        $_SESSION['oauth_state'] = $params['state'];
+        
+        $authUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
+        return $authUrl . '?' . http_build_query($params);
     }
     
-    public function callback()
+    /**
+     * Exchange authorization code for access token
+     */
+    private function exchangeCodeForToken(string $code): ?array
     {
-        if (!$this->keycloakConfig || !isset($_GET['code'])) {
-            return $this->redirect('/');
-        }
-        
         $tokenUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/token';
         
         $data = [
             'grant_type' => 'authorization_code',
-            'code' => $_GET['code'],
+            'code' => $code,
             'redirect_uri' => $this->keycloakConfig['redirect_uri'],
             'client_id' => $this->keycloakConfig['client_id'],
             'client_secret' => $this->keycloakConfig['client_secret']
@@ -62,99 +224,115 @@ class AuthController extends AbstractController
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
         
         $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
         
-        $tokens = json_decode($response, true);
-        
-        if (isset($tokens['access_token'])) {
-            $_SESSION['access_token'] = $tokens['access_token'];
-            $_SESSION['id_token'] = $tokens['id_token'];
-            $_SESSION['refresh_token'] = $tokens['refresh_token'];
-            
-            // Decode JWT to get user info
-            $idTokenPayload = $this->decodeJWT($tokens['id_token']);
-            $_SESSION['user'] = [
-                'email' => $idTokenPayload['email'] ?? '',
-                'name' => $idTokenPayload['name'] ?? '',
-                'username' => $idTokenPayload['preferred_username'] ?? ''
-            ];
-            
-            return $this->redirect('/');
+        if ($httpCode === 200) {
+            return json_decode($response, true);
         }
         
-        return $this->redirect('/auth/login');
+        error_log('Token exchange failed: ' . $response);
+        return null;
     }
     
-    public function logout()
+    /**
+     * Get user info from Keycloak
+     */
+    private function getUserInfo(string $accessToken): ?array
     {
-        if (!$this->keycloakConfig) {
-            session_destroy();
-            return $this->redirect('/');
-        }
+        $userInfoUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/userinfo';
         
-        $logoutUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
-        $params = [
-            'client_id' => $this->keycloakConfig['client_id'],
-            'post_logout_redirect_uri' => 'http://localhost:' . $_SERVER['SERVER_PORT'] . '/'
-        ];
-        
-        session_destroy();
-        $this->redirect($logoutUrl . '?' . http_build_query($params));
-    }
-    
-    public function configure()
-    {
-        $data = [
-            'title' => 'Keycloak Configuration',
-            'keycloak_enabled' => $this->keycloakConfig ? true : false
-        ];
-        
-        return $this->json($data);
-    }
-    
-    public function saveConfiguration()
-    {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            return $this->redirect('/auth/configure');
-        }
-        
-        $config = [
-            'realm' => $_POST['realm'] ?? '',
-            'client_id' => $_POST['client_id'] ?? '',
-            'client_secret' => $_POST['client_secret'] ?? '',
-            'auth_url' => $_POST['auth_url'] ?? ''
-        ];
-        
-        // Send to EDA for processing
-        $this->sendToEDA($config);
-        
-        echo $this->json(['success' => true, 'message' => 'Configuration sent to EDA for processing']);
-    }
-    
-    private function sendToEDA($config)
-    {
-        $webhook_url = 'http://' . getenv('APP_NAME') . '-eda:5000/keycloak-config';
-        
-        $ch = curl_init($webhook_url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($config));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        $ch = curl_init($userInfoUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken
+        ]);
         
-        curl_exec($ch);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
+        
+        if ($httpCode === 200) {
+            return json_decode($response, true);
+        }
+        
+        return null;
     }
     
-    private function decodeJWT($jwt)
+    /**
+     * Extract roles from JWT token
+     */
+    private function extractRoles(string $accessToken): array
     {
-        $parts = explode('.', $jwt);
+        // Simple JWT parsing (not secure, but sufficient for role extraction)
+        $parts = explode('.', $accessToken);
         if (count($parts) !== 3) {
             return [];
         }
         
-        $payload = base64_decode(str_replace(['-', '_'], ['+', '/'], $parts[1]));
-        return json_decode($payload, true);
+        $payload = json_decode(base64_decode(str_pad(strtr($parts[1], '-_', '+/'), strlen($parts[1]) % 4, '=', STR_PAD_RIGHT)), true);
+        
+        $roles = [];
+        
+        // Extract realm roles
+        if (isset($payload['realm_access']['roles'])) {
+            $roles = array_merge($roles, $payload['realm_access']['roles']);
+        }
+        
+        // Extract client roles
+        if (isset($payload['resource_access'][$this->keycloakConfig['client_id']]['roles'])) {
+            $roles = array_merge($roles, $payload['resource_access'][$this->keycloakConfig['client_id']]['roles']);
+        }
+        
+        return array_unique($roles);
+    }
+    
+    /**
+     * Check if Keycloak is enabled
+     */
+    private function isKeycloakEnabled(): bool
+    {
+        return !empty($this->keycloakConfig) && 
+               isset($this->keycloakConfig['enabled']) && 
+               ($this->keycloakConfig['enabled'] === true || $this->keycloakConfig['enabled'] === 'true');
+    }
+    
+    /**
+     * Check if Keycloak setup is complete (realm and client exist)
+     */
+    private function isKeycloakSetupComplete(): bool
+    {
+        if (!$this->isKeycloakEnabled()) {
+            return false;
+        }
+        
+        // Simple check by trying to access the realm
+        $realmUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'];
+        
+        $ch = curl_init($realmUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_NOBODY, true); // HEAD request
+        
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        return $httpCode === 200;
+    }
+    
+    /**
+     * Get base URL for redirects
+     */
+    private function getBaseUrl(): string
+    {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        return $protocol . '://' . $host;
     }
 }

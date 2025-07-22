@@ -323,7 +323,7 @@ class AppManager
                 ]
             ];
             
-            // Keycloak container
+            // Keycloak container with auto-configuration
             $compose['services'][$appName . '-keycloak'] = [
                 'image' => $config['containers']['keycloak']['image'] ?? 'quay.io/keycloak/keycloak:latest',
                 'container_name' => $appName . '-keycloak',
@@ -337,6 +337,9 @@ class AppManager
                     'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
                     'KC_HOSTNAME_STRICT' => '"false"',
                     'KC_HTTP_ENABLED' => '"true"'
+                ],
+                'volumes' => [
+                    './.installer/apps/' . $appName . '/keycloak-init.sh:/opt/keycloak/keycloak-init.sh:Z'
                 ],
                 'ports' => ['8080:8080'],
                 'depends_on' => [
@@ -352,6 +355,32 @@ class AppManager
                     'retries' => 10,
                     'start_period' => '40s'
                 ]
+            ];
+            
+            // Keycloak auto-configurator container (runs once then exits)
+            $compose['services'][$appName . '-keycloak-setup'] = [
+                'image' => 'curlimages/curl:latest',
+                'container_name' => $appName . '-keycloak-setup',
+                'environment' => [
+                    'KEYCLOAK_URL' => 'http://' . $appName . '-keycloak:8080',
+                    'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
+                    'KEYCLOAK_REALM' => $config['keycloak']['realm'] ?? $appName . '-realm',
+                    'KEYCLOAK_CLIENT_ID' => $config['keycloak']['client_id'] ?? $appName . '-client',
+                    'KEYCLOAK_CLIENT_SECRET' => $config['keycloak']['client_secret'] ?? '',
+                    'APP_NAME' => $appName,
+                    'APP_PORT' => $config['containers']['app']['port']
+                ],
+                'volumes' => [
+                    './.installer/apps/' . $appName . '/keycloak-init.sh:/keycloak-init.sh:Z'
+                ],
+                'command' => ['sh', '/keycloak-init.sh'],
+                'depends_on' => [
+                    $appName . '-keycloak' => [
+                        'condition' => 'service_healthy'
+                    ]
+                ],
+                'networks' => [$appName . '-net'],
+                'restart' => 'no'
             ];
             
             // Update app container dependencies to include Keycloak
@@ -1202,6 +1231,9 @@ class AppManager
         // Copy Keycloak-specific files from template
         $this->copyKeycloakFiles($appName);
         
+        // Copy and prepare Keycloak initialization script
+        $this->copyKeycloakInitScript($appName);
+        
         // Update app.config.php to enable Keycloak
         $this->updateAppConfig($appDir, null, true);
         
@@ -1258,6 +1290,43 @@ class AppManager
     }
     
     /**
+     * Copy and prepare Keycloak initialization script
+     */
+    private function copyKeycloakInitScript(string $appName): void
+    {
+        $appDir = $this->installerDir . '/' . $appName;
+        $templateScript = $this->templatesDir . '/nimbus-demo/keycloak-init.sh';
+        $targetScript = $appDir . '/keycloak-init.sh';
+        
+        if (!file_exists($templateScript)) {
+            throw new \Exception("Keycloak init script template not found: $templateScript");
+        }
+        
+        // Read and process the script
+        $content = file_get_contents($templateScript);
+        
+        // Load app config to get actual values
+        $config = $this->loadAppConfig($appName);
+        
+        // Replace placeholders with actual values
+        $replacements = [
+            '{{KEYCLOAK_REALM}}' => $config['keycloak']['realm'] ?? $appName . '-realm',
+            '{{KEYCLOAK_CLIENT_ID}}' => $config['keycloak']['client_id'] ?? $appName . '-client',
+            '{{KEYCLOAK_CLIENT_SECRET}}' => $config['keycloak']['client_secret'] ?? '',
+            '{{APP_NAME}}' => $appName,
+            '{{APP_PORT}}' => $config['containers']['app']['port'] ?? '8080'
+        ];
+        
+        $content = str_replace(array_keys($replacements), array_values($replacements), $content);
+        
+        // Write the processed script
+        file_put_contents($targetScript, $content);
+        
+        // Make it executable
+        chmod($targetScript, 0755);
+    }
+    
+    /**
      * Update app.config.php to enable/disable features
      */
     private function updateAppConfig(string $appDir, bool $hasEda = null, bool $hasKeycloak = null): void
@@ -1281,12 +1350,42 @@ class AppManager
         
         // Update Keycloak enabled status if specified
         if ($hasKeycloak !== null) {
-            $keycloakValue = $hasKeycloak ? 'true' : 'false';
+            $keycloakValue = $hasKeycloak ? "'true'" : "'false'";
             $content = preg_replace(
-                "/'enabled'\s*=>\s*\{\{KEYCLOAK_ENABLED\}\}/",
+                "/'enabled'\s*=>\s*'(true|false)'/",
                 "'enabled' => $keycloakValue",
                 $content
             );
+            
+            // Also update other Keycloak config values if enabling
+            if ($hasKeycloak) {
+                // Get the app config to populate values
+                $configFile = dirname($appDir) . '/' . basename($appDir) . '/app.nimbus.json';
+                if (file_exists($configFile)) {
+                    $config = json_decode(file_get_contents($configFile), true);
+                    
+                    // Update realm
+                    $content = preg_replace(
+                        "/'realm'\s*=>\s*'[^']*'/",
+                        "'realm' => '" . ($config['keycloak']['realm'] ?? '') . "'",
+                        $content
+                    );
+                    
+                    // Update client_id
+                    $content = preg_replace(
+                        "/'client_id'\s*=>\s*'[^']*'/",
+                        "'client_id' => '" . ($config['keycloak']['client_id'] ?? '') . "'",
+                        $content
+                    );
+                    
+                    // Update client_secret
+                    $content = preg_replace(
+                        "/'client_secret'\s*=>\s*'[^']*'/",
+                        "'client_secret' => '" . ($config['keycloak']['client_secret'] ?? '') . "'",
+                        $content
+                    );
+                }
+            }
         }
         
         file_put_contents($appConfigFile, $content);
