@@ -1293,7 +1293,19 @@ class ApplicationTasks {
         $io = $event->getIO();
         $args = $event->getArguments();
         
-        $appName = $args[0] ?? null;
+        $appName = null;
+        $force = false;
+        
+        // Parse arguments  
+        foreach ($args as $arg) {
+            if ($arg === '--force' || $arg === '-f' || $arg === 'force') {
+                $force = true;
+            } elseif (!$appName && substr($arg, 0, 1) !== '-') {
+                $appName = $arg;
+            }
+        }
+        
+        // Remove debug output
         
         if (!$appName) {
             $manager = new \Nimbus\App\AppManager();
@@ -1319,9 +1331,10 @@ class ApplicationTasks {
             }
             
             // Add Keycloak to the app
-            $manager->addKeycloak($appName);
+            $manager->addKeycloak($appName, $force);
             
-            echo self::ansiFormat('SUCCESS', "Keycloak added to app '$appName' successfully!");
+            $action = $force ? 'updated' : 'added';
+            echo self::ansiFormat('SUCCESS', "Keycloak $action to app '$appName' successfully!");
             echo self::ansiFormat('INFO', "Keycloak containers configured:");
             echo "  🔐 Keycloak server on port 8080" . PHP_EOL;
             echo "  💾 Keycloak database (PostgreSQL)" . PHP_EOL;

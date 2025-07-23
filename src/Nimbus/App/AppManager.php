@@ -359,10 +359,11 @@ class AppManager
             
             // Keycloak auto-configurator container (runs once then exits)
             $compose['services'][$appName . '-keycloak-setup'] = [
-                'image' => 'curlimages/curl:latest',
+                'image' => 'alpine:latest',
                 'container_name' => $appName . '-keycloak-setup',
                 'environment' => [
                     'KEYCLOAK_URL' => 'http://' . $appName . '-keycloak:8080',
+                    'KEYCLOAK_ADMIN_USER' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
                     'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
                     'KEYCLOAK_REALM' => $config['keycloak']['realm'] ?? $appName . '-realm',
                     'KEYCLOAK_CLIENT_ID' => $config['keycloak']['client_id'] ?? $appName . '-client',
@@ -373,7 +374,7 @@ class AppManager
                 'volumes' => [
                     './.installer/apps/' . $appName . '/keycloak-init.sh:/keycloak-init.sh:Z'
                 ],
-                'command' => ['sh', '/keycloak-init.sh'],
+                'command' => ['sh', '-c', 'apk add --no-cache curl jq && sh /keycloak-init.sh'],
                 'depends_on' => [
                     $appName . '-keycloak' => [
                         'condition' => 'service_healthy'
@@ -445,6 +446,10 @@ class AppManager
             
             foreach ($iterator as $file) {
                 if ($file->isFile()) {
+                    // Skip keycloak-init.sh as it uses environment variables at runtime
+                    if (basename($file->getPathname()) === 'keycloak-init.sh') {
+                        continue;
+                    }
                     $content = file_get_contents($file);
                     $content = str_replace(array_keys($replacements), array_values($replacements), $content);
                     file_put_contents($file, $content);
@@ -1174,7 +1179,7 @@ class AppManager
         rmdir($path);
     }
 
-    public function addKeycloak(string $appName): bool
+    public function addKeycloak(string $appName, bool $force = false): bool
     {
         $appDir = $this->installerDir . '/' . $appName;
         if (!is_dir($appDir)) {
@@ -1189,8 +1194,8 @@ class AppManager
         
         $config = json_decode(file_get_contents($configFile), true);
         
-        // Check if Keycloak is already enabled
-        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+        // Check if Keycloak is already enabled (unless force is true)
+        if (!$force && isset($config['features']['keycloak']) && $config['features']['keycloak']) {
             throw new \Exception("Keycloak is already enabled for this app");
         }
         
@@ -1302,25 +1307,9 @@ class AppManager
             throw new \Exception("Keycloak init script template not found: $templateScript");
         }
         
-        // Read and process the script
-        $content = file_get_contents($templateScript);
-        
-        // Load app config to get actual values
-        $config = $this->loadAppConfig($appName);
-        
-        // Replace placeholders with actual values
-        $replacements = [
-            '{{KEYCLOAK_REALM}}' => $config['keycloak']['realm'] ?? $appName . '-realm',
-            '{{KEYCLOAK_CLIENT_ID}}' => $config['keycloak']['client_id'] ?? $appName . '-client',
-            '{{KEYCLOAK_CLIENT_SECRET}}' => $config['keycloak']['client_secret'] ?? '',
-            '{{APP_NAME}}' => $appName,
-            '{{APP_PORT}}' => $config['containers']['app']['port'] ?? '8080'
-        ];
-        
-        $content = str_replace(array_keys($replacements), array_values($replacements), $content);
-        
-        // Write the processed script
-        file_put_contents($targetScript, $content);
+        // Just copy the script without replacing placeholders
+        // The script will use environment variables passed by the container
+        copy($templateScript, $targetScript);
         
         // Make it executable
         chmod($targetScript, 0755);

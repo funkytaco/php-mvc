@@ -2,18 +2,28 @@
 # Keycloak auto-configuration script
 # This runs inside the Keycloak container on startup
 
-KEYCLOAK_URL="http://localhost:8080"
-ADMIN_USER="admin"
+KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
+ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
 ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
-REALM_NAME="{{KEYCLOAK_REALM}}"
-CLIENT_ID="{{KEYCLOAK_CLIENT_ID}}"
-CLIENT_SECRET="{{KEYCLOAK_CLIENT_SECRET}}"
-APP_NAME="{{APP_NAME}}"
-APP_PORT="{{APP_PORT}}"
+REALM_NAME="${KEYCLOAK_REALM}"
+CLIENT_ID="${KEYCLOAK_CLIENT_ID}"
+CLIENT_SECRET="${KEYCLOAK_CLIENT_SECRET}"
+APP_NAME="${APP_NAME}"
+APP_PORT="${APP_PORT}"
+
+# Debug: Show environment variables
+echo "=== Keycloak Configuration ==="
+echo "KEYCLOAK_URL: ${KEYCLOAK_URL}"
+echo "ADMIN_USER: ${ADMIN_USER}"
+echo "REALM_NAME: ${REALM_NAME}"
+echo "CLIENT_ID: ${CLIENT_ID}"
+echo "APP_NAME: ${APP_NAME}"
+echo "APP_PORT: ${APP_PORT}"
+echo "============================="
 
 # Wait for Keycloak to be ready
 echo "Waiting for Keycloak to start..."
-until curl -sf "${KEYCLOAK_URL}/health/ready" > /dev/null; do
+until curl -sf "${KEYCLOAK_URL}/admin" > /dev/null; do
     sleep 5
 done
 

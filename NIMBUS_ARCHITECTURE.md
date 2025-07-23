@@ -3,6 +3,52 @@
 ## Overview
 Nimbus is a modular PHP MVC framework designed to support multiple themed applications with Event-Driven Ansible (EDA) integration. Each app runs in a containerized environment with its own database, application server, and EDA rulebook processor.
 
+Nimbus uses a sophisticated Nimbus CLI system built on top of Composer for
+   managing containerized applications. Here's how it works:
+
+  Nimbus CLI Commands
+
+  The system provides these composer commands via ApplicationTasks.php:
+
+  1. App Creation:
+    - composer nimbus:create <app-name> - Creates new app from template
+    - composer nimbus:create-with-eda <app-name> - Creates app with Event-Driven Ansible
+    - composer nimbus:create-eda-keycloak <app-name> - Creates app with EDA + Keycloak SSO
+  2. App Management:
+    - composer nimbus:install <app-name> - Generates container configuration
+    - composer nimbus:up <app-name> - Starts containers
+    - composer nimbus:down <app-name> - Stops containers
+    - composer nimbus:status - Shows app status
+    - composer nimbus:delete <app-name> - Deletes app
+  3. Feature Addition:
+    - composer nimbus:add-eda <app-name> - Adds Event-Driven Ansible
+    - composer nimbus:add-keycloak <app-name> - Adds Keycloak SSO
+
+  Architecture
+
+  1. App Templates: Stored in .installer/_templates/nimbus-demo/
+  2. App Storage: Created apps live in .installer/apps/<app-name>/
+  3. Container Stack: Each app gets:
+    - App container: PHP/Apache with your MVC framework
+    - Database container: PostgreSQL with auto-schema loading
+    - EDA container (optional): Event-Driven Ansible for webhooks/automation
+    - Keycloak containers (optional): SSO authentication
+  4. Dynamic Configuration:
+    - Generates unique ports per app (based on app name hash)
+    - Creates isolated networks per app
+    - Manages volumes for data persistence
+    - Handles health checks and dependencies
+
+  Workflow
+
+  1. Create app → Copies template, replaces placeholders
+  2. Install app → Generates <app-name>-compose.yml
+  3. Start app → Runs podman-compose up
+  4. App runs with its own isolated stack
+
+  The system uses PSR-7 with named variables (not php://input) and follows a clean MVC pattern
+   with Mustache templates, PDO database access, and proper separation of concerns.
+
 ## Core Components
 
 ### 1. Namespace Structure
