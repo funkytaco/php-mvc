@@ -19,6 +19,7 @@ eda/certbot
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
 CLAUDE.md
+src/Nimbus/Vault/*
 
 # Generated files - DO NOT COMMIT
 *-compose.yml

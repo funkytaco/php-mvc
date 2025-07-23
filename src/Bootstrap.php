@@ -58,14 +58,21 @@ class Nimbus {
         }
 
         if (isset($config['pdo'])) {
-            // (example for future config)
+            $this->injector->share('PDO');
+            $this->injector->define('PDO', [
+                $config['pdo']['dsn'],
+                $config['pdo']['username'],
+                $config['pdo']['password']
+            ]);
+        } else {
+            // Fallback to default config for backward compatibility
+            $this->injector->share('PDO');
+            $this->injector->define('PDO', [
+                'pgsql:host=db;port=5432;dbname=lkui',
+                'lkui',
+                'lkui_secure_password_2024'
+            ]);
         }
-        $this->injector->share('PDO');
-        $this->injector->define('PDO', [
-            'pgsql:host=db;port=5432;dbname=lkui',
-            'lkui',
-            'lkui_secure_password_2024'
-        ]);
     }
 
     private function setupDatabase() {

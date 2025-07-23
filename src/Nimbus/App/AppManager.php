@@ -38,8 +38,26 @@ class AppManager
             throw new \RuntimeException("App '$appName' already exists");
         }
         
+        // Check vault for credentials first (before copying template)  
+        $vaultCredentials = $this->getVaultCredentials($appName);
+        $isVaultRestore = !empty($vaultCredentials['database']['password']);
+        
         // Copy template to new app
         $this->copyDirectory($templatePath, $targetPath);
+        
+        // Copy force-init script if restoring from vault
+        if ($isVaultRestore) {
+            $forceInitScript = $templatePath . '/database/force-init.sh';
+            if (file_exists($forceInitScript)) {
+                copy($forceInitScript, $targetPath . '/database/force-init.sh');
+                chmod($targetPath . '/database/force-init.sh', 0755);
+            }
+        }
+        
+        // Check for existing database data to avoid password race condition
+        $existingPassword = $this->getExistingDatabasePassword($appName);
+        
+        $dbPassword = $vaultCredentials['database']['password'] ?? $existingPassword ?: $this->generatePassword();
         
         // Prepare placeholders
         $placeholders = [
@@ -50,7 +68,7 @@ class AppManager
             '{{EDA_PORT}}' => $this->generateEdaPort($appName),
             '{{DB_NAME}}' => $appName . '_db',
             '{{DB_USER}}' => $appName . '_user',
-            '{{DB_PASSWORD}}' => $this->generatePassword()
+            '{{DB_PASSWORD}}' => $dbPassword
         ];
         
         // Add EDA placeholder
@@ -62,12 +80,22 @@ class AppManager
         
         // Add Keycloak placeholders if enabled
         if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+            // Check for existing Keycloak database password to avoid race condition
+            $existingKeycloakPassword = $this->getExistingKeycloakPassword($appName);
+            // Check for existing Keycloak admin password too
+            $existingKeycloakAdminPassword = $this->getExistingKeycloakAdminPassword($appName);
+            
+            // Use vault credentials if available
+            $keycloakAdminPassword = $vaultCredentials['keycloak']['admin_password'] ?? $existingKeycloakAdminPassword ?: $this->generatePassword();
+            $keycloakDbPassword = $vaultCredentials['keycloak']['db_password'] ?? $existingKeycloakPassword ?: $this->generatePassword();
+            $keycloakClientSecret = $vaultCredentials['keycloak']['client_secret'] ?? $this->generatePassword(32);
+            
             $placeholders['{{KEYCLOAK_ENABLED}}'] = 'true';
-            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = $this->generatePassword();
-            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = $this->generatePassword();
+            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = $keycloakAdminPassword;
+            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = $keycloakDbPassword;
             $placeholders['{{KEYCLOAK_REALM}}'] = $appName . '-realm';
             $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = $appName . '-client';
-            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $this->generatePassword(32);
+            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $keycloakClientSecret;
         } else {
             $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
             // Set empty placeholders so they get replaced in templates
@@ -81,14 +109,21 @@ class AppManager
         $this->replacePlaceholders($targetPath, $placeholders);
         
         // Update app.nimbus.json with enabled features
-        if (!empty($config['features'])) {
+        if (!empty($config['features']) || $isVaultRestore) {
             $appConfigPath = $targetPath . '/app.nimbus.json';
             if (file_exists($appConfigPath)) {
                 $appConfig = json_decode(file_get_contents($appConfigPath), true);
                 
+                // Store vault restoration flag for compose generation
+                if ($isVaultRestore) {
+                    $appConfig['vault_restore'] = true;
+                }
+                
                 // Merge features
-                foreach ($config['features'] as $feature => $enabled) {
-                    $appConfig['features'][$feature] = $enabled;
+                if (!empty($config['features'])) {
+                    foreach ($config['features'] as $feature => $enabled) {
+                        $appConfig['features'][$feature] = $enabled;
+                    }
                 }
                 
                 // Add Keycloak configuration if enabled
@@ -192,7 +227,8 @@ class AppManager
     public function generateContainers(string $appName): string
     {
         $config = $this->loadAppConfig($appName);
-        $compose = $this->buildComposeConfig($appName, $config);
+        $isVaultRestore = $config['vault_restore'] ?? false;
+        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
         
         $yamlContent = $this->arrayToYaml($compose);
         $filename = $this->baseDir . '/' . $appName . '-compose.yml';
@@ -219,7 +255,7 @@ class AppManager
     /**
      * Build compose configuration
      */
-    private function buildComposeConfig(string $appName, array $config): array
+    private function buildComposeConfig(string $appName, array $config, bool $isVaultRestore = false): array
     {
         $compose = [
             'version' => '3.8',
@@ -249,18 +285,29 @@ class AppManager
         
         // Database container
         if ($config['features']['database'] ?? true) {
+            $dbEnvironment = [
+                'POSTGRES_DB' => $config['database']['name'],
+                'POSTGRES_USER' => $config['database']['user'],
+                'POSTGRES_PASSWORD' => $config['database']['password']
+            ];
+            
+            $dbVolumes = [
+                './data/' . $appName . ':/var/lib/postgresql/data:Z',
+                './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z'
+            ];
+            
+            // If restoring from vault and data directory exists, add force init
+            $dataDir = $this->baseDir . '/data/' . $appName;
+            if ($isVaultRestore && is_dir($dataDir) && !empty(glob($dataDir . '/*'))) {
+                $dbEnvironment['FORCE_INIT'] = 'true';
+                $dbVolumes[] = './.installer/apps/' . $appName . '/database/force-init.sh:/docker-entrypoint-initdb.d/force-init.sh:Z';
+            }
+            
             $compose['services'][$appName . '-db'] = [
                 'image' => 'postgres:14',
                 'container_name' => $appName . '-postgres',
-                'environment' => [
-                    'POSTGRES_DB' => $config['database']['name'],
-                    'POSTGRES_USER' => $config['database']['user'],
-                    'POSTGRES_PASSWORD' => $config['database']['password']
-                ],
-                'volumes' => [
-                    './data/' . $appName . ':/var/lib/postgresql/data:Z',
-                    './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z'
-                ],
+                'environment' => $dbEnvironment,
+                'volumes' => $dbVolumes,
                 'networks' => [$appName . '-net'],
                 'healthcheck' => [
                     'test' => ['CMD-SHELL', 'pg_isready -U ' . $config['database']['user'] . ' -d ' . $config['database']['name']],
@@ -547,6 +594,180 @@ class AppManager
     }
     
     /**
+     * Get existing database password from previous app installation
+     * This prevents password race conditions when recreating apps
+     */
+    private function getExistingDatabasePassword(string $appName): ?string
+    {
+        $dataDir = $this->baseDir . '/data/' . $appName;
+        
+        // If no data directory exists, there's no existing password
+        if (!is_dir($dataDir)) {
+            return null;
+        }
+        
+        // Try to get password from existing compose file first
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        if (file_exists($composeFile)) {
+            $password = $this->extractPasswordFromCompose($composeFile);
+            if ($password) {
+                return $password;
+            }
+        }
+        
+        // Try to get password from running container
+        $containerName = $appName . '-postgres';
+        $password = $this->extractPasswordFromContainer($containerName);
+        if ($password) {
+            return $password;
+        }
+        
+        // If we can't determine the existing password, we'll need to reset the database
+        // This is safer than guessing - we'll force removal of old data
+        error_log("Warning: Found existing database data for '$appName' but couldn't determine password. Consider removing data directory manually.");
+        
+        return null;
+    }
+    
+    /**
+     * Extract database password from compose file
+     */
+    private function extractPasswordFromCompose(string $composeFile): ?string
+    {
+        $content = file_get_contents($composeFile);
+        if (!$content) {
+            return null;
+        }
+        
+        // Look for POSTGRES_PASSWORD in the compose file
+        if (preg_match('/POSTGRES_PASSWORD:\s*([a-f0-9]{32})/', $content, $matches)) {
+            return $matches[1];
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Extract database password from running container
+     */
+    private function extractPasswordFromContainer(string $containerName): ?string
+    {
+        // Try to inspect the container to get environment variables
+        $inspectCmd = "podman inspect $containerName --format '{{json .Config.Env}}' 2>/dev/null";
+        $output = shell_exec($inspectCmd);
+        
+        if (!$output) {
+            return null;
+        }
+        
+        $envVars = json_decode(trim($output), true);
+        if (!is_array($envVars)) {
+            return null;
+        }
+        
+        foreach ($envVars as $envVar) {
+            if (strpos($envVar, 'POSTGRES_PASSWORD=') === 0) {
+                return substr($envVar, 18); // Remove "POSTGRES_PASSWORD=" prefix
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get existing Keycloak database password from previous app installation
+     */
+    private function getExistingKeycloakPassword(string $appName): ?string
+    {
+        $keycloakDataDir = $this->baseDir . '/data/' . $appName . '-keycloak';
+        
+        // If no Keycloak data directory exists, there's no existing password
+        if (!is_dir($keycloakDataDir)) {
+            return null;
+        }
+        
+        // Try to get password from existing compose file
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        if (file_exists($composeFile)) {
+            $content = file_get_contents($composeFile);
+            // Look for Keycloak database password (try both POSTGRES_PASSWORD and KC_DB_PASSWORD)
+            if (preg_match('/' . $appName . '-keycloak-db:.*?POSTGRES_PASSWORD:\s*([a-f0-9]{32})/s', $content, $matches)) {
+                return $matches[1];
+            }
+            if (preg_match('/KC_DB_PASSWORD:\s*([a-f0-9]{32})/', $content, $matches)) {
+                return $matches[1];
+            }
+        }
+        
+        // Try to get password from running Keycloak database container
+        $containerName = $appName . '-keycloak-db';
+        return $this->extractPasswordFromContainer($containerName);
+    }
+
+    /**
+     * Get existing Keycloak admin password from previous app installation
+     */
+    private function getExistingKeycloakAdminPassword(string $appName): ?string
+    {
+        // Try to get admin password from existing compose file
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        if (file_exists($composeFile)) {
+            $content = file_get_contents($composeFile);
+            // Look for Keycloak admin password
+            if (preg_match('/KEYCLOAK_ADMIN_PASSWORD:\s*([a-f0-9]{32})/', $content, $matches)) {
+                return $matches[1];
+            }
+        }
+        
+        // Try to get password from running Keycloak container
+        $containerName = $appName . '-keycloak';
+        $inspectCmd = "podman inspect $containerName --format '{{json .Config.Env}}' 2>/dev/null";
+        $output = shell_exec($inspectCmd);
+        
+        if ($output) {
+            $envVars = json_decode(trim($output), true);
+            if (is_array($envVars)) {
+                foreach ($envVars as $envVar) {
+                    if (strpos($envVar, 'KEYCLOAK_ADMIN_PASSWORD=') === 0) {
+                        return substr($envVar, 24); // Remove "KEYCLOAK_ADMIN_PASSWORD=" prefix
+                    }
+                }
+            }
+        }
+        
+        // Try to get from existing app.nimbus.json file
+        $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
+        if (file_exists($configFile)) {
+            $config = json_decode(file_get_contents($configFile), true);
+            if (isset($config['containers']['keycloak']['admin_password'])) {
+                return $config['containers']['keycloak']['admin_password'];
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get credentials from vault if available
+     */
+    private function getVaultCredentials(string $appName): array
+    {
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager($this->baseDir);
+            
+            if (!$vaultManager->isInitialized()) {
+                return [];
+            }
+            
+            return $vaultManager->restoreAppCredentials($appName) ?: [];
+            
+        } catch (\Exception $e) {
+            // Silently fail - vault is optional
+            return [];
+        }
+    }
+    
+    /**
      * Enable or disable EDA for an existing app
      */
     public function setEda(string $appName, bool $enabled): bool
@@ -734,7 +955,8 @@ class AppManager
      */
     private function regenerateComposeFile(string $appName, array $config): void
     {
-        $compose = $this->buildComposeConfig($appName, $config);
+        $isVaultRestore = $config['vault_restore'] ?? false;
+        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
         $yamlContent = $this->arrayToYaml($compose);
         
         // Validate YAML before writing
@@ -769,8 +991,8 @@ class AppManager
                     throw new \Exception("YAML cannot contain tabs (line " . ($lineNum + 1) . ")");
                 }
                 
-                // Check for proper list formatting
-                if (preg_match('/^\s*-\s*-/', $line)) {
+                // Check for proper list formatting (double dash at start of line)
+                if (preg_match('/^\s*-\s*-\s/', $line)) {
                     throw new \Exception("Invalid list formatting (line " . ($lineNum + 1) . ")");
                 }
                 
@@ -1068,7 +1290,8 @@ class AppManager
      */
     private function generatePodmanCompose(string $appName, array $config): void
     {
-        $compose = $this->buildComposeConfig($appName, $config);
+        $isVaultRestore = $config['vault_restore'] ?? false;
+        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
         $yamlContent = $this->arrayToYaml($compose);
         
         file_put_contents($this->baseDir . '/' . $appName . '-compose.yml', $yamlContent);
@@ -1099,11 +1322,25 @@ class AppManager
                     $yaml .= $this->arrayToYaml($value, $indent + 1);
                 }
             } else {
-                $yaml .= $prefix . $key . ': ' . $value . "\n";
+                // Quote values that contain special YAML characters
+                if ($this->needsQuoting($value)) {
+                    $yaml .= $prefix . $key . ': "' . $value . "\"\n";
+                } else {
+                    $yaml .= $prefix . $key . ': ' . $value . "\n";
+                }
             }
         }
         
         return $yaml;
+    }
+    
+    /**
+     * Check if a value needs to be quoted in YAML
+     */
+    private function needsQuoting(string $value): bool
+    {
+        // Quote if it contains special YAML characters that could cause parsing issues
+        return preg_match('/[!@#$%^&*()+=\[\]{}|;:,.<>?~`]/', $value) === 1;
     }
     
     /**

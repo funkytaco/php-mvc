@@ -291,6 +291,23 @@ class ApplicationTasks {
         $template = $args[1] ?? 'nimbus-demo';
         
         try {
+            // Check if vault has credentials for this app
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            if ($vaultManager->isInitialized()) {
+                $vaultCredentials = $vaultManager->restoreAppCredentials($appName);
+                if ($vaultCredentials) {
+                    echo self::ansiFormat('INFO', "🔐 Found backed up credentials for '$appName' in vault!");
+                    if (isset($vaultCredentials['database'])) {
+                        echo "  📊 Database password: " . substr($vaultCredentials['database']['password'], 0, 8) . "..." . PHP_EOL;
+                    }
+                    if (isset($vaultCredentials['keycloak'])) {
+                        echo "  🔐 Keycloak passwords: ✓" . PHP_EOL;
+                    }
+                    echo self::ansiFormat('INFO', '💡 These credentials will be restored automatically.');
+                    echo PHP_EOL;
+                }
+            }
+            
             $manager = new \Nimbus\App\AppManager();
             $manager->createFromTemplate($appName, $template);
             
@@ -1022,6 +1039,37 @@ class ApplicationTasks {
             echo "  - Compose file: $composeFile" . PHP_EOL;
             echo "  - Any associated containers and volumes" . PHP_EOL;
             
+            // Ask about backing up credentials to vault
+            try {
+                $vaultManager = new \Nimbus\Vault\VaultManager();
+                if ($vaultManager->isInitialized()) {
+                    if ($io->askConfirmation('🔐 Backup credentials to vault before deleting? [Y/n]: ', true)) {
+                        echo self::ansiFormat('INFO', "Backing up credentials for '$appName'...");
+                        $credentials = $vaultManager->extractAppCredentials($appName);
+                        if (!empty($credentials)) {
+                            $vaultManager->backupAppCredentials($appName, $credentials);
+                            echo self::ansiFormat('INFO', '✅ Credentials backed up to vault!');
+                        } else {
+                            echo self::ansiFormat('WARNING', 'No credentials found to backup (app may not be running)');
+                        }
+                    }
+                } else {
+                    // Vault not initialized - suggest it
+                    if ($io->askConfirmation('🔐 Initialize vault to backup credentials? [y/N]: ', false)) {
+                        $vaultManager->initializeVault();
+                        echo self::ansiFormat('INFO', 'Vault initialized! Now backing up credentials...');
+                        $credentials = $vaultManager->extractAppCredentials($appName);
+                        if (!empty($credentials)) {
+                            $vaultManager->backupAppCredentials($appName, $credentials);
+                            echo self::ansiFormat('INFO', '✅ Credentials backed up to vault!');
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                echo self::ansiFormat('WARNING', 'Could not backup credentials: ' . $e->getMessage());
+            }
+            
+            echo PHP_EOL;
             if (!$io->askConfirmation(self::ansiFormat('CONFIRM: Y/N', 'Are you sure you want to delete this app?'), false)) {
                 echo self::ansiFormat('INFO', 'Deletion cancelled');
                 return;
@@ -1237,6 +1285,15 @@ class ApplicationTasks {
         echo "  • composer nimbus:status            # Check app status" . PHP_EOL;
         echo "  • composer nimbus:down $appName     # Stop containers" . PHP_EOL;
         echo "  • composer nimbus:delete $appName   # Delete app" . PHP_EOL;
+        
+        // Check if setup-hosts.sh exists
+        $setupHostsPath = ".installer/apps/$appName/setup-hosts.sh";
+        if (file_exists($setupHostsPath) && PHP_OS === 'Darwin') {
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🌐 Setup local hostnames (macOS):");
+            echo "  • sudo ./$setupHostsPath         # Add .test hostnames to /etc/hosts" . PHP_EOL;
+            echo "  • View network info: cat .installer/apps/$appName/podman-network.md" . PHP_EOL;
+        }
     }
     
     private static function showFeatureInfo(string $appName, array $features) {
@@ -1389,6 +1446,195 @@ class ApplicationTasks {
             
         } catch (\Exception $e) {
             // Silently fail - don't disrupt the main app startup process
+        }
+    }
+
+    /**
+     * Initialize Ansible Vault for credential management
+     */
+    public static function nimbusVaultInit(Event $event): void
+    {
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            
+            echo self::ansiFormat('INFO', '🔐 Initializing Nimbus Credential Vault...');
+            echo PHP_EOL;
+            
+            if ($vaultManager->isInitialized()) {
+                echo self::ansiFormat('WARNING', 'Vault is already initialized.');
+                return;
+            }
+            
+            // Check if ansible-vault is available
+            $ansibleCheck = shell_exec('which ansible-vault 2>/dev/null');
+            if (empty($ansibleCheck)) {
+                echo self::ansiFormat('ERROR', 'ansible-vault not found. Installing via container...');
+                // We'll use containerized ansible-vault
+            }
+            
+            $success = $vaultManager->initializeVault();
+            
+            if ($success) {
+                echo self::ansiFormat('INFO', '✅ Vault initialized successfully!');
+                echo PHP_EOL;
+                echo self::ansiFormat('INFO', '💡 Usage:');
+                echo "  composer nimbus:vault-backup <app>   - Backup app credentials" . PHP_EOL;
+                echo "  composer nimbus:vault-restore <app>  - Restore app credentials" . PHP_EOL;
+                echo "  composer nimbus:vault-list           - List backed up apps" . PHP_EOL;
+            } else {
+                echo self::ansiFormat('ERROR', '❌ Failed to initialize vault');
+            }
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to initialize vault: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Backup app credentials to vault
+     */
+    public static function nimbusVaultBackup(Event $event): void
+    {
+        $args = $event->getArguments();
+        
+        if (empty($args)) {
+            echo self::ansiFormat('ERROR', 'App name required. Usage: composer nimbus:vault-backup <app-name>');
+            return;
+        }
+        
+        $appName = $args[0];
+        
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            
+            if (!$vaultManager->isInitialized()) {
+                echo self::ansiFormat('ERROR', 'Vault not initialized. Run: composer nimbus:vault-init');
+                return;
+            }
+            
+            echo self::ansiFormat('INFO', "🔐 Backing up credentials for '$appName'...");
+            echo PHP_EOL;
+            
+            // Extract credentials from running containers and config files
+            $credentials = $vaultManager->extractAppCredentials($appName);
+            
+            if (empty($credentials)) {
+                echo self::ansiFormat('WARNING', "No credentials found for '$appName'. App may not be running.");
+                return;
+            }
+            
+            $success = $vaultManager->backupAppCredentials($appName, $credentials);
+            
+            if ($success) {
+                echo self::ansiFormat('INFO', '✅ Credentials backed up successfully!');
+                echo PHP_EOL;
+                
+                // Show what was backed up
+                if (isset($credentials['database'])) {
+                    echo "  📊 Database password: ✓" . PHP_EOL;
+                }
+                if (isset($credentials['keycloak'])) {
+                    echo "  🔐 Keycloak admin password: ✓" . PHP_EOL;
+                    echo "  🔐 Keycloak DB password: ✓" . PHP_EOL;
+                    if (isset($credentials['keycloak']['client_secret'])) {
+                        echo "  🔐 Keycloak client secret: ✓" . PHP_EOL;
+                    }
+                }
+            } else {
+                echo self::ansiFormat('ERROR', '❌ Failed to backup credentials');
+            }
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to backup credentials: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Restore app credentials from vault
+     */
+    public static function nimbusVaultRestore(Event $event): void
+    {
+        $args = $event->getArguments();
+        
+        if (empty($args)) {
+            echo self::ansiFormat('ERROR', 'App name required. Usage: composer nimbus:vault-restore <app-name>');
+            return;
+        }
+        
+        $appName = $args[0];
+        
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            
+            if (!$vaultManager->isInitialized()) {
+                echo self::ansiFormat('ERROR', 'Vault not initialized. Run: composer nimbus:vault-init');
+                return;
+            }
+            
+            $credentials = $vaultManager->restoreAppCredentials($appName);
+            
+            if (!$credentials) {
+                echo self::ansiFormat('WARNING', "No credentials found in vault for '$appName'");
+                return;
+            }
+            
+            echo self::ansiFormat('INFO', "🔐 Found credentials for '$appName' in vault:");
+            echo PHP_EOL;
+            
+            if (isset($credentials['database'])) {
+                echo "  📊 Database password: " . substr($credentials['database']['password'], 0, 8) . "..." . PHP_EOL;
+            }
+            if (isset($credentials['keycloak'])) {
+                echo "  🔐 Keycloak admin password: " . substr($credentials['keycloak']['admin_password'], 0, 8) . "..." . PHP_EOL;
+                echo "  🔐 Keycloak DB password: " . substr($credentials['keycloak']['db_password'], 0, 8) . "..." . PHP_EOL;
+            }
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', '💡 These credentials will be used when creating the app with:');
+            echo "  composer nimbus:create $appName" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to restore credentials: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * List apps with backed up credentials
+     */
+    public static function nimbusVaultList(Event $event): void
+    {
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            
+            if (!$vaultManager->isInitialized()) {
+                echo self::ansiFormat('ERROR', 'Vault not initialized. Run: composer nimbus:vault-init');
+                return;
+            }
+            
+            $apps = $vaultManager->listBackedUpApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('INFO', 'No app credentials found in vault.');
+                echo PHP_EOL;
+                echo self::ansiFormat('INFO', 'Back up app credentials with: composer nimbus:vault-backup <app-name>');
+                return;
+            }
+            
+            echo self::ansiFormat('INFO', '🔐 Apps with backed up credentials:');
+            echo PHP_EOL;
+            
+            foreach ($apps as $app) {
+                echo "  📱 {$app['name']}" . PHP_EOL;
+                echo "     Backed up: {$app['backed_up_at']}" . PHP_EOL;
+                echo "     Database: " . ($app['has_database'] ? '✓' : '✗') . PHP_EOL;
+                echo "     Keycloak: " . ($app['has_keycloak'] ? '✓' : '✗') . PHP_EOL;
+                echo PHP_EOL;
+            }
+            
+            echo self::ansiFormat('INFO', '💡 Restore credentials with: composer nimbus:vault-restore <app-name>');
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to list vault contents: ' . $e->getMessage());
         }
     }
 

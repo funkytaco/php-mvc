@@ -56,6 +56,10 @@
         "nimbus:create-eda-keycloak": "Tasks\\ApplicationTasks::nimbusCreateEdaKeycloak",
         "nimbus:add-keycloak": "Tasks\\ApplicationTasks::nimbusAddKeycloak",
         "nimbus:delete": "Tasks\\ApplicationTasks::nimbusDelete",
+        "nimbus:vault-init": "Tasks\\ApplicationTasks::nimbusVaultInit",
+        "nimbus:vault-backup": "Tasks\\ApplicationTasks::nimbusVaultBackup",
+        "nimbus:vault-restore": "Tasks\\ApplicationTasks::nimbusVaultRestore",
+        "nimbus:vault-list": "Tasks\\ApplicationTasks::nimbusVaultList",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"
