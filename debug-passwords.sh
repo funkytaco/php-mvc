@@ -1,4 +1,5 @@
 #!/bin/bash
+APPNAME="app1"
 
 echo "🔍 DEBUG: Password Analysis for myapp1"
 echo "======================================"
@@ -10,24 +11,46 @@ cd .installer/vault && podman run --rm -v "$(pwd):/vault:Z" -w /vault quay.io/an
 cd - > /dev/null
 
 echo ""
-echo "2. 🐳 Container Environment (myapp1-postgres):"
-echo "----------------------------------------------"
-CONTAINER_PASSWORD=$(podman inspect myapp1-postgres --format '{{json .Config.Env}}' 2>/dev/null | jq -r '.[] | select(startswith("POSTGRES_PASSWORD=")) | split("=")[1]' 2>/dev/null)
-echo "Container POSTGRES_PASSWORD: $CONTAINER_PASSWORD"
+echo "2. 🐳 Container Environment:"
+echo "----------------------------"
+if podman container exists $APPNAME-postgres 2>/dev/null; then
+    CONTAINER_PASSWORD=$(podman inspect $APPNAME-postgres --format '{{json .Config.Env}}' 2>/dev/null | jq -r '.[] | select(startswith("POSTGRES_PASSWORD=")) | split("=")[1]' 2>/dev/null)
+    echo "Container POSTGRES_PASSWORD: $CONTAINER_PASSWORD"
+else
+    echo "❌ $APPNAME-postgres container not found"
+fi
+
+if podman container exists $APPNAME-keycloak 2>/dev/null; then
+    CONTAINER_KC_PASSWORD=$(podman inspect $APPNAME-keycloak --format '{{json .Config.Env}}' 2>/dev/null | jq -r '.[] | select(startswith("KEYCLOAK_ADMIN_PASSWORD=")) | split("=")[1]' 2>/dev/null)
+    echo "Container KEYCLOAK_ADMIN_PASSWORD: $CONTAINER_KC_PASSWORD"
+else
+    echo "❌ $APPNAME-keycloak container not found"
+fi
 
 echo ""
 echo "3. 📋 Compose File Password:"
 echo "----------------------------"
-COMPOSE_PASSWORD=$(grep "POSTGRES_PASSWORD:" myapp1-compose.yml | head -1 | awk '{print $2}')
-echo "Compose POSTGRES_PASSWORD: $COMPOSE_PASSWORD"
+if [ -f "$APPNAME-compose.yml" ]; then
+    COMPOSE_PASSWORD=$(grep "POSTGRES_PASSWORD:" $APPNAME-compose.yml | head -1 | awk '{print $2}')
+    echo "Compose POSTGRES_PASSWORD: $COMPOSE_PASSWORD"
+    
+    COMPOSE_KC_PASSWORD=$(grep "KEYCLOAK_ADMIN_PASSWORD:" $APPNAME-compose.yml | head -1 | awk '{print $2}')
+    echo "Compose KEYCLOAK_ADMIN_PASSWORD: $COMPOSE_KC_PASSWORD"
+else
+    echo "❌ Compose file not found"
+fi
 
 echo ""
 echo "4. 📁 App Config (app.nimbus.json):"
 echo "-----------------------------------"
-if [ -f ".installer/apps/myapp1/app.nimbus.json" ]; then
-    CONFIG_PASSWORD=$(jq -r '.database.password' .installer/apps/myapp1/app.nimbus.json 2>/dev/null)
+if [ -f ".installer/apps/$APPNAME/app.nimbus.json" ]; then
+    CONFIG_PASSWORD=$(jq -r '.database.password' .installer/apps/$APPNAME/app.nimbus.json 2>/dev/null)
     echo "Config database.password: $CONFIG_PASSWORD"
-    echo "Has vault_restore flag: $(jq -r '.vault_restore // "false"' .installer/apps/myapp1/app.nimbus.json 2>/dev/null)"
+    
+    CONFIG_KC_PASSWORD=$(jq -r '.containers.keycloak.admin_password' .installer/apps/$APPNAME/app.nimbus.json 2>/dev/null)
+    echo "Config keycloak.admin_password: $CONFIG_KC_PASSWORD"
+    
+    echo "Password strategy: $(jq -r '.password_strategy // "none"' .installer/apps/$APPNAME/app.nimbus.json 2>/dev/null)"
 else
     echo "❌ app.nimbus.json not found"
 fi
@@ -35,60 +58,90 @@ fi
 echo ""
 echo "5. 💾 Data Directory Status:"
 echo "----------------------------"
-if [ -d "data/myapp1" ]; then
-    echo "✅ data/myapp1 exists"
-    echo "Contents: $(ls -la data/myapp1 | wc -l) items"
-    echo "PostgreSQL version file: $(cat data/myapp1/PG_VERSION 2>/dev/null || echo 'Not found')"
+if [ -d "data/$APPNAME" ]; then
+    echo "✅ data/$APPNAME exists"
+    echo "Contents: $(ls -la data/$APPNAME | wc -l) items"
+    echo "PostgreSQL version file: $(cat data/$APPNAME/PG_VERSION 2>/dev/null || echo 'Not found')"
 else
-    echo "❌ data/myapp1 does not exist"
+    echo "❌ data/$APPNAME does not exist"
 fi
 
 echo ""
 echo "6. 🔍 Container Status:"
 echo "----------------------"
-if podman container exists myapp1-postgres 2>/dev/null; then
-    echo "✅ myapp1-postgres container exists"
-    CONTAINER_STATUS=$(podman inspect myapp1-postgres --format '{{.State.Status}}' 2>/dev/null)
+if podman container exists $APPNAME-postgres 2>/dev/null; then
+    echo "✅ $APPNAME-postgres container exists"
+    CONTAINER_STATUS=$(podman inspect $APPNAME-postgres --format '{{.State.Status}}' 2>/dev/null)
     echo "Status: $CONTAINER_STATUS"
-    
-    if [ "$CONTAINER_STATUS" = "running" ]; then
-        echo ""
-        echo "7. 🧪 Password Test (inside container):"
-        echo "--------------------------------------"
-        echo "Testing connection with container password..."
-        podman exec myapp1-postgres sh -c "PGPASSWORD='$CONTAINER_PASSWORD' psql -U myapp1_user -d myapp1_db -c 'SELECT current_user;'" 2>&1 | head -3
-    fi
 else
-    echo "❌ myapp1-postgres container not found"
+    echo "❌ $APPNAME-postgres container not found"
+fi
+
+if podman container exists $APPNAME-keycloak 2>/dev/null; then
+    echo "✅ $APPNAME-keycloak container exists"
+    KC_CONTAINER_STATUS=$(podman inspect $APPNAME-keycloak --format '{{.State.Status}}' 2>/dev/null)
+    echo "Keycloak Status: $KC_CONTAINER_STATUS"
+else
+    echo "❌ $APPNAME-keycloak container not found"
 fi
 
 echo ""
-echo "8. 📊 Summary:"
-echo "-------------"
-echo "Vault password: $(cd .installer/vault && podman run --rm -v "$(pwd):/vault:Z" -w /vault quay.io/ansible/ansible-runner:latest sh -c "ansible-vault decrypt --vault-password-file .vault_pass --output /tmp/decrypted.yml credentials.yml && grep 'password:' /tmp/decrypted.yml | head -1 | awk '{print \$2}' | tr -d '\"'" 2>/dev/null)"
-echo "Container password: $CONTAINER_PASSWORD"
-echo "Compose password: $COMPOSE_PASSWORD"
-echo "Config password: $CONFIG_PASSWORD"
+echo "7. 📊 Password Comparison:"
+echo "-------------------------"
+VAULT_DB_PASSWORD=$(cd .installer/vault && podman run --rm -v "$(pwd):/vault:Z" -w /vault quay.io/ansible/ansible-runner:latest sh -c "ansible-vault decrypt --vault-password-file .vault_pass --output /tmp/decrypted.yml credentials.yml && grep -A 10 '$APPNAME:' /tmp/decrypted.yml | grep 'password:' | head -1 | awk '{print \$2}' | tr -d '\"'" 2>/dev/null)
+VAULT_KC_PASSWORD=$(cd .installer/vault && podman run --rm -v "$(pwd):/vault:Z" -w /vault quay.io/ansible/ansible-runner:latest sh -c "ansible-vault decrypt --vault-password-file .vault_pass --output /tmp/decrypted.yml credentials.yml && grep -A 10 'keycloak:' /tmp/decrypted.yml | grep 'admin_password:' | awk '{print \$2}' | tr -d '\"'" 2>/dev/null)
+
+echo "DATABASE PASSWORDS:"
+echo "  Vault:     $VAULT_DB_PASSWORD"
+echo "  Container: ${CONTAINER_PASSWORD:-'N/A'}"
+echo "  Compose:   ${COMPOSE_PASSWORD:-'N/A'}"
+echo "  Config:    ${CONFIG_PASSWORD:-'N/A'}"
 
 echo ""
-if [ "$CONTAINER_PASSWORD" = "$COMPOSE_PASSWORD" ]; then
-    echo "✅ Container and Compose passwords MATCH"
+echo "KEYCLOAK ADMIN PASSWORDS:"
+echo "  Vault:     $VAULT_KC_PASSWORD"
+echo "  Container: ${CONTAINER_KC_PASSWORD:-'N/A'}"
+echo "  Compose:   ${COMPOSE_KC_PASSWORD:-'N/A'}"
+echo "  Config:    ${CONFIG_KC_PASSWORD:-'N/A'}"
+
+echo ""
+echo "MATCH STATUS:"
+if [ "$CONTAINER_KC_PASSWORD" = "$CONFIG_KC_PASSWORD" ]; then
+    echo "✅ Keycloak Container and Config passwords MATCH"
 else
-    echo "❌ Container and Compose passwords MISMATCH!"
+    echo "❌ Keycloak Container and Config passwords MISMATCH!"
+    echo "   Container: ${CONTAINER_KC_PASSWORD:-'N/A'}"
+    echo "   Config:    ${CONFIG_KC_PASSWORD:-'N/A'}"
 fi
 
 echo ""
-echo "9. 🔧 Force Init Script Status:"
+echo "8. 🔧 Force Init Script Status:"
 echo "-------------------------------"
-if [ -f ".installer/apps/myapp1/database/force-init.sh" ]; then
+if [ -f ".installer/apps/$APPNAME/database/force-init.sh" ]; then
     echo "✅ force-init.sh exists"
-    echo "Executable: $(test -x .installer/apps/myapp1/database/force-init.sh && echo 'Yes' || echo 'No')"
+    echo "Executable: $(test -x .installer/apps/$APPNAME/database/force-init.sh && echo 'Yes' || echo 'No')"
 else
     echo "❌ force-init.sh not found"
 fi
 
 echo ""
-echo "10. 🔄 Docker Init Scripts:"
+echo "9. 🔄 Docker Init Scripts:"
 echo "---------------------------"
-echo "Mounted init scripts in container:"
-podman exec myapp1-postgres ls -la /docker-entrypoint-initdb.d/ 2>/dev/null || echo "Container not running or accessible"
+if podman container exists $APPNAME-postgres 2>/dev/null; then
+    echo "Mounted init scripts in container:"
+    podman exec $APPNAME-postgres ls -la /docker-entrypoint-initdb.d/ 2>/dev/null || echo "Container not accessible"
+else
+    echo "Container not running"
+fi
+
+echo ""
+echo "10. 🌐 Web Interface Source:"
+echo "----------------------------"
+echo "The web interface password comes from the app config at:"
+echo ".installer/apps/$APPNAME/app.config.php"
+if [ -f ".installer/apps/$APPNAME/app.config.php" ]; then
+    echo "Keycloak password in web config:"
+    grep -A 5 -B 5 "admin.*password\|password.*admin" .installer/apps/$APPNAME/app.config.php | head -10
+else
+    echo "❌ app.config.php not found"
+fi

@@ -38,123 +38,19 @@ class AppManager
             throw new \RuntimeException("App '$appName' already exists");
         }
         
-        // Check vault for credentials first (before copying template)  
-        $vaultCredentials = $this->getVaultCredentials($appName);
-        $isVaultRestore = !empty($vaultCredentials['database']['password']);
+        // 1. FIRST: Resolve password strategy using new PasswordManager
+        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+        $passwords = $passwordManager->resolvePasswords($appName);
         
-        // Copy template to new app
-        $this->copyDirectory($templatePath, $targetPath);
+        // 2. Copy template with password-aware setup
+        $this->copyTemplateWithPasswordStrategy($templatePath, $targetPath, $passwords);
         
-        // Copy force-init script if restoring from vault
-        if ($isVaultRestore) {
-            $forceInitScript = $templatePath . '/database/force-init.sh';
-            if (file_exists($forceInitScript)) {
-                copy($forceInitScript, $targetPath . '/database/force-init.sh');
-                chmod($targetPath . '/database/force-init.sh', 0755);
-            }
-        }
+        // 3. Generate configuration with resolved passwords
+        $this->generateAppConfigWithPasswords($appName, $targetPath, $passwords, $config);
         
-        // Check for existing database data to avoid password race condition
-        $existingPassword = $this->getExistingDatabasePassword($appName);
-        
-        $dbPassword = $vaultCredentials['database']['password'] ?? $existingPassword ?: $this->generatePassword();
-        
-        // Prepare placeholders
-        $placeholders = [
-            '{{APP_NAME}}' => $appName,
-            '{{APP_NAME_UPPER}}' => strtoupper($appName),
-            '{{APP_NAME_LOWER}}' => strtolower($appName),
-            '{{APP_PORT}}' => $this->generatePort($appName),
-            '{{EDA_PORT}}' => $this->generateEdaPort($appName),
-            '{{DB_NAME}}' => $appName . '_db',
-            '{{DB_USER}}' => $appName . '_user',
-            '{{DB_PASSWORD}}' => $dbPassword
-        ];
-        
-        // Add EDA placeholder
-        if (isset($config['features']['eda']) && $config['features']['eda']) {
-            $placeholders['{{HAS_EDA}}'] = 'true';
-        } else {
-            $placeholders['{{HAS_EDA}}'] = 'false';
-        }
-        
-        // Add Keycloak placeholders if enabled
-        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
-            // Check for existing Keycloak database password to avoid race condition
-            $existingKeycloakPassword = $this->getExistingKeycloakPassword($appName);
-            // Check for existing Keycloak admin password too
-            $existingKeycloakAdminPassword = $this->getExistingKeycloakAdminPassword($appName);
-            
-            // Use vault credentials if available
-            $keycloakAdminPassword = $vaultCredentials['keycloak']['admin_password'] ?? $existingKeycloakAdminPassword ?: $this->generatePassword();
-            $keycloakDbPassword = $vaultCredentials['keycloak']['db_password'] ?? $existingKeycloakPassword ?: $this->generatePassword();
-            $keycloakClientSecret = $vaultCredentials['keycloak']['client_secret'] ?? $this->generatePassword(32);
-            
-            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'true';
-            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = $keycloakAdminPassword;
-            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = $keycloakDbPassword;
-            $placeholders['{{KEYCLOAK_REALM}}'] = $appName . '-realm';
-            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = $appName . '-client';
-            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $keycloakClientSecret;
-        } else {
-            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
-            // Set empty placeholders so they get replaced in templates
-            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = '';
-            $placeholders['{{KEYCLOAK_REALM}}'] = '';
-            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = '';
-            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = '';
-        }
-        
-        // Replace placeholders in files
-        $this->replacePlaceholders($targetPath, $placeholders);
-        
-        // Update app.nimbus.json with enabled features
-        if (!empty($config['features']) || $isVaultRestore) {
-            $appConfigPath = $targetPath . '/app.nimbus.json';
-            if (file_exists($appConfigPath)) {
-                $appConfig = json_decode(file_get_contents($appConfigPath), true);
-                
-                // Store vault restoration flag for compose generation
-                if ($isVaultRestore) {
-                    $appConfig['vault_restore'] = true;
-                }
-                
-                // Merge features
-                if (!empty($config['features'])) {
-                    foreach ($config['features'] as $feature => $enabled) {
-                        $appConfig['features'][$feature] = $enabled;
-                    }
-                }
-                
-                // Add Keycloak configuration if enabled
-                if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
-                    $appConfig['keycloak'] = [
-                        'realm' => $placeholders['{{KEYCLOAK_REALM}}'],
-                        'client_id' => $placeholders['{{KEYCLOAK_CLIENT_ID}}'],
-                        'client_secret' => $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'],
-                        'auth_url' => "http://{$appName}-keycloak:8080",
-                        'redirect_uri' => "http://localhost:" . $placeholders['{{APP_PORT}}'] . "/auth/callback"
-                    ];
-                    
-                    // Add Keycloak container configuration
-                    $appConfig['containers']['keycloak'] = [
-                        'image' => 'quay.io/keycloak/keycloak:latest',
-                        'port' => '8080',
-                        'admin_user' => 'admin',
-                        'admin_password' => $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'],
-                        'database' => 'keycloak_db'
-                    ];
-                    
-                    $appConfig['containers']['keycloak-db'] = [
-                        'image' => 'postgres:14',
-                        'database' => 'keycloak_db',
-                        'user' => 'keycloak',
-                        'password' => $placeholders['{{KEYCLOAK_DB_PASSWORD}}']
-                    ];
-                }
-                
-                file_put_contents($appConfigPath, json_encode($appConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-            }
+        // 4. Auto-backup to vault if new passwords generated
+        if ($passwords->strategy === \Nimbus\Password\PasswordStrategy::GENERATE_NEW) {
+            $passwordManager->backupToVault($appName, $passwords);
         }
         
         // Register app in apps.json
@@ -164,6 +60,144 @@ class AppManager
         $this->updateComposerJson($appName);
         
         return true;
+    }
+    
+    /**
+     * Copy template with password-aware setup
+     */
+    private function copyTemplateWithPasswordStrategy(
+        string $templatePath, 
+        string $targetPath, 
+        \Nimbus\Password\PasswordSet $passwords
+    ): void {
+        // Standard template copy
+        $this->copyDirectory($templatePath, $targetPath);
+        
+        // Add force-init script if vault restore with existing data
+        if ($passwords->requiresForceInit) {
+            $this->setupForceInitScript($templatePath, $targetPath);
+        }
+    }
+    
+    /**
+     * Setup force init script for vault restore with existing data
+     */
+    private function setupForceInitScript(string $templatePath, string $targetPath): void
+    {
+        $forceInitScript = $templatePath . '/database/force-init.sh';
+        if (file_exists($forceInitScript)) {
+            $targetScript = $targetPath . '/database/force-init.sh';
+            copy($forceInitScript, $targetScript);
+            chmod($targetScript, 0755);
+        }
+    }
+    
+    /**
+     * Generate app configuration with resolved passwords
+     */
+    private function generateAppConfigWithPasswords(
+        string $appName,
+        string $targetPath,
+        \Nimbus\Password\PasswordSet $passwords,
+        array $config
+    ): void {
+        // Prepare placeholders with resolved passwords
+        $placeholders = [
+            '{{APP_NAME}}' => $appName,
+            '{{APP_NAME_UPPER}}' => strtoupper($appName),
+            '{{APP_NAME_LOWER}}' => strtolower($appName),
+            '{{APP_PORT}}' => $this->generatePort($appName),
+            '{{EDA_PORT}}' => $this->generateEdaPort($appName),
+            '{{DB_NAME}}' => $appName . '_db',
+            '{{DB_USER}}' => $appName . '_user',
+            '{{DB_PASSWORD}}' => $passwords->databasePassword
+        ];
+        
+        // Add EDA placeholder
+        $placeholders['{{HAS_EDA}}'] = isset($config['features']['eda']) && $config['features']['eda'] ? 'true' : 'false';
+        
+        // Add Keycloak placeholders if enabled
+        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'true';
+            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = $passwords->keycloakAdminPassword;
+            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = $passwords->keycloakDbPassword;
+            $placeholders['{{KEYCLOAK_REALM}}'] = $appName . '-realm';
+            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = $appName . '-client';
+            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $passwords->keycloakClientSecret;
+        } else {
+            $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
+            $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = '';
+            $placeholders['{{KEYCLOAK_REALM}}'] = '';
+            $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = '';
+            $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = '';
+        }
+        
+        // Replace placeholders in files
+        $this->replacePlaceholders($targetPath, $placeholders);
+        
+        // Update app.nimbus.json with features and password strategy
+        $this->updateAppConfigJson($targetPath, $appName, $passwords, $placeholders, $config);
+    }
+    
+    /**
+     * Update app.nimbus.json with features and password strategy
+     */
+    private function updateAppConfigJson(
+        string $targetPath,
+        string $appName,
+        \Nimbus\Password\PasswordSet $passwords,
+        array $placeholders,
+        array $config
+    ): void {
+        $appConfigPath = $targetPath . '/app.nimbus.json';
+        
+        if (!file_exists($appConfigPath)) {
+            return;
+        }
+        
+        $appConfig = json_decode(file_get_contents($appConfigPath), true);
+        
+        // Store password strategy information
+        $appConfig['password_strategy'] = $passwords->strategy->value;
+        if ($passwords->requiresForceInit) {
+            $appConfig['force_init'] = true;
+        }
+        
+        // Merge features
+        if (!empty($config['features'])) {
+            foreach ($config['features'] as $feature => $enabled) {
+                $appConfig['features'][$feature] = $enabled;
+            }
+        }
+        
+        // Add Keycloak configuration if enabled
+        if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+            $appConfig['keycloak'] = [
+                'realm' => $placeholders['{{KEYCLOAK_REALM}}'],
+                'client_id' => $placeholders['{{KEYCLOAK_CLIENT_ID}}'],
+                'client_secret' => $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'],
+                'auth_url' => "http://{$appName}-keycloak:8080",
+                'redirect_uri' => "http://localhost:" . $placeholders['{{APP_PORT}}'] . "/auth/callback"
+            ];
+            
+            // Add Keycloak container configuration
+            $appConfig['containers']['keycloak'] = [
+                'image' => 'quay.io/keycloak/keycloak:latest',
+                'port' => '8080',
+                'admin_user' => 'admin',
+                'admin_password' => $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'],
+                'database' => 'keycloak_db'
+            ];
+            
+            $appConfig['containers']['keycloak-db'] = [
+                'image' => 'postgres:14',
+                'database' => 'keycloak_db',
+                'user' => 'keycloak',
+                'password' => $placeholders['{{KEYCLOAK_DB_PASSWORD}}']
+            ];
+        }
+        
+        file_put_contents($appConfigPath, json_encode($appConfig, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
     
     /**
@@ -227,8 +261,12 @@ class AppManager
     public function generateContainers(string $appName): string
     {
         $config = $this->loadAppConfig($appName);
-        $isVaultRestore = $config['vault_restore'] ?? false;
-        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
+        
+        // Resolve passwords for container generation
+        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+        $passwords = $passwordManager->resolvePasswords($appName);
+        
+        $compose = $this->buildComposeConfig($appName, $config, $passwords);
         
         $yamlContent = $this->arrayToYaml($compose);
         $filename = $this->baseDir . '/' . $appName . '-compose.yml';
@@ -255,7 +293,7 @@ class AppManager
     /**
      * Build compose configuration
      */
-    private function buildComposeConfig(string $appName, array $config, bool $isVaultRestore = false): array
+    private function buildComposeConfig(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
     {
         $compose = [
             'version' => '3.8',
@@ -285,37 +323,7 @@ class AppManager
         
         // Database container
         if ($config['features']['database'] ?? true) {
-            $dbEnvironment = [
-                'POSTGRES_DB' => $config['database']['name'],
-                'POSTGRES_USER' => $config['database']['user'],
-                'POSTGRES_PASSWORD' => $config['database']['password']
-            ];
-            
-            $dbVolumes = [
-                './data/' . $appName . ':/var/lib/postgresql/data:Z',
-                './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z'
-            ];
-            
-            // If restoring from vault and data directory exists, add force init
-            $dataDir = $this->baseDir . '/data/' . $appName;
-            if ($isVaultRestore && is_dir($dataDir) && !empty(glob($dataDir . '/*'))) {
-                $dbEnvironment['FORCE_INIT'] = 'true';
-                $dbVolumes[] = './.installer/apps/' . $appName . '/database/force-init.sh:/docker-entrypoint-initdb.d/force-init.sh:Z';
-            }
-            
-            $compose['services'][$appName . '-db'] = [
-                'image' => 'postgres:14',
-                'container_name' => $appName . '-postgres',
-                'environment' => $dbEnvironment,
-                'volumes' => $dbVolumes,
-                'networks' => [$appName . '-net'],
-                'healthcheck' => [
-                    'test' => ['CMD-SHELL', 'pg_isready -U ' . $config['database']['user'] . ' -d ' . $config['database']['name']],
-                    'interval' => '5s',
-                    'timeout' => '5s',
-                    'retries' => 5
-                ]
-            ];
+            $compose['services'][$appName . '-db'] = $this->buildDatabaseService($appName, $config, $passwords);
         }
         
         // EDA container
@@ -349,87 +357,8 @@ class AppManager
         
         // Keycloak containers
         if ($config['features']['keycloak'] ?? false) {
-            // Keycloak database container
-            $compose['services'][$appName . '-keycloak-db'] = [
-                'image' => $config['containers']['keycloak-db']['image'] ?? 'postgres:14',
-                'container_name' => $appName . '-keycloak-db',
-                'environment' => [
-                    'POSTGRES_DB' => $config['containers']['keycloak-db']['database'] ?? 'keycloak_db',
-                    'POSTGRES_USER' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
-                    'POSTGRES_PASSWORD' => $config['containers']['keycloak-db']['password'] ?? 'keycloak'
-                ],
-                'volumes' => [
-                    './data/' . $appName . '-keycloak:/var/lib/postgresql/data:Z'
-                ],
-                'networks' => [$appName . '-net'],
-                'healthcheck' => [
-                    'test' => ['CMD-SHELL', 'pg_isready -U keycloak -d keycloak_db'],
-                    'interval' => '5s',
-                    'timeout' => '5s',
-                    'retries' => 5
-                ]
-            ];
-            
-            // Keycloak container with auto-configuration
-            $compose['services'][$appName . '-keycloak'] = [
-                'image' => $config['containers']['keycloak']['image'] ?? 'quay.io/keycloak/keycloak:latest',
-                'container_name' => $appName . '-keycloak',
-                'command' => ['start-dev'],
-                'environment' => [
-                    'KC_DB' => 'postgres',
-                    'KC_DB_URL' => 'jdbc:postgresql://' . $appName . '-keycloak-db:5432/keycloak_db',
-                    'KC_DB_USERNAME' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
-                    'KC_DB_PASSWORD' => $config['containers']['keycloak-db']['password'] ?? 'keycloak',
-                    'KEYCLOAK_ADMIN' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
-                    'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
-                    'KC_HOSTNAME_STRICT' => '"false"',
-                    'KC_HTTP_ENABLED' => '"true"'
-                ],
-                'volumes' => [
-                    './.installer/apps/' . $appName . '/keycloak-init.sh:/opt/keycloak/keycloak-init.sh:Z'
-                ],
-                'ports' => ['8080:8080'],
-                'depends_on' => [
-                    $appName . '-keycloak-db' => [
-                        'condition' => 'service_healthy'
-                    ]
-                ],
-                'networks' => [$appName . '-net'],
-                'healthcheck' => [
-                    'test' => ['CMD-SHELL', 'exec 3<>/dev/tcp/127.0.0.1/8080'],
-                    'interval' => '10s',
-                    'timeout' => '5s',
-                    'retries' => 10,
-                    'start_period' => '40s'
-                ]
-            ];
-            
-            // Keycloak auto-configurator container (runs once then exits)
-            $compose['services'][$appName . '-keycloak-setup'] = [
-                'image' => 'alpine:latest',
-                'container_name' => $appName . '-keycloak-setup',
-                'environment' => [
-                    'KEYCLOAK_URL' => 'http://' . $appName . '-keycloak:8080',
-                    'KEYCLOAK_ADMIN_USER' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
-                    'KEYCLOAK_ADMIN_PASSWORD' => $config['containers']['keycloak']['admin_password'] ?? 'admin',
-                    'KEYCLOAK_REALM' => $config['keycloak']['realm'] ?? $appName . '-realm',
-                    'KEYCLOAK_CLIENT_ID' => $config['keycloak']['client_id'] ?? $appName . '-client',
-                    'KEYCLOAK_CLIENT_SECRET' => $config['keycloak']['client_secret'] ?? '',
-                    'APP_NAME' => $appName,
-                    'APP_PORT' => $config['containers']['app']['port']
-                ],
-                'volumes' => [
-                    './.installer/apps/' . $appName . '/keycloak-init.sh:/keycloak-init.sh:Z'
-                ],
-                'command' => ['sh', '-c', 'apk add --no-cache curl jq && sh /keycloak-init.sh'],
-                'depends_on' => [
-                    $appName . '-keycloak' => [
-                        'condition' => 'service_healthy'
-                    ]
-                ],
-                'networks' => [$appName . '-net'],
-                'restart' => 'no'
-            ];
+            $keycloakServices = $this->buildKeycloakServices($appName, $config, $passwords);
+            $compose['services'] = array_merge($compose['services'], $keycloakServices);
             
             // Update app container dependencies to include Keycloak
             if (isset($compose['services'][$appName . '-app']['depends_on'])) {
@@ -440,6 +369,135 @@ class AppManager
         }
         
         return $compose;
+    }
+    
+    /**
+     * Build database service configuration with PasswordSet
+     */
+    private function buildDatabaseService(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
+    {
+        $dbEnvironment = [
+            'POSTGRES_DB' => $config['database']['name'],
+            'POSTGRES_USER' => $config['database']['user'],
+            'POSTGRES_PASSWORD' => $passwords ? $passwords->databasePassword : $config['database']['password']
+        ];
+        
+        $dbVolumes = [
+            //'./data/' . $appName . ':/var/lib/postgresql/data:Z',
+            './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z'
+        ];
+        
+        // Add force init for vault restore with existing data
+        if ($passwords && $passwords->requiresForceInit) {
+            $dbEnvironment['FORCE_INIT'] = 'true';
+            $dbVolumes[] = './.installer/apps/' . $appName . '/database/force-init.sh:/docker-entrypoint-initdb.d/force-init.sh:Z';
+        }
+        
+        return [
+            'image' => 'postgres:14',
+            'container_name' => $appName . '-postgres',
+            'environment' => $dbEnvironment,
+            'volumes' => $dbVolumes,
+            'networks' => [$appName . '-net'],
+            'healthcheck' => [
+                'test' => ['CMD-SHELL', 'pg_isready -U ' . $config['database']['user'] . ' -d ' . $config['database']['name']],
+                'interval' => '5s',
+                'timeout' => '5s',
+                'retries' => 5
+            ]
+        ];
+    }
+    
+    /**
+     * Build Keycloak services with PasswordSet support
+     */
+    private function buildKeycloakServices(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
+    {
+        $services = [];
+        
+        // Keycloak database container
+        $services[$appName . '-keycloak-db'] = [
+            'image' => $config['containers']['keycloak-db']['image'] ?? 'postgres:14',
+            'container_name' => $appName . '-keycloak-db',
+            'environment' => [
+                'POSTGRES_DB' => $config['containers']['keycloak-db']['database'] ?? 'keycloak_db',
+                'POSTGRES_USER' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
+                'POSTGRES_PASSWORD' => $passwords ? $passwords->keycloakDbPassword : ($config['containers']['keycloak-db']['password'] ?? 'keycloak')
+            ],
+            'volumes' => [
+                './data/' . $appName . '-keycloak:/var/lib/postgresql/data:Z'
+            ],
+            'networks' => [$appName . '-net'],
+            'healthcheck' => [
+                'test' => ['CMD-SHELL', 'pg_isready -U keycloak -d keycloak_db'],
+                'interval' => '5s',
+                'timeout' => '5s',
+                'retries' => 5
+            ]
+        ];
+        
+        // Keycloak container with auto-configuration
+        $services[$appName . '-keycloak'] = [
+            'image' => $config['containers']['keycloak']['image'] ?? 'quay.io/keycloak/keycloak:latest',
+            'container_name' => $appName . '-keycloak',
+            'command' => ['start-dev'],
+            'environment' => [
+                'KC_DB' => 'postgres',
+                'KC_DB_URL' => 'jdbc:postgresql://' . $appName . '-keycloak-db:5432/keycloak_db',
+                'KC_DB_USERNAME' => $config['containers']['keycloak-db']['user'] ?? 'keycloak',
+                'KC_DB_PASSWORD' => $passwords ? $passwords->keycloakDbPassword : ($config['containers']['keycloak-db']['password'] ?? 'keycloak'),
+                'KEYCLOAK_ADMIN' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
+                'KEYCLOAK_ADMIN_PASSWORD' => $passwords ? $passwords->keycloakAdminPassword : ($config['containers']['keycloak']['admin_password'] ?? 'admin'),
+                'KC_HOSTNAME_STRICT' => '"false"',
+                'KC_HTTP_ENABLED' => '"true"'
+            ],
+            'volumes' => [
+                './.installer/apps/' . $appName . '/keycloak-init.sh:/opt/keycloak/keycloak-init.sh:Z'
+            ],
+            'ports' => ['8080:8080'],
+            'depends_on' => [
+                $appName . '-keycloak-db' => [
+                    'condition' => 'service_healthy'
+                ]
+            ],
+            'networks' => [$appName . '-net'],
+            'healthcheck' => [
+                'test' => ['CMD-SHELL', 'exec 3<>/dev/tcp/127.0.0.1/8080'],
+                'interval' => '10s',
+                'timeout' => '5s',
+                'retries' => 10,
+                'start_period' => '40s'
+            ]
+        ];
+        
+        // Keycloak auto-configurator container (runs once then exits)
+        $services[$appName . '-keycloak-setup'] = [
+            'image' => 'alpine:latest',
+            'container_name' => $appName . '-keycloak-setup',
+            'environment' => [
+                'KEYCLOAK_URL' => 'http://' . $appName . '-keycloak:8080',
+                'KEYCLOAK_ADMIN_USER' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
+                'KEYCLOAK_ADMIN_PASSWORD' => $passwords ? $passwords->keycloakAdminPassword : ($config['containers']['keycloak']['admin_password'] ?? 'admin'),
+                'KEYCLOAK_REALM' => $config['keycloak']['realm'] ?? $appName . '-realm',
+                'KEYCLOAK_CLIENT_ID' => $config['keycloak']['client_id'] ?? $appName . '-client',
+                'KEYCLOAK_CLIENT_SECRET' => $config['keycloak']['client_secret'] ?? '',
+                'APP_NAME' => $appName,
+                'APP_PORT' => $config['containers']['app']['port']
+            ],
+            'volumes' => [
+                './.installer/apps/' . $appName . '/keycloak-init.sh:/keycloak-init.sh:Z'
+            ],
+            'command' => ['sh', '-c', 'apk add --no-cache curl jq && sh /keycloak-init.sh'],
+            'depends_on' => [
+                $appName . '-keycloak' => [
+                    'condition' => 'service_healthy'
+                ]
+            ],
+            'networks' => [$appName . '-net'],
+            'restart' => 'never'
+        ];
+        
+        return $services;
     }
     
     /**
@@ -748,12 +806,20 @@ class AppManager
     }
 
     /**
-     * Get credentials from vault if available
+     * Get VaultManager instance
+     */
+    private function getVaultManager(): \Nimbus\Vault\VaultManager
+    {
+        return new \Nimbus\Vault\VaultManager($this->baseDir);
+    }
+    
+    /**
+     * Get credentials from vault if available (legacy method)
      */
     private function getVaultCredentials(string $appName): array
     {
         try {
-            $vaultManager = new \Nimbus\Vault\VaultManager($this->baseDir);
+            $vaultManager = $this->getVaultManager();
             
             if (!$vaultManager->isInitialized()) {
                 return [];
@@ -955,8 +1021,11 @@ class AppManager
      */
     private function regenerateComposeFile(string $appName, array $config): void
     {
-        $isVaultRestore = $config['vault_restore'] ?? false;
-        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
+        // Resolve passwords for compose regeneration
+        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+        $passwords = $passwordManager->resolvePasswords($appName);
+        
+        $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
         
         // Validate YAML before writing
@@ -1290,8 +1359,11 @@ class AppManager
      */
     private function generatePodmanCompose(string $appName, array $config): void
     {
-        $isVaultRestore = $config['vault_restore'] ?? false;
-        $compose = $this->buildComposeConfig($appName, $config, $isVaultRestore);
+        // Resolve passwords for podman compose generation
+        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+        $passwords = $passwordManager->resolvePasswords($appName);
+        
+        $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
         
         file_put_contents($this->baseDir . '/' . $appName . '-compose.yml', $yamlContent);
@@ -1439,12 +1511,16 @@ class AppManager
         // Enable Keycloak feature
         $config['features']['keycloak'] = true;
         
-        // Add Keycloak containers configuration
+        // Use PasswordManager to resolve passwords for Keycloak
+        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+        $passwords = $passwordManager->resolvePasswords($appName);
+        
+        // Add Keycloak containers configuration using PasswordSet
         $config['containers']['keycloak'] = [
             'image' => 'quay.io/keycloak/keycloak:latest',
             'port' => '8080',
             'admin_user' => 'admin',
-            'admin_password' => $this->generatePassword(),
+            'admin_password' => $passwords->keycloakAdminPassword,
             'database' => 'keycloak_db'
         ];
         
@@ -1452,14 +1528,14 @@ class AppManager
             'image' => 'postgres:14',
             'database' => 'keycloak_db',
             'user' => 'keycloak',
-            'password' => $this->generatePassword()
+            'password' => $passwords->keycloakDbPassword
         ];
         
-        // Add Keycloak configuration
+        // Add Keycloak configuration using PasswordSet
         $config['keycloak'] = [
             'realm' => $appName . '-realm',
             'client_id' => $appName . '-client',
-            'client_secret' => $this->generatePassword(32),
+            'client_secret' => $passwords->keycloakClientSecret,
             'auth_url' => "http://{$appName}-keycloak:8080",
             'redirect_uri' => "http://localhost:" . ($config['containers']['app']['port'] ?? '8080') . "/auth/callback"
         ];
@@ -1467,7 +1543,12 @@ class AppManager
         // Save updated configuration
         file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         
-        // Update compose file
+        // Auto-backup to vault if new passwords were generated
+        if ($passwords->strategy === \Nimbus\Password\PasswordStrategy::GENERATE_NEW) {
+            $passwordManager->backupToVault($appName, $passwords);
+        }
+        
+        // Update compose file with PasswordSet
         $this->regenerateComposeFile($appName, $config);
         
         // Copy Keycloak-specific files from template
@@ -1517,11 +1598,15 @@ class AppManager
                 // Load the app config to get the actual values
                 $config = $this->loadAppConfig($appName);
                 
+                // Use PasswordManager to get consistent passwords
+                $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+                $passwords = $passwordManager->resolvePasswords($appName);
+                
                 $content = $this->replacePlaceholders($content, [
                     '{{APP_NAME}}' => $appName,
                     '{{APP_NAME_UPPER}}' => strtoupper($appName),
                     '{{APP_PORT}}' => $config['containers']['app']['port'] ?? '8080',
-                    '{{KEYCLOAK_ADMIN_PASSWORD}}' => $config['containers']['keycloak']['admin_password'] ?? '',
+                    '{{KEYCLOAK_ADMIN_PASSWORD}}' => $passwords->keycloakAdminPassword,
                     '{{KEYCLOAK_REALM}}' => $config['keycloak']['realm'] ?? $appName . '-realm',
                     '{{KEYCLOAK_CLIENT_ID}}' => $config['keycloak']['client_id'] ?? $appName . '-client'
                 ]);

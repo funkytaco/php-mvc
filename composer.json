@@ -60,6 +60,7 @@
         "nimbus:vault-backup": "Tasks\\ApplicationTasks::nimbusVaultBackup",
         "nimbus:vault-restore": "Tasks\\ApplicationTasks::nimbusVaultRestore",
         "nimbus:vault-list": "Tasks\\ApplicationTasks::nimbusVaultList",
+        "nimbus:vault-view": "Tasks\\ApplicationTasks::nimbusVaultView",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"

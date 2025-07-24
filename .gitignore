@@ -18,6 +18,8 @@ eda/certbot
 .installer/apps.json
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
+.installer/vault/.vault_*
+.installer/vault/*.yml
 CLAUDE.md
 src/Nimbus/Vault/*
 

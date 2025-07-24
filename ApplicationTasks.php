@@ -1637,5 +1637,83 @@ class ApplicationTasks {
             echo self::ansiFormat('ERROR', 'Failed to list vault contents: ' . $e->getMessage());
         }
     }
+    
+    /**
+     * View passwords stored in vault for all apps
+     */
+    public static function nimbusVaultView(Event $event): void
+    {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            
+            if (!$vaultManager->isInitialized()) {
+                echo self::ansiFormat('ERROR', 'Vault not initialized. Run: composer nimbus:vault-init');
+                return;
+            }
+            
+            // Get specific app name from arguments (optional)
+            $specificApp = $args[0] ?? null;
+            
+            // Get all credentials
+            $allCredentials = $vaultManager->getAllCredentials();
+            
+            if (empty($allCredentials)) {
+                echo self::ansiFormat('INFO', 'No credentials found in vault.');
+                return;
+            }
+            
+            echo self::ansiFormat('INFO', '🔐 Vault Password Storage');
+            echo PHP_EOL;
+            
+            // Filter by specific app if requested
+            if ($specificApp) {
+                if (!isset($allCredentials['apps'][$specificApp])) {
+                    echo self::ansiFormat('ERROR', "No credentials found for app: $specificApp");
+                    return;
+                }
+                $apps = [$specificApp => $allCredentials['apps'][$specificApp]];
+            } else {
+                $apps = $allCredentials['apps'] ?? [];
+            }
+            
+            // Display credentials by app
+            foreach ($apps as $appName => $credentials) {
+                echo self::ansiFormat('SUCCESS', "📱 $appName");
+                echo PHP_EOL;
+                
+                // Database credentials
+                if (isset($credentials['database'])) {
+                    echo "  📊 Database:" . PHP_EOL;
+                    echo "     Password: " . $credentials['database']['password'] . PHP_EOL;
+                }
+                
+                // Keycloak credentials
+                if (isset($credentials['keycloak'])) {
+                    echo "  🔐 Keycloak:" . PHP_EOL;
+                    if (isset($credentials['keycloak']['admin_password'])) {
+                        echo "     Admin Password: " . $credentials['keycloak']['admin_password'] . PHP_EOL;
+                    }
+                    if (isset($credentials['keycloak']['db_password'])) {
+                        echo "     DB Password: " . $credentials['keycloak']['db_password'] . PHP_EOL;
+                    }
+                    if (isset($credentials['keycloak']['client_secret'])) {
+                        echo "     Client Secret: " . $credentials['keycloak']['client_secret'] . PHP_EOL;
+                    }
+                }
+                
+                echo PHP_EOL;
+            }
+            
+            if (!$specificApp) {
+                echo self::ansiFormat('INFO', '💡 View specific app: composer nimbus:vault-view <app-name>');
+            }
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to view vault contents: ' . $e->getMessage());
+        }
+    }
 
 }
