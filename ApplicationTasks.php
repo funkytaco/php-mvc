@@ -793,13 +793,13 @@ class ApplicationTasks {
             return;
         }
         
-        if (!$app['has_image']) {
-            echo self::ansiFormat('WARNING', "App '$appName' image not built. Building now...");
+        //if (!$app['has_image']) {
+            echo self::ansiFormat('INFO', "Building app '$appName' image...");
             $buildCommand = "podman-compose -f $composeFile up --build -d";
-        } else {
-            echo self::ansiFormat('INFO', "Starting app '$appName'...");
-            $buildCommand = "podman-compose -f $composeFile up -d";
-        }
+        //} else {
+           // echo self::ansiFormat('INFO', "Starting app '$appName'...");
+            //$buildCommand = "podman-compose -f $composeFile up -d";
+        //}
         
         echo self::ansiFormat('INFO', "Running: $buildCommand");
         $output = shell_exec($buildCommand . ' 2>&1');
