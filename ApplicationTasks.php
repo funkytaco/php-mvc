@@ -1037,7 +1037,7 @@ class ApplicationTasks {
             echo self::ansiFormat('WARNING', "This will PERMANENTLY delete:");
             echo "  - App directory: $appPath" . PHP_EOL;
             echo "  - Compose file: $composeFile" . PHP_EOL;
-            echo "  - Any associated containers and volumes" . PHP_EOL;
+            echo "  - Any associated containers, volumes, and images" . PHP_EOL;
             
             // Ask about backing up credentials to vault
             try {
@@ -1078,7 +1078,8 @@ class ApplicationTasks {
             // Perform deletion
             $manager->deleteApp($appName, [
                 'remove_volumes' => $io->askConfirmation('Remove volumes? [y/N]: ', false),
-                'remove_containers' => $io->askConfirmation('Remove containers? [y/N]: ', false)
+                'remove_containers' => $io->askConfirmation('Remove containers? [y/N]: ', false),
+                'remove_images' => $io->askConfirmation('Remove app images? [y/N]: ', false)
             ]);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' deleted successfully!");
@@ -1107,7 +1108,8 @@ class ApplicationTasks {
         
         $options = [
             'remove_volumes' => $io->askConfirmation('Remove all volumes? [y/N]: ', false),
-            'remove_containers' => $io->askConfirmation('Remove all containers? [y/N]: ', false)
+            'remove_containers' => $io->askConfirmation('Remove all containers? [y/N]: ', false),
+            'remove_images' => $io->askConfirmation('Remove all app images? [y/N]: ', false)
         ];
         
         $deleted = 0;
