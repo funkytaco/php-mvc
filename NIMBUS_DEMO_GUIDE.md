@@ -55,14 +55,14 @@ nimbus-demo/
 ├── app.nimbus.json          # App configuration
 ├── app.config.php           # PHP app config
 ├── Controllers/
-│   └── DemoController.php   # Full CRUD controller
+│   └── IndexController.php   # Full CRUD controller using Fast Route, by default
 ├── Models/
 │   └── DemoModel.php        # Database model
 ├── Views/
 │   └── demo/
 │       └── index.mustache   # HTML view
 ├── routes/
-│   └── CustomRoutes.php     # API routes
+│   └── CustomRoutes.php     # API routes. Fast Route, by default
 └── database/
     └── schema.sql           # Database schema with sample data
 ```
@@ -73,7 +73,7 @@ nimbus-demo/
 - Unique container port assignment
 
 ### Active Files (copied during install)
-- `app/Controllers/DemoController.php`
+- `app/Controllers/IndexController.php`
 - `app/Models/DemoModel.php`
 - `app/Views/demo/index.mustache`
 - `app/CustomRoutes.php`

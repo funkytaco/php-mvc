@@ -6,9 +6,9 @@ use Nimbus\Controller\AbstractController;
 use App\Models\DemoModel;
 
 /**
- * DemoController - A simple demonstration controller
+ * IndexController - A simple demonstration controller
  */
-class DemoController extends AbstractController
+class IndexController extends AbstractController
 {
     private DemoModel $demoModel;
     

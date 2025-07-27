@@ -1394,8 +1394,11 @@ class AppManager
                     $yaml .= $this->arrayToYaml($value, $indent + 1);
                 }
             } else {
-                // Quote values that contain special YAML characters
-                if ($this->needsQuoting($value)) {
+                // Handle null values
+                if ($value === null) {
+                    $yaml .= $prefix . $key . ": null\n";
+                } elseif ($this->needsQuoting($value)) {
+                    // Quote values that contain special YAML characters
                     $yaml .= $prefix . $key . ': "' . $value . "\"\n";
                 } else {
                     $yaml .= $prefix . $key . ': ' . $value . "\n";

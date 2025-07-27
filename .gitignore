@@ -1,4 +1,9 @@
 !.*
+
+#phpunit
+.phpunit.cache/
+.phpunit.result.cache
+
 src/.lock/app.lock
 .DS_Store
 public/assets/

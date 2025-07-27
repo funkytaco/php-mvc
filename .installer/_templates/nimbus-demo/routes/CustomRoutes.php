@@ -3,17 +3,17 @@
 return function ($injector, $renderer, $conn) {
     return [
         // Web routes
-        ['GET', '/', ['App\Controllers\DemoController', 'index']],
+        ['GET', '/', ['App\Controllers\IndexController', 'index']],
         
         // API routes
-        ['GET', '/api/items', ['App\Controllers\DemoController', 'apiList']],
-        ['GET', '/api/items/{id:\d+}', ['App\Controllers\DemoController', 'apiGet']],
-        ['POST', '/api/items', ['App\Controllers\DemoController', 'apiCreate']],
-        ['PUT', '/api/items/{id:\d+}', ['App\Controllers\DemoController', 'apiUpdate']],
-        ['DELETE', '/api/items/{id:\d+}', ['App\Controllers\DemoController', 'apiDelete']],
+        ['GET', '/api/items', ['App\Controllers\IndexController', 'apiList']],
+        ['GET', '/api/items/{id:\d+}', ['App\Controllers\IndexController', 'apiGet']],
+        ['POST', '/api/items', ['App\Controllers\IndexController', 'apiCreate']],
+        ['PUT', '/api/items/{id:\d+}', ['App\Controllers\IndexController', 'apiUpdate']],
+        ['DELETE', '/api/items/{id:\d+}', ['App\Controllers\IndexController', 'apiDelete']],
         
         // EDA webhook proxy route
-        ['POST', '/api/eda/webhook', ['App\Controllers\DemoController', 'edaWebhook']],
+        ['POST', '/api/eda/webhook', ['App\Controllers\IndexController', 'edaWebhook']],
         
         // Auth routes (Keycloak)
         ['GET', '/auth/login', ['App\Controllers\AuthController', 'login']],
