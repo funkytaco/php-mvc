@@ -557,9 +557,6 @@ class ApplicationTasks {
         $appName = $app['name'];
         
         $options = [
-            'remove_volumes' => $removeVolumes,
-            'remove_containers' => $removeContainers,
-            'remove_images' => $removeImages,
             'timeout' => 10
         ];
         
@@ -576,9 +573,7 @@ class ApplicationTasks {
             if ($results['cleaned']) {
                 echo self::ansiFormat('INFO', "✓ Images removed");
             }
-            if ($removeVolumes) {
-                echo self::ansiFormat('INFO', "✓ Volumes removed");
-            }
+
         }
         
         // Show output if there are any issues

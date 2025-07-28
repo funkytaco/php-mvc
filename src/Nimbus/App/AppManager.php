@@ -1651,7 +1651,7 @@ class AppManager
                     '{{APP_NAME}}' => $appName,
                     '{{APP_NAME_UPPER}}' => strtoupper($appName),
                     '{{APP_PORT}}' => $config['containers']['app']['port'] ?? '8080',
-                    '{{KEYCLOAK_ADMIN_PASSWORD}}' => $passwords->keycloakAdminPassword,
+                    '{{KEYCLOAK_ADMIN_PASSWORD}}' => $config['containers']['keycloak']['admin_password'] ?? $passwords->keycloakAdminPassword,
                     '{{KEYCLOAK_REALM}}' => $config['keycloak']['realm'] ?? $appName . '-realm',
                     '{{KEYCLOAK_CLIENT_ID}}' => $config['keycloak']['client_id'] ?? $appName . '-client'
                 ]);

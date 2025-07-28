@@ -54,7 +54,7 @@ class IndexController extends AbstractController
         $keycloakRealm = '{{APP_NAME}}-realm';
         
         // Try to read from app.nimbus.json for runtime values
-        $appConfigFile = dirname(__DIR__, 2) . '/.installer/{{APP_NAME}}/app.nimbus.json';
+        $appConfigFile = dirname(__DIR__) . '/app.nimbus.json';
         if (file_exists($appConfigFile)) {
             $appConfig = json_decode(file_get_contents($appConfigFile), true);
             if (isset($appConfig['containers']['keycloak']['admin_password'])) {
