@@ -10,13 +10,15 @@ enum PasswordStrategy: string
     case VAULT_RESTORE = 'vault_restore';
     case EXISTING_DATA = 'existing_data';
     case GENERATE_NEW = 'generate_new';
+    case NO_MODIFICATIONS = 'no_modifications';
     
     public function getDescription(): string
     {
         return match($this) {
             self::VAULT_RESTORE => 'Restore passwords from vault',
             self::EXISTING_DATA => 'Extract passwords from existing data',
-            self::GENERATE_NEW => 'Generate new random passwords'
+            self::GENERATE_NEW => 'Generate new random passwords',
+            self::NO_MODIFICATIONS => 'Preserve existing passwords, generate only for new services'
         };
     }
     

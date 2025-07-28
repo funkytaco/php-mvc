@@ -556,11 +556,6 @@ class ApplicationTasks {
     private static function stopApp($manager, array $app, $io) {
         $appName = $app['name'];
         
-        // Ask for stop options
-        $removeVolumes = $io->askConfirmation('Remove volumes? [y/N]: ', false);
-        $removeContainers = $io->askConfirmation('Remove containers completely? [y/N]: ', false);
-        $removeImages = $io->askConfirmation('Remove app images? [y/N]: ', false);
-        
         $options = [
             'remove_volumes' => $removeVolumes,
             'remove_containers' => $removeContainers,
@@ -1345,6 +1340,77 @@ class ApplicationTasks {
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
+        }
+    }
+    
+    public static function nimbusAddEdaKeycloak(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        $appName = $args[0] ?? null;
+        
+        if (!$appName) {
+            $manager = new \Nimbus\App\AppManager();
+            $apps = $manager->listApps();
+            
+            if (empty($apps)) {
+                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
+                return;
+            }
+            
+            $appNames = array_keys($apps);
+            $choice = $io->select('Select app to add EDA and Keycloak to:', $appNames);
+            $appName = $appNames[$choice];
+        }
+        
+        try {
+            $manager = new \Nimbus\App\AppManager();
+            
+            // Check if app exists
+            if (!$manager->appExists($appName)) {
+                echo self::ansiFormat('ERROR', "App '$appName' not found!");
+                return;
+            }
+            
+            // Add both EDA and Keycloak to the app
+            echo self::ansiFormat('INFO', "Adding EDA and Keycloak to app '$appName'...");
+            
+            // Add EDA first
+            try {
+                $manager->addEda($appName);
+                echo self::ansiFormat('SUCCESS', "✓ EDA added successfully!");
+            } catch (\Exception $e) {
+                // If EDA already exists, that's okay
+                if (strpos($e->getMessage(), 'already enabled') === false) {
+                    throw $e;
+                }
+                echo self::ansiFormat('INFO', "✓ EDA already enabled");
+            }
+            
+            // Add Keycloak
+            try {
+                $manager->addKeycloak($appName);
+                echo self::ansiFormat('SUCCESS', "✓ Keycloak added successfully!");
+            } catch (\Exception $e) {
+                // If Keycloak already exists, that's okay
+                if (strpos($e->getMessage(), 'already enabled') === false) {
+                    throw $e;
+                }
+                echo self::ansiFormat('INFO', "✓ Keycloak already enabled");
+            }
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('SUCCESS', "Both EDA and Keycloak have been added to app '$appName'!");
+            echo self::ansiFormat('INFO', "Features enabled:");
+            echo "  • Event-Driven Ansible (EDA) on port 5000" . PHP_EOL;
+            echo "  • Keycloak SSO Integration on port 8080" . PHP_EOL;
+            echo PHP_EOL;
+            
+            // Use interactive walkthrough for next steps
+            self::interactiveNextSteps($appName, $io, $manager, ['eda', 'keycloak'], false);
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to add features: ' . $e->getMessage());
         }
     }
     

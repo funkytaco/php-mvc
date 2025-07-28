@@ -76,7 +76,8 @@ class IndexController extends AbstractController
             'user' => $_SESSION['user'] ?? null,
             'app_name' => '{{APP_NAME}}',
             'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
-            'KEYCLOAK_REALM' => $keycloakRealm
+            'KEYCLOAK_REALM' => $keycloakRealm,
+            'APP_PORT_KEYCLOAK' => 8080
         ];
         
         $html = $this->render('demo/index', $data);

@@ -163,6 +163,12 @@ class AppManager
             $appConfig['force_init'] = true;
         }
         
+        // Update database password with resolved password
+        if (!isset($appConfig['database'])) {
+            $appConfig['database'] = [];
+        }
+        $appConfig['database']['password'] = $passwords->databasePassword;
+        
         // Merge features
         if (!empty($config['features'])) {
             foreach ($config['features'] as $feature => $enabled) {
@@ -225,7 +231,7 @@ class AppManager
             }
         }
         
-        // Generate podman-compose file
+        // Generate podman-compose file (passwords will be resolved from config)
         $this->generatePodmanCompose($appName, $config);
         
         return true;
@@ -262,9 +268,8 @@ class AppManager
     {
         $config = $this->loadAppConfig($appName);
         
-        // Resolve passwords for container generation
-        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswords($appName);
+        // Extract passwords from config to avoid re-resolving
+        $passwords = $this->extractPasswordsFromConfig($appName);
         
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         
@@ -1021,9 +1026,9 @@ class AppManager
      */
     private function regenerateComposeFile(string $appName, array $config): void
     {
-        // Resolve passwords for compose regeneration
+        // Resolve passwords for compose regeneration using NO_MODIFICATIONS strategy
         $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswords($appName);
+        $passwords = $passwordManager->resolvePasswordsForAddOperation($appName);
         
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
@@ -1359,14 +1364,31 @@ class AppManager
      */
     private function generatePodmanCompose(string $appName, array $config): void
     {
-        // Resolve passwords for podman compose generation
-        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswords($appName);
+        // Extract passwords from the already-generated config instead of resolving again
+        $passwords = $this->extractPasswordsFromConfig($appName);
         
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
         
         file_put_contents($this->baseDir . '/' . $appName . '-compose.yml', $yamlContent);
+    }
+    
+    /**
+     * Extract passwords from already-generated app config to avoid re-resolving
+     */
+    private function extractPasswordsFromConfig(string $appName): ?\Nimbus\Password\PasswordSet
+    {
+        $config = $this->loadAppConfig($appName);
+        
+        return new \Nimbus\Password\PasswordSet(
+            databasePassword: $config['database']['password'] ?? '',
+            keycloakAdminPassword: $config['containers']['keycloak']['admin_password'] ?? '',
+            keycloakDbPassword: $config['containers']['keycloak-db']['password'] ?? '',
+            keycloakClientSecret: $config['keycloak']['client_secret'] ?? '',
+            strategy: \Nimbus\Password\PasswordStrategy::from($config['password_strategy'] ?? 'generate_new'),
+            baseDir: $this->baseDir,
+            appName: $appName
+        );
     }
     
     /**
@@ -1436,6 +1458,26 @@ class AppManager
                 $downCommand .= ' --volumes';
             }
             shell_exec($downCommand . ' 2>&1');
+        }
+
+        // Remove images if requested
+        if ($options['remove_images'] ?? false) {
+            // Remove the main app image
+            $appImageName = $appName . '_' . $appName . '-app';
+            $imageOutput = shell_exec("podman rmi $appImageName 2>&1");
+            
+            // Also try to remove any other app-specific images (in case of naming variations)
+            $allImages = shell_exec("podman images --format '{{.Repository}}' 2>/dev/null");
+            if ($allImages) {
+                $imageLines = explode("\n", trim($allImages));
+                foreach ($imageLines as $image) {
+                    // Remove any images that start with the app name
+                    if (strpos($image, $appName . '_') === 0 || strpos($image, $appName . '-') === 0) {
+                        echo "Deleting image $image...\n";
+                        shell_exec("podman rmi $image 2>&1");
+                    }
+                }
+            }
         }
 
         // Remove app directory
@@ -1514,9 +1556,9 @@ class AppManager
         // Enable Keycloak feature
         $config['features']['keycloak'] = true;
         
-        // Use PasswordManager to resolve passwords for Keycloak
+        // Use PasswordManager to resolve passwords for Keycloak using NO_MODIFICATIONS strategy
         $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswords($appName);
+        $passwords = $passwordManager->resolvePasswordsForAddOperation($appName);
         
         // Add Keycloak containers configuration using PasswordSet
         $config['containers']['keycloak'] = [

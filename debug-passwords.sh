@@ -1,5 +1,5 @@
 #!/bin/bash
-APPNAME="app1"
+APPNAME="snoopy"
 
 echo "🔍 DEBUG: Password Analysis for myapp1"
 echo "======================================"

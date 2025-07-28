@@ -28,8 +28,17 @@ class PasswordManager
         return match($strategy) {
             PasswordStrategy::VAULT_RESTORE => $this->restoreFromVault($appName),
             PasswordStrategy::EXISTING_DATA => $this->extractFromExistingData($appName),
-            PasswordStrategy::GENERATE_NEW => $this->generateNewPasswords($appName)
+            PasswordStrategy::GENERATE_NEW => $this->generateNewPasswords($appName),
+            PasswordStrategy::NO_MODIFICATIONS => $this->noModificationsStrategy($appName)
         };
+    }
+    
+    /**
+     * Resolve passwords for add operations - preserves existing passwords, generates only for new services
+     */
+    public function resolvePasswordsForAddOperation(string $appName): PasswordSet
+    {
+        return $this->noModificationsStrategy($appName);
     }
     
     /**
@@ -65,10 +74,21 @@ class PasswordManager
     }
     
     /**
-     * Check if app has existing data directory
+     * Check if app has existing data directory, running containers, or compose file
      */
     private function hasExistingData(string $appName): bool
     {
+        // First check for running containers - highest priority
+        if ($this->hasRunningContainers($appName)) {
+            return true;
+        }
+        
+        // Second check for existing compose file with passwords
+        if ($this->hasExistingComposeFile($appName)) {
+            return true;
+        }
+        
+        // Then check for data directory files
         $dataDir = $this->baseDir . '/data/' . $appName;
         
         if (!is_dir($dataDir)) {
@@ -84,6 +104,44 @@ class PasswordManager
         }
         
         return false;
+    }
+    
+    /**
+     * Check if app has running containers with existing passwords
+     */
+    private function hasRunningContainers(string $appName): bool
+    {
+        $containersToCheck = [
+            $appName . '-postgres',
+            $appName . '-app'
+        ];
+        
+        foreach ($containersToCheck as $containerName) {
+            $inspectCmd = "podman inspect $containerName --format '{{.State.Status}}' 2>/dev/null";
+            $status = trim(shell_exec($inspectCmd) ?: '');
+
+            if ($status === 'running') {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if app has existing compose file with passwords
+     */
+    private function hasExistingComposeFile(string $appName): bool
+    {
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        
+        if (!file_exists($composeFile)) {
+            return false;
+        }
+        
+        // Check if compose file contains database password
+        $content = file_get_contents($composeFile);
+        return strpos($content, 'POSTGRES_PASSWORD:') !== false;
     }
     
     /**
@@ -105,13 +163,25 @@ class PasswordManager
     }
     
     /**
-     * Extract passwords from existing running containers
+     * Extract passwords from existing running containers or compose files
      */
     private function extractFromExistingData(string $appName): PasswordSet
     {
+        // First try to extract from running containers
         $dbPassword = $this->extractPasswordFromContainer($appName . '-postgres', 'POSTGRES_PASSWORD');
         $keycloakAdminPassword = $this->extractPasswordFromContainer($appName . '-keycloak', 'KEYCLOAK_ADMIN_PASSWORD');
         $keycloakDbPassword = $this->extractPasswordFromContainer($appName . '-keycloak-db', 'POSTGRES_PASSWORD');
+        
+        // If containers aren't running, try to extract from compose file
+        if (!$dbPassword) {
+            $dbPassword = $this->extractPasswordFromComposeFile($appName, 'POSTGRES_PASSWORD');
+        }
+        if (!$keycloakAdminPassword) {
+            $keycloakAdminPassword = $this->extractPasswordFromComposeFile($appName, 'KEYCLOAK_ADMIN_PASSWORD');
+        }
+        if (!$keycloakDbPassword) {
+            $keycloakDbPassword = $this->extractPasswordFromComposeFile($appName, 'KC_DB_PASSWORD');
+        }
         
         // Try to get client secret from app config
         $keycloakClientSecret = $this->extractClientSecretFromConfig($appName);
@@ -144,6 +214,66 @@ class PasswordManager
     }
     
     /**
+     * No modifications strategy - preserve existing passwords, generate only for new services
+     */
+    private function noModificationsStrategy(string $appName): PasswordSet
+    {
+        // First try to extract existing passwords from current data
+        $existingPasswords = $this->extractFromExistingData($appName);
+        
+        // For NO_MODIFICATIONS, if we can't find existing passwords, we check if there's
+        // an existing app config that already has passwords defined
+        $appConfigPath = $this->baseDir . '/.installer/apps/' . $appName . '/app.nimbus.json';
+        if (file_exists($appConfigPath)) {
+            $config = json_decode(file_get_contents($appConfigPath), true);
+            
+            // Use existing database password from config if available
+            $dbPassword = $existingPasswords->databasePassword;
+            if (empty($dbPassword) && isset($config['database']['password'])) {
+                $dbPassword = $config['database']['password'];
+            }
+            
+            // For Keycloak passwords, if they don't exist yet, generate new ones
+            // (this handles the case where we're adding Keycloak to an existing app)
+            $keycloakAdminPassword = $existingPasswords->keycloakAdminPassword;
+            $keycloakDbPassword = $existingPasswords->keycloakDbPassword;
+            $keycloakClientSecret = $existingPasswords->keycloakClientSecret;
+            
+            // Generate new Keycloak passwords only if they don't exist
+            if (empty($keycloakAdminPassword)) {
+                $keycloakAdminPassword = $this->generatePassword();
+            }
+            if (empty($keycloakDbPassword)) {
+                $keycloakDbPassword = $this->generatePassword();
+            }
+            if (empty($keycloakClientSecret)) {
+                $keycloakClientSecret = $this->generatePassword(32);
+            }
+            
+            return new PasswordSet(
+                databasePassword: $dbPassword ?: $this->generatePassword(),
+                keycloakAdminPassword: $keycloakAdminPassword,
+                keycloakDbPassword: $keycloakDbPassword,
+                keycloakClientSecret: $keycloakClientSecret,
+                strategy: PasswordStrategy::NO_MODIFICATIONS,
+                baseDir: $this->baseDir,
+                appName: $appName
+            );
+        }
+        
+        // If no config exists, fall back to existing data extraction
+        return new PasswordSet(
+            databasePassword: $existingPasswords->databasePassword,
+            keycloakAdminPassword: $existingPasswords->keycloakAdminPassword,
+            keycloakDbPassword: $existingPasswords->keycloakDbPassword,
+            keycloakClientSecret: $existingPasswords->keycloakClientSecret,
+            strategy: PasswordStrategy::NO_MODIFICATIONS,
+            baseDir: $this->baseDir,
+            appName: $appName
+        );
+    }
+    
+    /**
      * Extract password from running container
      */
     private function extractPasswordFromContainer(string $containerName, string $envVar): ?string
@@ -164,6 +294,30 @@ class PasswordManager
             if (strpos($env, $envVar . '=') === 0) {
                 return substr($env, strlen($envVar) + 1);
             }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Extract password from compose file
+     */
+    private function extractPasswordFromComposeFile(string $appName, string $envVar): ?string
+    {
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+        
+        if (!file_exists($composeFile)) {
+            return null;
+        }
+        
+        $content = file_get_contents($composeFile);
+        
+        // Look for the environment variable in the compose file
+        // Pattern: POSTGRES_PASSWORD: somepassword
+        $pattern = '/^\s*' . preg_quote($envVar) . ':\s*(.+)$/m';
+        
+        if (preg_match($pattern, $content, $matches)) {
+            return trim($matches[1]);
         }
         
         return null;

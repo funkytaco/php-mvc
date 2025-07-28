@@ -55,6 +55,7 @@
         "nimbus:status": "Tasks\\ApplicationTasks::nimbusStatus",
         "nimbus:create-eda-keycloak": "Tasks\\ApplicationTasks::nimbusCreateEdaKeycloak",
         "nimbus:add-keycloak": "Tasks\\ApplicationTasks::nimbusAddKeycloak",
+        "nimbus:add-eda-keycloak": "Tasks\\ApplicationTasks::nimbusAddEdaKeycloak",
         "nimbus:delete": "Tasks\\ApplicationTasks::nimbusDelete",
         "nimbus:vault-init": "Tasks\\ApplicationTasks::nimbusVaultInit",
         "nimbus:vault-backup": "Tasks\\ApplicationTasks::nimbusVaultBackup",
