@@ -79,6 +79,7 @@ class AuthController extends AbstractController
             // Store in session
             $_SESSION['keycloak_token'] = $tokenData['access_token'];
             $_SESSION['refresh_token'] = $tokenData['refresh_token'] ?? null;
+            $_SESSION['id_token'] = $tokenData['id_token'] ?? null; // Store ID token for logout
             $_SESSION['token_expires_at'] = time() + ($tokenData['expires_in'] ?? 300) - 60; // 60 second buffer
             $_SESSION['user'] = [
                 'id' => $userInfo['sub'],
@@ -112,8 +113,24 @@ class AuthController extends AbstractController
             exit;
         }
         
+        // Get the redirect URI from query parameter or default to home
+        $redirectTo = $_GET['redirect'] ?? '/';
+        $fullRedirectUri = $this->getBaseUrl() . $redirectTo;
+        
+        // Build Keycloak logout URL with post_logout_redirect_uri and id_token_hint
         $logoutUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
-        $logoutUrl .= '?redirect_uri=' . urlencode($this->getBaseUrl());
+        
+        $params = [
+            'post_logout_redirect_uri' => $fullRedirectUri,
+            'client_id' => $this->keycloakConfig['client_id']
+        ];
+        
+        // Include ID token hint if available for a cleaner logout
+        if (isset($_SESSION['id_token'])) {
+            $params['id_token_hint'] = $_SESSION['id_token'];
+        }
+        
+        $logoutUrl .= '?' . http_build_query($params);
         
         // Clear session
         session_destroy();

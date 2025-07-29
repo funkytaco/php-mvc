@@ -128,7 +128,7 @@
         <div style="margin-top: 1rem;">
             {{#user}}
             <p>Welcome, {{user.name}}!</p>
-            <a href="/auth/logout" class="btn" style="background: #dc3545;">Logout</a>
+            <a href="/auth/logout?redirect=/" class="btn" style="background: #dc3545;">Logout</a>
             {{/user}}
             {{^user}}
             <a href="/auth/login" class="btn">Login with Keycloak</a>

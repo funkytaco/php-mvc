@@ -130,6 +130,7 @@
             </div>
             {{/keycloak_enabled}}
             
+            {{#keycloak_enabled}}
             <div id="status-message" class="status-message"></div>
             
             <form id="keycloak-config-form">
@@ -187,6 +188,8 @@
                     </ul>
                 </div>
             </div>
+            {{/keycloak_enabled}}
+
         </div>
     </div>
     

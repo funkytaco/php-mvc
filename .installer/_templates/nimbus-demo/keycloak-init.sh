@@ -116,6 +116,9 @@ EOF
         "http://localhost:${APP_PORT}",
         "http://${APP_NAME}-app:8080"
     ],
+    "attributes": {
+        "post.logout.redirect.uris": "http://localhost:${APP_PORT}/*##http://${APP_NAME}-app:8080/*"
+    },
     "protocol": "openid-connect",
     "publicClient": false,
     "standardFlowEnabled": true,
