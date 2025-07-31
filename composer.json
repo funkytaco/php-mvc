@@ -62,6 +62,9 @@
         "nimbus:vault-restore": "Tasks\\ApplicationTasks::nimbusVaultRestore",
         "nimbus:vault-list": "Tasks\\ApplicationTasks::nimbusVaultList",
         "nimbus:vault-view": "Tasks\\ApplicationTasks::nimbusVaultView",
+        "nimbus:alias-template": "Tasks\\ApplicationTasks::nimbusAliasTemplate",
+        "nimbus:alias-remove": "Tasks\\ApplicationTasks::nimbusAliasRemove",
+        "nimbus:alias-list": "Tasks\\ApplicationTasks::nimbusAliasList",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"

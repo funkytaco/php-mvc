@@ -1,4 +1,11 @@
 <?php
+
+use Nimbus\Core\Application;
+
+/**
+ * Legacy bootstrap wrapper for backward compatibility
+ * @deprecated Use Nimbus\Core\Application instead
+ */
 class Nimbus {
     public $injector;
     public $conn;
@@ -16,23 +23,25 @@ class Nimbus {
     }
 
     private function setupAutoload() {
-        define('ENV', 'development');
-        define('MODELS_DIR', __DIR__ . '/../app/Models');
-        define('VIEWS_DIR', __DIR__ . '/../app/Views');
-        define('CONTROLLERS_DIR', __DIR__ . '/../app/Controllers');
-        define('SOURCE_DIR', __DIR__);
-        define('VENDOR_DIR', '/../vendor');
-        define('PUBLIC_DIR', 'public');
-        define('CUSTOM_ROUTES_FILE', __DIR__ .'/../app/CustomRoutes.php');
-        define('CONFIG_FILE', __DIR__ . '/../app/app.config.php');
-        define('DEPENDENCIES_FILE', SOURCE_DIR . '/Dependencies.php');
-        define('MIMETYPES_FILE', SOURCE_DIR . '/MimeTypes.php');
+        // ENV is always 'development' for containerized apps
+        // Production settings should be in app.config.php
+        if (!defined('ENV')) define('ENV', 'development');
+        if (!defined('MODELS_DIR')) define('MODELS_DIR', __DIR__ . '/../app/Models');
+        if (!defined('VIEWS_DIR')) define('VIEWS_DIR', __DIR__ . '/../app/Views');
+        if (!defined('CONTROLLERS_DIR')) define('CONTROLLERS_DIR', __DIR__ . '/../app/Controllers');
+        if (!defined('SOURCE_DIR')) define('SOURCE_DIR', __DIR__);
+        if (!defined('VENDOR_DIR')) define('VENDOR_DIR', __DIR__ . '/../vendor');
+        if (!defined('PUBLIC_DIR')) define('PUBLIC_DIR', 'public');
+        if (!defined('CUSTOM_ROUTES_FILE')) define('CUSTOM_ROUTES_FILE', __DIR__ .'/../app/CustomRoutes.php');
+        if (!defined('CONFIG_FILE')) define('CONFIG_FILE', __DIR__ . '/../app/app.config.php');
+        if (!defined('DEPENDENCIES_FILE')) define('DEPENDENCIES_FILE', SOURCE_DIR . '/Dependencies.php');
+        if (!defined('MIMETYPES_FILE')) define('MIMETYPES_FILE', SOURCE_DIR . '/MimeTypes.php');
 
-        $autoload_vendor_files = __DIR__ . VENDOR_DIR .'/autoload.php';
+        $autoload_vendor_files = VENDOR_DIR .'/autoload.php';
         if (is_file($autoload_vendor_files)) {
             require $autoload_vendor_files;
         } else {
-            exit('<b>vendor</b> directory not found. Please see README.md for install instructions, or simply try running <b>composer install</b>.');
+            throw new \RuntimeException('Vendor directory not found. Please run composer install.');
         }
     }
 
@@ -54,7 +63,7 @@ class Nimbus {
         if (is_file(CONFIG_FILE)) {
             $config = include(CONFIG_FILE);
         } else {
-            exit('App config file not found: '. CONFIG_FILE);
+            throw new \RuntimeException('App config file not found: '. CONFIG_FILE);
         }
 
         if (isset($config['pdo'])) {
@@ -65,12 +74,14 @@ class Nimbus {
                 $config['pdo']['password']
             ]);
         } else {
-            // Fallback to default config for backward compatibility
+            // Generate default PDO config for containerized apps
+            // This supports apps created with composer nimbus:create
+            $appName = $config['installer-name'] ?? 'app';
             $this->injector->share('PDO');
             $this->injector->define('PDO', [
-                'pgsql:host=db;port=5432;dbname=lkui',
-                'lkui',
-                'lkui_secure_password_2024'
+                sprintf('pgsql:host=%s-db;port=5432;dbname=%s_db', $appName, $appName),
+                sprintf('%s_user', $appName),
+                'changeme' // Default password, should be overridden in app.config.php
             ]);
         }
     }
@@ -84,33 +95,7 @@ class Nimbus {
     }
 
     private function setupRoutes() {
-        $this->routeCollector = $this->injector->make('Main\Router\RouteCollector');
-
-        $routes = include('Routes.php');
-        if (is_callable($routes)) {
-            $routes = $routes($this->injector, $this->renderer, $this->conn);
-        }
-        if (is_array($routes)) {
-            foreach ($routes as $route) {
-                if (is_callable($route[2])) {
-                    $this->routeCollector->addRoute($route[0], $route[1], $route[2]);
-                }
-            }
-        }
-
-        if (is_file(CUSTOM_ROUTES_FILE)) {
-            $customRouteFactory = include CUSTOM_ROUTES_FILE;
-            if (is_callable($customRouteFactory)) {
-                $custom_routes = $customRouteFactory($this->injector, $this->renderer, $this->conn);
-                if (is_array($custom_routes)) {
-                    foreach ($custom_routes as $route) {
-                        if (is_callable($route[2])) {
-                            $this->routeCollector->addRoute($route[0], $route[1], $route[2]);
-                        }
-                    }
-                }
-            }
-        }
+        // Routes are now handled in setupDispatcher to avoid duplication
     }
 
     private function setupDispatcher() {
@@ -175,13 +160,19 @@ class Nimbus {
                 $vars = $routeInfo[2];
                 $bodyVars = [];
                 if (in_array($httpMethod, ['POST', 'PUT', 'PATCH'])) {
-                    $rawInput = file_get_contents('php://input');
-                    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-                    if (strpos($contentType, 'application/json') !== false) {
-                        $bodyVars = json_decode($rawInput, true) ?? [];
-                    } elseif (strpos($contentType, 'application/x-www-form-urlencoded') !== false) {
-                        parse_str($rawInput, $bodyVars);
+                    // Use $_POST for form data as per named_vars requirement
+                    if (!empty($_POST)) {
+                        $bodyVars = $_POST;
+                    } else {
+                        // Only parse raw input for JSON content
+                        $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+                        if (strpos($contentType, 'application/json') !== false) {
+                            $rawInput = file_get_contents('php://input');
+                            $bodyVars = json_decode($rawInput, true) ?? [];
+                        }
                     }
+                    // Set global named_vars for backward compatibility
+                    $GLOBALS['named_vars'] = $bodyVars;
                 }
                 $vars = array_merge($vars, $bodyVars);
                 if (is_string($controller)) {
