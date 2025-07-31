@@ -112,7 +112,7 @@ class Application
             $this->injector = new Injector();
         }
         
-        // Load configuration
+        // Load configuration from app.config.php only
         if (is_file(CONFIG_FILE)) {
             $this->config = include(CONFIG_FILE);
         } else {
@@ -123,11 +123,17 @@ class Application
         $this->injector->share('PDO');
         
         // Define PDO with configuration
-        $pdoConfig = $this->config['pdo'] ?? [
-            'dsn' => 'pgsql:host=db;port=5432;dbname=lkui',
-            'username' => 'lkui',
-            'password' => 'lkui_secure_password_2024'
-        ];
+        if (!isset($this->config['pdo'])) {
+            // Generate default config for apps created with composer nimbus:create
+            $appName = $this->config['installer-name'] ?? 'app';
+            $pdoConfig = [
+                'dsn' => sprintf('pgsql:host=%s-db;port=5432;dbname=%s_db', $appName, $appName),
+                'username' => sprintf('%s_user', $appName),
+                'password' => 'changeme' // Default, should be overridden in app.config.php
+            ];
+        } else {
+            $pdoConfig = $this->config['pdo'];
+        }
         
         $this->injector->define('PDO', [
             $pdoConfig['dsn'],

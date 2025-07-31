@@ -3,6 +3,7 @@
 namespace Nimbus\App;
 
 use Composer\Script\Event;
+use Nimbus\TemplateManager;
 
 /**
  * AppManager handles app creation and installation
@@ -12,6 +13,7 @@ class AppManager
     private string $baseDir;
     private string $installerDir;
     private string $templatesDir;
+    private TemplateManager $templateManager;
     
     public function __construct(string $baseDir = null)
     {
@@ -27,12 +29,14 @@ class AppManager
     {
         $this->validateAppName($appName);
         
-        $templatePath = $this->templatesDir . '/' . $template;
-        $targetPath = $this->installerDir . '/' . $appName;
-        
-        if (!is_dir($templatePath)) {
+        // Use TemplateManager to validate and get template path
+        $templateManager = new TemplateManager();
+        if (!$templateManager->templateExists($template)) {
             throw new \RuntimeException("Template '$template' not found");
         }
+        
+        $templatePath = $templateManager->getTemplatePath($template);
+        $targetPath = $this->installerDir . '/' . $appName;
         
         if (is_dir($targetPath)) {
             throw new \RuntimeException("App '$appName' already exists");
@@ -259,6 +263,24 @@ class AppManager
     {
         $apps = $this->listApps();
         return isset($apps[$appName]);
+    }
+    
+    /**
+     * List available templates
+     */
+    public function listTemplates(): array
+    {
+        $templateManager = new TemplateManager();
+        return $templateManager->getAvailableTemplates();
+    }
+    
+    /**
+     * Get template info
+     */
+    public function getTemplateInfo(string $templateName): ?array
+    {
+        $templateManager = new TemplateManager();
+        return $templateManager->getTemplateInfo($templateName);
     }
     
     /**
