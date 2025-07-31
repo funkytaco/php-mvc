@@ -57,6 +57,26 @@ class ApplicationTasks {
             'MKDIR>' => self::$foreground['white']
 
         );
+        
+        // Emoji bullets - just return the string with emoji prefix, no color formatting
+        $emojiBullets = array(
+            'BULLETEMOJI' => '•',
+            'ARROWEMOJI' => '→',
+            'CHECKEMOJI' => '✓',
+            'CROSSEMOJI' => '✗',
+            'DASHEMOJI' => '—',
+            'DOTEMOJI' => '·',
+            'STAREMOJI' => '★',
+            'TRIANGLEEMOJI' => '▶',
+            'SQUAREEMOJI' => '■',
+            'CIRCLEEMOJI' => '●',
+            'DIAMONDEMOJI' => '◆'
+        );
+        
+        // Check if it's an emoji bullet type
+        if (isset($emojiBullets[$type])) {
+            return $emojiBullets[$type] . ' ' . $str . PHP_EOL;
+        }
 
         $ansi_start = "\033[". $types[$type] ."m";
         $ansi_end = "\033[0m";
@@ -288,9 +308,45 @@ class ApplicationTasks {
         $args = $event->getArguments();
         
         $appName = $args[0] ?? $io->ask('App name: ');
-        $template = $args[1] ?? 'nimbus-demo';
+        
+        // If no template specified, show available templates and aliases
+        if (!isset($args[1])) {
+            $templateManager = new \Nimbus\TemplateManager();
+            $templates = $templateManager->getAvailableTemplates();
+            $aliases = $templateManager->getAliases();
+            
+            echo self::ansiFormat('INFO', 'Available templates:');
+            foreach ($templates as $name => $info) {
+                echo "  - $name" . PHP_EOL;
+            }
+            
+            if (!empty($aliases)) {
+                echo PHP_EOL;
+                echo self::ansiFormat('INFO', 'Template aliases:');
+                foreach ($aliases as $alias => $templateName) {
+                    echo "  - $alias → $templateName" . PHP_EOL;
+                }
+            }
+            echo PHP_EOL;
+            
+            $template = $io->ask('Template name or alias [nimbus-demo]: ', 'nimbus-demo');
+        } else {
+            $template = $args[1];
+        }
         
         try {
+            // Display which template is being used
+            $templateManager = new \Nimbus\TemplateManager();
+            $resolvedTemplate = $templateManager->resolveTemplate($template);
+            
+            echo self::ansiFormat('INFO', "📋 Creating app '$appName'");
+            if ($resolvedTemplate !== $template) {
+                echo self::ansiFormat('INFO', "Using template: '$template' → '$resolvedTemplate'");
+            } else {
+                echo self::ansiFormat('INFO', "Using template: '$template'");
+            }
+            echo PHP_EOL;
+            
             // Check if vault has credentials for this app
             $vaultManager = new \Nimbus\Vault\VaultManager();
             if ($vaultManager->isInitialized()) {
@@ -309,9 +365,14 @@ class ApplicationTasks {
             }
             
             $manager = new \Nimbus\App\AppManager();
+            
             $manager->createFromTemplate($appName, $template);
             
-            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
+            if ($resolvedTemplate !== $template) {
+                echo self::ansiFormat('SUCCESS', "App '$appName' created successfully using alias '$template' → template '$resolvedTemplate'!");
+            } else {
+                echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
+            }
             echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
             echo PHP_EOL;
             
@@ -1096,6 +1157,26 @@ class ApplicationTasks {
             return;
         }
         
+        // Ask about backing up ALL credentials to vault before mass deletion
+        $backupToVault = false;
+        try {
+            $vaultManager = new \Nimbus\Vault\VaultManager();
+            if ($vaultManager->isInitialized()) {
+                if ($io->askConfirmation('🔐 Backup all app credentials to vault before deleting? [Y/n]: ', true)) {
+                    $backupToVault = true;
+                }
+            } else {
+                // Vault not initialized - suggest it
+                if ($io->askConfirmation('🔐 Initialize vault to backup all credentials? [y/N]: ', false)) {
+                    $vaultManager->initializeVault();
+                    echo self::ansiFormat('INFO', 'Vault initialized!');
+                    $backupToVault = true;
+                }
+            }
+        } catch (\Exception $e) {
+            echo self::ansiFormat('WARNING', 'Could not initialize vault: ' . $e->getMessage());
+        }
+        
         $options = [
             'remove_volumes' => $io->askConfirmation('Remove all volumes? [y/N]: ', false),
             'remove_containers' => $io->askConfirmation('Remove all containers? [y/N]: ', false),
@@ -1104,21 +1185,48 @@ class ApplicationTasks {
         
         $deleted = 0;
         $failed = 0;
+        $backedUp = 0;
         
         foreach ($apps as $appName => $info) {
             try {
-                echo self::ansiFormat('INFO', "Deleting $appName...");
+                echo self::ansiFormat('INFO', "Processing $appName...");
+                
+                // Backup credentials if requested
+                if ($backupToVault) {
+                    try {
+                        $credentials = $vaultManager->extractAppCredentials($appName);
+                        if (!empty($credentials)) {
+                            $vaultManager->backupAppCredentials($appName, $credentials);
+                            echo self::ansiFormat('INFO', "  ✅ Credentials backed up for '$appName'");
+                            $backedUp++;
+                        } else {
+                            echo self::ansiFormat('INFO', "  ⚠️  No credentials found for '$appName' (app may not be running)");
+                        }
+                    } catch (\Exception $e) {
+                        echo self::ansiFormat('WARNING', "  ⚠️  Could not backup '$appName' credentials: " . $e->getMessage());
+                    }
+                }
+                
+                // Delete the app
+                echo self::ansiFormat('INFO', "  Deleting $appName...");
                 $manager->deleteApp($appName, $options);
                 $deleted++;
-                echo self::ansiFormat('SUCCESS', "✓ $appName deleted");
+                echo self::ansiFormat('SUCCESS', "  ✓ $appName deleted");
             } catch (\Exception $e) {
                 $failed++;
-                echo self::ansiFormat('ERROR', "✗ Failed to delete $appName: " . $e->getMessage());
+                echo self::ansiFormat('ERROR', "  ✗ Failed to delete $appName: " . $e->getMessage());
             }
         }
         
         echo PHP_EOL;
-        echo self::ansiFormat('SUCCESS', "Deleted $deleted apps" . ($failed > 0 ? ", $failed failed" : ""));
+        $message = "Deleted $deleted apps";
+        if ($backupToVault && $backedUp > 0) {
+            $message .= ", backed up $backedUp credentials";
+        }
+        if ($failed > 0) {
+            $message .= ", $failed failed";
+        }
+        echo self::ansiFormat('SUCCESS', $message);
     }
     
     /**
@@ -1176,9 +1284,53 @@ class ApplicationTasks {
         // Update features list with any newly added features
         $allFeatures = array_unique(array_merge($features, $addedFeatures));
         
+        // Show configuration preview BEFORE the install prompt
+        echo PHP_EOL;
+        self::showConfigurationPreview($appName, $manager);
+        
         // Step 2: Install
         echo "  2. Generate container configuration" . PHP_EOL;
-        if ($io->askConfirmation("     Run 'composer nimbus:install $appName' now? [Y/n]: ", true)) {
+        
+        // Ask with edit option
+        $installChoice = $io->ask("     Run 'composer nimbus:install $appName' now? [Y/n/edit]: ", 'y');
+        $installChoice = strtolower(trim($installChoice));
+        
+        if ($installChoice === 'edit' || $installChoice === 'e') {
+            echo PHP_EOL;
+            
+            // Provide edit instructions
+            echo self::ansiFormat('INFO', "📝 To edit configuration:");
+            echo "  1. Edit: .installer/apps/$appName/app.nimbus.json" . PHP_EOL;
+            echo "  2. Run: composer nimbus:install $appName" . PHP_EOL;
+            echo "  3. Then: composer nimbus:up $appName" . PHP_EOL;
+            echo PHP_EOL;
+            
+            // Open editor if possible
+            $editor = getenv('EDITOR') ?: 'vim';
+            $configPath = ".installer/apps/$appName/app.nimbus.json";
+            if ($io->askConfirmation("     Open configuration in $editor? [Y/n]: ", true)) {
+                system("$editor $configPath");
+                echo PHP_EOL;
+                // After editing, ask again
+                if ($io->askConfirmation("     Configuration edited. Install now? [Y/n]: ", true)) {
+                    try {
+                        $manager->install($appName);
+                        echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
+                        echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
+                    } catch (\Exception $e) {
+                        echo self::ansiFormat('ERROR', '✗ Failed to install app: ' . $e->getMessage());
+                        return;
+                    }
+                } else {
+                    echo self::ansiFormat('INFO', "  Skipped - run 'composer nimbus:install $appName' later");
+                    self::showRemainingSteps($appName, $allFeatures);
+                    return;
+                }
+            } else {
+                self::showRemainingSteps($appName, $allFeatures);
+                return;
+            }
+        } elseif ($installChoice === 'y' || $installChoice === 'yes' || $installChoice === '') {
             echo PHP_EOL;
             try {
                 $manager->install($appName);
@@ -1776,6 +1928,264 @@ class ApplicationTasks {
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to view vault contents: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusAliasTemplate(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        if (count($args) < 2) {
+            echo self::ansiFormat('ERROR', 'Usage: composer nimbus:alias-template <alias> <template-name>');
+            echo self::ansiFormat('INFO', 'Example: composer nimbus:alias-template dev nimbus-demo');
+            echo PHP_EOL;
+            
+            // Show current aliases
+            $templateManager = new \Nimbus\TemplateManager();
+            $aliases = $templateManager->getAliases();
+            
+            if (!empty($aliases)) {
+                echo self::ansiFormat('INFO', 'Current aliases:');
+                foreach ($aliases as $alias => $template) {
+                    echo "  $alias → $template" . PHP_EOL;
+                }
+            }
+            
+            return;
+        }
+        
+        $alias = $args[0];
+        $templateName = $args[1];
+        
+        try {
+            $templateManager = new \Nimbus\TemplateManager();
+            
+            // Add the alias
+            $templateManager->addAlias($alias, $templateName);
+            
+            echo self::ansiFormat('SUCCESS', "Alias '$alias' → '$templateName' created successfully!");
+            echo self::ansiFormat('INFO', "You can now use: composer nimbus:create myapp $alias");
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to create alias: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusAliasRemove(Event $event) {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+        
+        if (empty($args)) {
+            echo self::ansiFormat('ERROR', 'Usage: composer nimbus:alias-remove <alias>');
+            echo self::ansiFormat('INFO', 'Example: composer nimbus:alias-remove dev');
+            return;
+        }
+        
+        $alias = $args[0];
+        
+        try {
+            $templateManager = new \Nimbus\TemplateManager();
+            $aliases = $templateManager->getAliases();
+            
+            if (!isset($aliases[$alias])) {
+                echo self::ansiFormat('ERROR', "Alias '$alias' does not exist!");
+                return;
+            }
+            
+            $templateManager->removeAlias($alias);
+            echo self::ansiFormat('SUCCESS', "Alias '$alias' removed successfully!");
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to remove alias: ' . $e->getMessage());
+        }
+    }
+
+    public static function nimbusAliasList(Event $event) {
+        try {
+            $templateManager = new \Nimbus\TemplateManager();
+            $aliases = $templateManager->getAliases();
+            $templates = $templateManager->getAvailableTemplates();
+            
+            // Default template (hardcoded for now)
+            $defaultTemplate = 'nimbus-demo';
+            
+            echo self::ansiFormat('INFO', '📋 Template Aliases:');
+            echo PHP_EOL;
+            
+            if (empty($aliases)) {
+                echo self::ansiFormat('WARNING', 'No aliases defined.');
+                echo self::ansiFormat('INFO', 'Create one with: composer nimbus:alias-template <alias> <template-name>');
+            } else {
+                // Calculate column widths for better formatting
+                $maxAliasLen = max(array_map('strlen', array_keys($aliases)));
+                $maxTemplateLen = max(array_map('strlen', array_values($aliases)));
+                
+                // Header
+                $header = sprintf("%-{$maxAliasLen}s  →  %-{$maxTemplateLen}s  Path", "Alias", "Template");
+                echo $header . PHP_EOL;
+                echo str_repeat('─', strlen($header) + 40) . PHP_EOL;
+                
+                foreach ($aliases as $alias => $templateName) {
+                    $isDefault = ($templateName === $defaultTemplate);
+                    $defaultFlag = $isDefault ? ' [DEFAULT]' : '';
+                    
+                    // Get the template path
+                    $templatePath = isset($templates[$templateName]) 
+                        ? '.installer/_templates/' . $templateName 
+                        : '[Template not found]';
+                    
+                    $line = sprintf(
+                        "%-{$maxAliasLen}s  →  %-{$maxTemplateLen}s  %s%s",
+                        $alias,
+                        $templateName,
+                        $templatePath,
+                        $defaultFlag
+                    );
+                    
+                    if ($isDefault) {
+                        echo self::ansiFormat('STAREMOJI', $line);
+                    } else {
+                        echo self::ansiFormat('DOTEMOJI', $line);
+                    }
+                }
+            }
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', '📁 Available Templates:');
+            echo PHP_EOL;
+            
+            foreach ($templates as $name => $info) {
+                $isDefault = ($name === $defaultTemplate);
+                $defaultFlag = $isDefault ? ' [DEFAULT]' : '';
+                $path = '.installer/_templates/' . $name;
+                
+                $line = sprintf("  %-20s  %s%s", $name, $path, $defaultFlag);
+                
+                if ($isDefault) {
+                    echo self::ansiFormat('STAREMOJI', $line);
+                } else {
+                    echo self::ansiFormat('DOTEMOJI', $line);
+                }
+            }
+            
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', '💡 Commands:');
+            echo "  • Create alias: composer nimbus:alias-template <alias> <template>" . PHP_EOL;
+            echo "  • Remove alias: composer nimbus:alias-remove <alias>" . PHP_EOL;
+            echo "  • Use template: composer nimbus:create <app-name> <alias-or-template>" . PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to list aliases: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show configuration preview before starting containers
+     */
+    private static function showConfigurationPreview(string $appName, $manager) {
+        echo self::ansiFormat('INFO', "📋 Configuration Preview for '$appName':");
+        echo PHP_EOL;
+        
+        try {
+            // Load app configuration
+            $config = $manager->loadAppConfig($appName);
+            $appDir = ".installer/apps/$appName";
+            
+            // Basic App Info
+            echo self::ansiFormat('INFO', "🔧 Basic Configuration:");
+            echo "  • App Name: $appName" . PHP_EOL;
+            echo "  • Template: " . ($config['type'] ?? 'nimbus-demo') . PHP_EOL;
+            echo "  • Version: " . ($config['version'] ?? '1.0.0') . PHP_EOL;
+            echo "  • Location: $appDir" . PHP_EOL;
+            echo PHP_EOL;
+            
+            // Container Configuration
+            echo self::ansiFormat('INFO', "🐳 Containers to be created:");
+            $containers = [];
+            
+            // Always have app container
+            $appPort = $config['containers']['app']['port'] ?? '8080';
+            $containers[] = ['name' => "$appName-app", 'type' => 'PHP/Apache', 'port' => $appPort];
+            
+            // Database container
+            if (isset($config['features']['database']) && $config['features']['database']) {
+                $dbEngine = $config['containers']['db']['engine'] ?? 'postgres';
+                $dbVersion = $config['containers']['db']['version'] ?? '14';
+                $containers[] = ['name' => "$appName-db", 'type' => "$dbEngine:$dbVersion", 'port' => '5432 (internal)'];
+            }
+            
+            // EDA container
+            if (isset($config['features']['eda']) && $config['features']['eda']) {
+                $edaPort = $config['containers']['eda']['port'] ?? '5000';
+                $containers[] = ['name' => "$appName-eda", 'type' => 'Event-Driven Ansible', 'port' => $edaPort];
+            }
+            
+            // Keycloak containers
+            if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+                $keycloakPort = $config['containers']['keycloak']['port'] ?? '8080';
+                $containers[] = ['name' => "$appName-keycloak", 'type' => 'Keycloak SSO', 'port' => $keycloakPort];
+                $containers[] = ['name' => "$appName-keycloak-db", 'type' => 'postgres:14', 'port' => '5433 (internal)'];
+            }
+            
+            // Display containers in a table-like format
+            $maxNameLen = max(array_map(fn($c) => strlen($c['name']), $containers));
+            $maxTypeLen = max(array_map(fn($c) => strlen($c['type']), $containers));
+            
+            foreach ($containers as $container) {
+                $name = str_pad($container['name'], $maxNameLen);
+                $type = str_pad($container['type'], $maxTypeLen);
+                echo "  • $name  │  $type  │  Port: {$container['port']}" . PHP_EOL;
+            }
+            echo PHP_EOL;
+            
+            // Database Configuration
+            if (isset($config['features']['database']) && $config['features']['database']) {
+                echo self::ansiFormat('INFO', "🗄️  Database Configuration:");
+                $dbConfig = $config['database'] ?? [];
+                echo "  • Database Name: " . ($dbConfig['name'] ?? "{$appName}_db") . PHP_EOL;
+                echo "  • Database User: " . ($dbConfig['user'] ?? "{$appName}_user") . PHP_EOL;
+                echo "  • Password: " . (isset($dbConfig['password']) ? substr($dbConfig['password'], 0, 8) . '...' : '[Generated]') . PHP_EOL;
+                echo PHP_EOL;
+            }
+            
+            // Features Summary
+            echo self::ansiFormat('INFO', "✨ Features Enabled:");
+            $features = $config['features'] ?? [];
+            foreach ($features as $feature => $enabled) {
+                if ($enabled) {
+                    $icon = match($feature) {
+                        'database' => '🗄️',
+                        'eda' => '📡',
+                        'keycloak' => '🔐',
+                        'certbot' => '🔒',
+                        default => '✓'
+                    };
+                    echo "  $icon " . ucfirst($feature) . PHP_EOL;
+                }
+            }
+            echo PHP_EOL;
+            
+            // URLs that will be available
+            echo self::ansiFormat('INFO', "🌐 URLs after startup:");
+            echo "  • Application: http://localhost:$appPort" . PHP_EOL;
+            if (isset($config['features']['keycloak']) && $config['features']['keycloak']) {
+                $keycloakPort = $config['containers']['keycloak']['port'] ?? '8080';
+                echo "  • Keycloak Admin: http://localhost:$keycloakPort" . PHP_EOL;
+                echo "  • Keycloak Config: http://localhost:$appPort/auth/configure" . PHP_EOL;
+            }
+            if (isset($config['features']['eda']) && $config['features']['eda']) {
+                $edaPort = $config['containers']['eda']['port'] ?? '5000';
+                echo "  • EDA Webhook: http://localhost:$edaPort/webhook" . PHP_EOL;
+            }
+            echo PHP_EOL;
+            
+            // Compose file location
+            echo self::ansiFormat('INFO', "📄 Docker Compose File:");
+            echo "  • $appName-compose.yml" . PHP_EOL;
+            echo PHP_EOL;
+            
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', 'Failed to load configuration: ' . $e->getMessage());
         }
     }
 
