@@ -30,7 +30,7 @@ add_entries() {
     cat << EOF | sudo tee -a /etc/hosts >/dev/null
 ${MARKER}
 127.0.0.1    ${APP_NAME}-app.test
-127.0.0.1    ${APP_NAME}-keycloak.test ${APP_NAME}-keycloak
+127.0.0.1    ${APP_NAME}-keycloak.test
 127.0.0.1    ${APP_NAME}-db.test
 127.0.0.1    ${APP_NAME}-eda.test
 ${END_MARKER}

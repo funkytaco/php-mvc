@@ -1,0 +1,19 @@
+<div class="card">
+    <h2>🚀 Event-Driven Ansible (EDA)</h2>
+    <div class="eda-section">
+        <p><span class="status-indicator status-success"></span><strong>EDA is enabled!</strong> Test webhook automation below.</p>
+        
+        <div class="webhook-controls">
+            <button class="btn" onclick="triggerWebhook()">Trigger EDA Webhook</button>
+            <button class="btn btn-success" onclick="checkItemCount()">Check Item Count</button>
+            <span id="webhook-status">Ready</span>
+        </div>
+        
+        <div class="data-display" id="data-display">
+            <strong>Current item count:</strong> <span id="item-count">{{stats.total_items}}</span><br>
+            <strong>EDA Status:</strong> <span id="eda-status">Waiting for webhook...</span>
+        </div>
+        
+        <p><small>The webhook sends a request to EDA port 5000, which triggers an Ansible playbook to create a new item via the API.</small></p>
+    </div>
+</div>

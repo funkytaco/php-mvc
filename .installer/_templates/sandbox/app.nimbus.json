@@ -1,0 +1,77 @@
+{
+    "name": "{{APP_NAME}}",
+    "version": "1.0.0",
+    "type": "nimbus-demo",
+    "description": "A minimal Nimbus framework demo application",
+    "features": {
+        "database": true,
+        "eda": false,
+        "certbot": false,
+        "keycloak": false
+    },
+    "containers": {
+        "app": {
+            "port": "{{APP_PORT}}"
+        },
+        "db": {
+            "engine": "postgres",
+            "version": "14"
+        },
+        "eda": {
+            "image": "registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest",
+            "rulebooks_dir": "rulebooks"
+        },
+        "keycloak": {
+            "image": "quay.io/keycloak/keycloak:latest",
+            "port": "8080",
+            "admin_user": "admin",
+            "admin_password": "{{KEYCLOAK_ADMIN_PASSWORD}}",
+            "database": "keycloak_db"
+        },
+        "keycloak-db": {
+            "image": "postgres:14",
+            "database": "keycloak_db",
+            "user": "keycloak",
+            "password": "{{KEYCLOAK_DB_PASSWORD}}"
+        }
+    },
+    "database": {
+        "name": "{{DB_NAME}}",
+        "user": "{{DB_USER}}",
+        "password": "{{DB_PASSWORD}}"
+    },
+    "keycloak": {
+        "realm": "{{KEYCLOAK_REALM}}",
+        "client_id": "{{KEYCLOAK_CLIENT_ID}}",
+        "client_secret": "{{KEYCLOAK_CLIENT_SECRET}}",
+        "auth_url": "http://{{APP_NAME}}-keycloak:8080",
+        "redirect_uri": "http://localhost:{{APP_PORT}}/auth/callback"
+    },
+    "assets": {
+        "controllers": {
+            "source": "Controllers",
+            "target": "app/Controllers",
+            "isFile": false
+        },
+        "models": {
+            "source": "Models",
+            "target": "app/Models",
+            "isFile": false
+        },
+        "views": {
+            "source": "Views",
+            "target": "app/Views",
+            "isFile": false
+        },
+        "routes": {
+            "source": "routes/CustomRoutes.php",
+            "target": "app/CustomRoutes.php",
+            "isFile": true
+        },
+        "config": {
+            "source": "app.config.php",
+            "target": "app/app.config.php",
+            "isFile": true
+        }
+    }
+}
