@@ -99,7 +99,7 @@ composer nimbus:create-with-eda monitoring
 {
     "name": "my-app",
     "version": "1.0.0",
-    "type": "nimbus-demo",
+    "type": "nimbus-app-php",
     "description": "A Nimbus framework application",
     "features": {
         "database": true,
@@ -144,7 +144,7 @@ php-mvc-lkui/
 │   └── index.php           # ✅ Updated to use Nimbus
 ├── .installer/
 │   ├── _templates/          # ✅ App templates
-│   │   └── nimbus-demo/     # Default template with EDA
+│   │   └── nimbus-app-php/     # Default template with EDA
 │   ├── apps.json           # ✅ App registry
 │   ├── app-alpha/          # ✅ Example apps
 │   ├── app-beta/           

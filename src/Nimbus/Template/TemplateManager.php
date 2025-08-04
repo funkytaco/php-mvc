@@ -1,39 +1,20 @@
 <?php
 
-namespace Nimbus;
+namespace Nimbus\Template;
 
 class TemplateManager
 {
     private string $templatesPath;
     private array $availableTemplates = [];
-    private array $templateAliases = [];
-    private string $configPath;
+    private TemplateConfig $templateConfig;
     
     public function __construct()
     {
         $this->templatesPath = getcwd() . '/.installer/_templates';
-        $this->configPath = getcwd() . '/nimbus-config.json';
-        $this->loadAliases();
+        $this->templateConfig = TemplateConfig::getInstance();
         $this->scanTemplates();
     }
     
-    /**
-     * Load template aliases from config file
-     */
-    private function loadAliases(): void
-    {
-        if (!file_exists($this->configPath)) {
-            $this->templateAliases = [];
-            return;
-        }
-        
-        try {
-            $config = json_decode(file_get_contents($this->configPath), true);
-            $this->templateAliases = $config['template_aliases'] ?? [];
-        } catch (\Exception $e) {
-            $this->templateAliases = [];
-        }
-    }
     
     /**
      * Scan the templates directory to find available templates
@@ -76,13 +57,7 @@ class TemplateManager
      */
     public function resolveTemplate(string $nameOrAlias): string
     {
-        // Check if it's an alias first
-        if (isset($this->templateAliases[$nameOrAlias])) {
-            return $this->templateAliases[$nameOrAlias];
-        }
-        
-        // Otherwise return as-is (it might be a direct template name)
-        return $nameOrAlias;
+        return $this->templateConfig->resolveTemplate($nameOrAlias);
     }
     
     /**
@@ -122,13 +97,7 @@ class TemplateManager
      */
     public function addAlias(string $alias, string $templateName): void
     {
-        // Validate that the template exists
-        if (!isset($this->availableTemplates[$templateName])) {
-            throw new \InvalidArgumentException("Template '{$templateName}' not found");
-        }
-        
-        $this->templateAliases[$alias] = $templateName;
-        $this->saveAliases();
+        $this->templateConfig->addTemplateAlias($alias, $templateName);
     }
     
     /**
@@ -136,8 +105,7 @@ class TemplateManager
      */
     public function removeAlias(string $alias): void
     {
-        unset($this->templateAliases[$alias]);
-        $this->saveAliases();
+        $this->templateConfig->removeTemplateAlias($alias);
     }
     
     /**
@@ -145,28 +113,7 @@ class TemplateManager
      */
     public function getAliases(): array
     {
-        return $this->templateAliases;
-    }
-    
-    /**
-     * Save aliases to config file
-     */
-    private function saveAliases(): void
-    {
-        $config = [];
-        
-        // Load existing config if it exists
-        if (file_exists($this->configPath)) {
-            $existingContent = file_get_contents($this->configPath);
-            $config = json_decode($existingContent, true) ?? [];
-        }
-        
-        // Update template aliases
-        $config['template_aliases'] = $this->templateAliases;
-        
-        // Save back to file with pretty formatting
-        $json = json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        file_put_contents($this->configPath, $json);
+        return $this->templateConfig->getTemplateAliases();
     }
     
     /**

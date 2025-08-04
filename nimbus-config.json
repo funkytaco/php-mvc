@@ -1,3 +1,9 @@
 {
-    "template_aliases": []
+    "default_template": "nimbus-app-php",
+    "template_aliases": [],
+    "available_templates": [
+        "nimbus-app-php",
+        "sandbox"
+    ],
+    "last_scanned": "2025-08-04T01:45:56+00:00"
 }

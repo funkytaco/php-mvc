@@ -1371,11 +1371,13 @@ class ApplicationTasks {
         
         if (count($args) < 2) {
             echo self::ansiFormat('ERROR', 'Usage: composer nimbus:alias-template <alias> <template-name>');
-            echo self::ansiFormat('INFO', 'Example: composer nimbus:alias-template dev nimbus-demo');
+            $templateConfig = \Nimbus\Template\TemplateConfig::getInstance();
+            $defaultTemplate = $templateConfig->getDefaultTemplate();
+            echo self::ansiFormat('INFO', "Example: composer nimbus:alias-template dev $defaultTemplate");
             echo PHP_EOL;
             
             // Show current aliases
-            $templateManager = new \Nimbus\TemplateManager();
+            $templateManager = new \Nimbus\Template\TemplateManager();
             $aliases = $templateManager->getAliases();
             
             if (!empty($aliases)) {
@@ -1392,7 +1394,7 @@ class ApplicationTasks {
         $templateName = $args[1];
         
         try {
-            $templateManager = new \Nimbus\TemplateManager();
+            $templateManager = new \Nimbus\Template\TemplateManager();
             
             // Add the alias
             $templateManager->addAlias($alias, $templateName);
@@ -1418,7 +1420,7 @@ class ApplicationTasks {
         $alias = $args[0];
         
         try {
-            $templateManager = new \Nimbus\TemplateManager();
+            $templateManager = new \Nimbus\Template\TemplateManager();
             $aliases = $templateManager->getAliases();
             
             if (!isset($aliases[$alias])) {
@@ -1436,12 +1438,13 @@ class ApplicationTasks {
 
     public static function nimbusAliasList(Event $event) {
         try {
-            $templateManager = new \Nimbus\TemplateManager();
+            $templateManager = new \Nimbus\Template\TemplateManager();
             $aliases = $templateManager->getAliases();
             $templates = $templateManager->getAvailableTemplates();
             
             // Default template (hardcoded for now)
-            $defaultTemplate = 'nimbus-demo';
+            $templateConfig = \Nimbus\Template\TemplateConfig::getInstance();
+            $defaultTemplate = $templateConfig->getDefaultTemplate();
             
             echo self::ansiFormat('INFO', '📋 Template Aliases:');
             echo PHP_EOL;
@@ -1528,7 +1531,8 @@ class ApplicationTasks {
             // Basic App Info
             echo self::ansiFormat('INFO', "🔧 Basic Configuration:");
             echo "  • App Name: $appName" . PHP_EOL;
-            echo "  • Template: " . ($config['type'] ?? 'nimbus-demo') . PHP_EOL;
+            $templateConfig = \Nimbus\Template\TemplateConfig::getInstance();
+            echo "  • Template: " . ($config['type'] ?? $templateConfig->getDefaultTemplate()) . PHP_EOL;
             echo "  • Version: " . ($config['version'] ?? '1.0.0') . PHP_EOL;
             echo "  • Location: $appDir" . PHP_EOL;
             echo PHP_EOL;

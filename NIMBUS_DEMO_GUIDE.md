@@ -1,7 +1,7 @@
 # Nimbus Demo - Quick Test Guide
 
 ## 🎯 Purpose
-The `nimbus-demo` template demonstrates the complete Nimbus framework functionality with minimal code. Users can create a working app without writing any code.
+The `nimbus-app-php` template demonstrates the complete Nimbus framework functionality with minimal code. Users can create a working app without writing any code.
 
 ## ✅ What Is Currently Working
 
@@ -18,7 +18,7 @@ composer nimbus:add-eda test-app
 ```
 
 **What Works:**
-- ✅ Created from nimbus-demo template
+- ✅ Created from nimbus-app-php template
 - ✅ Generated unique port based on app name hash
 - ✅ Created secure randomly-generated database password
 - ✅ Replaced all placeholders with app-specific values
@@ -49,9 +49,9 @@ composer nimbus:down test-app
 
 ## 📁 What Gets Created
 
-### Template Structure (`/.installer/_templates/nimbus-demo/`)
+### Template Structure (`/.installer/_templates/nimbus-app-php/`)
 ```
-nimbus-demo/
+nimbus-app-php/
 ├── app.nimbus.json          # App configuration
 ├── app.config.php           # PHP app config
 ├── Controllers/

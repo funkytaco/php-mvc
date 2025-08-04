@@ -9,6 +9,7 @@ use Nimbus\Password\PasswordManager;
 use Nimbus\Password\PasswordSet;
 use Nimbus\Password\PasswordStrategy;
 use Nimbus\Vault\VaultManager;
+use Nimbus\Template\TemplateConfig;
 
 class AppManagerTest extends TestCase
 {
@@ -33,6 +34,11 @@ class AppManagerTest extends TestCase
     protected function tearDown(): void
     {
         $this->removeDirectory($this->baseDir);
+    }
+    
+    private function getDefaultTemplate(): string
+    {
+        return TemplateConfig::getInstance()->getDefaultTemplate();
     }
     
     /**
@@ -77,7 +83,7 @@ class AppManagerTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage("App name must contain only lowercase letters, numbers, and hyphens");
         
-        $this->appManager->createFromTemplate('Test_App!', 'nimbus-demo');
+        $this->appManager->createFromTemplate('Test_App!', $this->getDefaultTemplate());
     }
     
     /**
@@ -86,7 +92,7 @@ class AppManagerTest extends TestCase
     public function testCreateFromTemplateAppAlreadyExists(): void
     {
         // Create template
-        $this->createMockTemplate('nimbus-demo');
+        $this->createMockTemplate($this->getDefaultTemplate());
         
         // Create app directory
         mkdir($this->installerDir . '/test-app', 0777, true);
@@ -94,7 +100,7 @@ class AppManagerTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage("App 'test-app' already exists");
         
-        $this->appManager->createFromTemplate('test-app', 'nimbus-demo');
+        $this->appManager->createFromTemplate('test-app', $this->getDefaultTemplate());
     }
     
     /**
@@ -103,7 +109,7 @@ class AppManagerTest extends TestCase
     public function testCreateFromTemplateSuccess(): void
     {
         // Create mock template
-        $this->createMockTemplate('nimbus-demo');
+        $this->createMockTemplate($this->getDefaultTemplate());
         
         // Use reflection to create a testable AppManager
         $appManager = new class($this->baseDir) extends AppManager {
@@ -120,7 +126,7 @@ class AppManagerTest extends TestCase
         
         $appManager->mockVaultManager = $vaultManager;
         
-        $result = $appManager->createFromTemplate('test-app', 'nimbus-demo');
+        $result = $appManager->createFromTemplate('test-app', $this->getDefaultTemplate());
         
         $this->assertTrue($result);
         $this->assertDirectoryExists($this->installerDir . '/test-app');
@@ -156,8 +162,8 @@ class AppManagerTest extends TestCase
         // Create apps.json
         $appsData = [
             'apps' => [
-                'app1' => ['name' => 'app1', 'template' => 'nimbus-demo'],
-                'app2' => ['name' => 'app2', 'template' => 'nimbus-demo']
+                'app1' => ['name' => 'app1', 'template' => $this->getDefaultTemplate()],
+                'app2' => ['name' => 'app2', 'template' => $this->getDefaultTemplate()]
             ]
         ];
         file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
@@ -176,7 +182,7 @@ class AppManagerTest extends TestCase
         // Create apps.json
         $appsData = [
             'apps' => [
-                'existing-app' => ['name' => 'existing-app', 'template' => 'nimbus-demo']
+                'existing-app' => ['name' => 'existing-app', 'template' => $this->getDefaultTemplate()]
             ]
         ];
         file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
@@ -461,7 +467,7 @@ class AppManagerTest extends TestCase
         mkdir($appDir, 0777, true);
         
         // Create template keycloak files
-        $this->createMockTemplate('nimbus-demo', true);
+        $this->createMockTemplate($this->getDefaultTemplate(), true);
         
         $config = [
             'name' => $appName,

@@ -4,7 +4,8 @@ namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
-use Nimbus\TemplateManager;
+use Nimbus\Template\TemplateManager;
+use Nimbus\Template\TemplateConfig;
 use Nimbus\Vault\VaultManager;
 use Nimbus\UI\InteractiveHelper;
 use Composer\Script\Event;
@@ -13,6 +14,7 @@ class CreateTask extends BaseTask
 {
     private AppManager $appManager;
     private TemplateManager $templateManager;
+    private TemplateConfig $templateConfig;
     private VaultManager $vaultManager;
     private InteractiveHelper $interactiveHelper;
 
@@ -20,6 +22,7 @@ class CreateTask extends BaseTask
     {
         $this->appManager = new AppManager();
         $this->templateManager = new TemplateManager();
+        $this->templateConfig = TemplateConfig::getInstance();
         $this->vaultManager = new VaultManager();
         $this->interactiveHelper = new InteractiveHelper();
     }
@@ -54,7 +57,8 @@ class CreateTask extends BaseTask
             }
             echo PHP_EOL;
             
-            $template = $io->ask('Template name or alias [nimbus-demo]: ', 'nimbus-demo');
+            $defaultTemplate = $this->templateConfig->getDefaultTemplate();
+            $template = $io->ask("Template name or alias [$defaultTemplate]: ", $defaultTemplate);
         } else {
             $template = $args[1];
         }
@@ -95,7 +99,7 @@ class CreateTask extends BaseTask
         $args = $event->getArguments();
         
         $appName = $args[0] ?? $io->ask('App name: ');
-        $template = $args[1] ?? 'nimbus-demo';
+        $template = $args[1] ?? $this->templateConfig->getDefaultTemplate();
         
         try {
             $this->appManager->createFromTemplate($appName, $template);
@@ -129,7 +133,7 @@ class CreateTask extends BaseTask
                 ]
             ];
             
-            $this->appManager->createFromTemplate($appName, 'nimbus-demo', $config);
+            $this->appManager->createFromTemplate($appName, $this->templateConfig->getDefaultTemplate(), $config);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' created successfully with EDA and Keycloak!");
             echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");

@@ -1,7 +1,7 @@
 {
     "name": "test-app",
     "version": "1.0.0",
-    "type": "nimbus-demo",
+    "type": "nimbus-app-php",
     "description": "A minimal Nimbus framework demo application",
     "features": {
         "database": true,

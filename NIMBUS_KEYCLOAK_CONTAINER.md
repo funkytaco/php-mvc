@@ -211,7 +211,7 @@ services:
 
 ### Key Files Modified
 - `src/Nimbus/App/AppManager.php` - Container orchestration logic
-- `.installer/_templates/nimbus-demo/keycloak-init.sh` - Realm setup script
+- `.installer/_templates/nimbus-app-php/keycloak-init.sh` - Realm setup script
 - `ApplicationTasks.php` - CLI commands for Keycloak management
 
 ### Template Processing

@@ -26,7 +26,7 @@ Nimbus uses a sophisticated Nimbus CLI system built on top of Composer for
 
   Architecture
 
-  1. App Templates: Stored in .installer/_templates/nimbus-demo/
+  1. App Templates: Stored in .installer/_templates/nimbus-app-php/
   2. App Storage: Created apps live in .installer/apps/<app-name>/
   3. Container Stack: Each app gets:
     - App container: PHP/Apache with your MVC framework

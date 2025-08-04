@@ -111,7 +111,7 @@ composer nimbus:create myapp1
   🔐 Keycloak passwords: ✓
 💡 These credentials will be restored automatically.
 
-✅ App 'myapp1' created successfully from template 'nimbus-demo'!
+✅ App 'myapp1' created successfully from template 'nimbus-app-php'!
 ```
 
 ## Vault Management Commands

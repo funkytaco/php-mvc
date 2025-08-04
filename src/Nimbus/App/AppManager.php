@@ -3,7 +3,8 @@
 namespace Nimbus\App;
 
 use Composer\Script\Event;
-use Nimbus\TemplateManager;
+use Nimbus\Template\TemplateManager;
+use Nimbus\Template\TemplateConfig;
 
 /**
  * AppManager handles app creation and installation
@@ -14,20 +15,27 @@ class AppManager
     private string $installerDir;
     private string $templatesDir;
     private TemplateManager $templateManager;
+    private TemplateConfig $templateConfig;
     
     public function __construct(string $baseDir = null)
     {
         $this->baseDir = $baseDir ?? getcwd();
         $this->installerDir = $this->baseDir . '/.installer/apps';
         $this->templatesDir = $this->baseDir . '/.installer/_templates';
+        $this->templateConfig = TemplateConfig::getInstance();
     }
     
     /**
      * Create a new app from template
      */
-    public function createFromTemplate(string $appName, string $template = 'nimbus-demo', array $config = []): bool
+    public function createFromTemplate(string $appName, string $template = null, array $config = []): bool
     {
         $this->validateAppName($appName);
+        
+        // Use default template if none specified
+        if ($template === null) {
+            $template = $this->templateConfig->getDefaultTemplate();
+        }
         
         // Use TemplateManager to validate and get template path
         $templateManager = new TemplateManager();
@@ -934,7 +942,7 @@ class AppManager
      */
     private function createEdaDirectories(string $appPath, string $appName): void
     {
-        $templatePath = $this->templatesDir . '/nimbus-demo';
+        $templatePath = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate();
         $edaFiles = [
             'init-entrypoint.sh',
             'inventory/inventory.yml',
@@ -984,7 +992,7 @@ class AppManager
      */
     private function copyEdaRulebooks(string $appName, string $targetDir): void
     {
-        $templateRulebooksDir = $this->templatesDir . '/nimbus-demo/rulebooks';
+        $templateRulebooksDir = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate() . '/rulebooks';
         
         if (!is_dir($templateRulebooksDir)) {
             throw new \RuntimeException("Template rulebooks not found");
@@ -1636,7 +1644,7 @@ class AppManager
     private function copyKeycloakFiles(string $appName): void
     {
         $appDir = $this->installerDir . '/' . $appName;
-        $templateDir = $this->templatesDir . '/nimbus-demo';
+        $templateDir = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate();
         
         // Files to copy for Keycloak
         $keycloakFiles = [
@@ -1689,7 +1697,7 @@ class AppManager
     private function copyKeycloakInitScript(string $appName): void
     {
         $appDir = $this->installerDir . '/' . $appName;
-        $templateScript = $this->templatesDir . '/nimbus-demo/keycloak-init.sh';
+        $templateScript = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate() . '/keycloak-init.sh';
         $targetScript = $appDir . '/keycloak-init.sh';
         
         if (!file_exists($templateScript)) {

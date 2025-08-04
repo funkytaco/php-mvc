@@ -4,6 +4,7 @@ namespace Nimbus\UI;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\Template\TemplateConfig;
 use Composer\IO\IOInterface;
 
 class InteractiveHelper extends BaseTask
@@ -272,7 +273,8 @@ class InteractiveHelper extends BaseTask
             
             echo self::ansiFormat('INFO', "🔧 Basic Configuration:");
             echo "  • App Name: $appName" . PHP_EOL;
-            echo "  • Template: " . ($config['type'] ?? 'nimbus-demo') . PHP_EOL;
+            $templateConfig = TemplateConfig::getInstance();
+            echo "  • Template: " . ($config['type'] ?? $templateConfig->getDefaultTemplate()) . PHP_EOL;
             echo "  • Version: " . ($config['version'] ?? '1.0.0') . PHP_EOL;
             echo "  • Location: $appDir" . PHP_EOL;
             echo PHP_EOL;
