@@ -304,314 +304,33 @@ class ApplicationTasks {
     }
 
     public static function nimbusCreate(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = $args[0] ?? $io->ask('App name: ');
-        
-        // If no template specified, show available templates and aliases
-        if (!isset($args[1])) {
-            $templateManager = new \Nimbus\TemplateManager();
-            $templates = $templateManager->getAvailableTemplates();
-            $aliases = $templateManager->getAliases();
-            
-            echo self::ansiFormat('INFO', 'Available templates:');
-            foreach ($templates as $name => $info) {
-                echo "  - $name" . PHP_EOL;
-            }
-            
-            if (!empty($aliases)) {
-                echo PHP_EOL;
-                echo self::ansiFormat('INFO', 'Template aliases:');
-                foreach ($aliases as $alias => $templateName) {
-                    echo "  - $alias → $templateName" . PHP_EOL;
-                }
-            }
-            echo PHP_EOL;
-            
-            $template = $io->ask('Template name or alias [nimbus-demo]: ', 'nimbus-demo');
-        } else {
-            $template = $args[1];
-        }
-        
-        try {
-            // Display which template is being used
-            $templateManager = new \Nimbus\TemplateManager();
-            $resolvedTemplate = $templateManager->resolveTemplate($template);
-            
-            echo self::ansiFormat('INFO', "📋 Creating app '$appName'");
-            if ($resolvedTemplate !== $template) {
-                echo self::ansiFormat('INFO', "Using template: '$template' → '$resolvedTemplate'");
-            } else {
-                echo self::ansiFormat('INFO', "Using template: '$template'");
-            }
-            echo PHP_EOL;
-            
-            // Check if vault has credentials for this app
-            $vaultManager = new \Nimbus\Vault\VaultManager();
-            if ($vaultManager->isInitialized()) {
-                $vaultCredentials = $vaultManager->restoreAppCredentials($appName);
-                if ($vaultCredentials) {
-                    echo self::ansiFormat('INFO', "🔐 Found backed up credentials for '$appName' in vault!");
-                    if (isset($vaultCredentials['database'])) {
-                        echo "  📊 Database password: " . substr($vaultCredentials['database']['password'], 0, 8) . "..." . PHP_EOL;
-                    }
-                    if (isset($vaultCredentials['keycloak'])) {
-                        echo "  🔐 Keycloak passwords: ✓" . PHP_EOL;
-                    }
-                    echo self::ansiFormat('INFO', '💡 These credentials will be restored automatically.');
-                    echo PHP_EOL;
-                }
-            }
-            
-            $manager = new \Nimbus\App\AppManager();
-            
-            $manager->createFromTemplate($appName, $template);
-            
-            if ($resolvedTemplate !== $template) {
-                echo self::ansiFormat('SUCCESS', "App '$appName' created successfully using alias '$template' → template '$resolvedTemplate'!");
-            } else {
-                echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template'!");
-            }
-            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
-            echo PHP_EOL;
-            
-            // Interactive walkthrough
-            self::interactiveNextSteps($appName, $io, $manager);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\CreateTask();
+        $task->create($event);
     }
 
     public static function nimbusCreateWithEda(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = $args[0] ?? $io->ask('App name: ');
-        $template = $args[1] ?? 'nimbus-demo';
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $manager->createFromTemplate($appName, $template);
-            $manager->addEda($appName);
-            
-            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully from template '$template' with EDA enabled!");
-            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
-            echo self::ansiFormat('INFO', "✅ Features enabled: Event-Driven Ansible (EDA)");
-            echo self::ansiFormat('INFO', "📡 EDA will run on port 5000 with rulebooks in .installer/apps/$appName/rulebooks/");
-            echo PHP_EOL;
-            
-            // Interactive walkthrough with EDA feature
-            self::interactiveNextSteps($appName, $io, $manager, ['eda']);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\CreateTask();
+        $task->createWithEda($event);
     }
 
     public static function nimbusInstall(Event $event) {
-        $args = $event->getArguments();
-        $appName = $args[0] ?? null;
-        
-        if (!$appName) {
-            $manager = new \Nimbus\App\AppManager();
-            $apps = $manager->listApps();
-            
-            if (empty($apps)) {
-                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
-                return;
-            }
-            
-            $io = $event->getIO();
-            $appNames = array_keys($apps);
-            $appName = $io->select('Select app to install:', $appNames);
-        }
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $manager->install($appName);
-            
-            echo self::ansiFormat('SUCCESS', "App '$appName' installed successfully!");
-            echo self::ansiFormat('INFO', "Container config generated: $appName-compose.yml");
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to install app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\InstallTask();
+        $task->install($event);
     }
 
     public static function nimbusList(Event $event) {
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $apps = $manager->listApps();
-            
-            if (empty($apps)) {
-                echo self::ansiFormat('INFO', 'No apps created yet.');
-                echo self::ansiFormat('INFO', 'Create one with: composer nimbus:create my-app');
-                return;
-            }
-            
-            echo self::ansiFormat('INFO', 'Available apps:');
-            foreach ($apps as $name => $info) {
-                $status = $info['installed'] ? 'installed' : 'created';
-                echo "  $name ($status) - {$info['template']}" . PHP_EOL;
-            }
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\InstallTask();
+        $task->list($event);
     }
 
     public static function nimbusAddEda(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = $args[0] ?? null;
-        
-        if (!$appName) {
-            // Show available apps without EDA
-            try {
-                $manager = new \Nimbus\App\AppManager();
-                $apps = $manager->listApps();
-                $nonEdaApps = [];
-                
-                foreach ($apps as $name => $info) {
-                    $configFile = getcwd() . '/.installer/apps/' . $name . '/app.nimbus.json';
-                    if (file_exists($configFile)) {
-                        $config = json_decode(file_get_contents($configFile), true);
-                        if (!($config['features']['eda'] ?? false)) {
-                            $nonEdaApps[] = $name;
-                        }
-                    }
-                }
-                
-                if (empty($nonEdaApps)) {
-                    echo self::ansiFormat('INFO', 'No apps found that can have EDA added.');
-                    echo self::ansiFormat('INFO', 'All existing apps already have EDA enabled.');
-                    return;
-                }
-                
-                echo self::ansiFormat('INFO', 'Apps available for EDA:');
-                foreach ($nonEdaApps as $name) {
-                    echo "  - $name" . PHP_EOL;
-                }
-                
-                $appName = $io->ask('Select app to add EDA to: ');
-                
-                if (!$appName || !in_array($appName, $nonEdaApps)) {
-                    echo self::ansiFormat('ERROR', 'Invalid app selection.');
-                    return;
-                }
-            } catch (\Exception $e) {
-                echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
-                return;
-            }
-        }
-        
-        if (!$appName) {
-            echo self::ansiFormat('ERROR', 'App name is required.');
-            return;
-        }
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $manager->addEda($appName);
-            
-            echo self::ansiFormat('SUCCESS', "EDA functionality added to '$appName' successfully!");
-            echo self::ansiFormat('INFO', "Changes made:");
-            echo "  ✓ Enabled EDA in app configuration" . PHP_EOL;
-            echo "  ✓ Created rulebooks directory with demo files" . PHP_EOL;
-            echo "  ✓ Regenerated compose file with EDA container" . PHP_EOL;
-            echo "  ✓ Validated YAML syntax" . PHP_EOL;
-            echo PHP_EOL;
-            
-            // Use interactive walkthrough for next steps
-            self::interactiveNextSteps($appName, $io, $manager, ['eda'], false);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to add EDA: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->addEda($event);
     }
 
     public static function nimbusDown(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        // Check if podman-compose is installed
-        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
-        if (!$composeCheck['installed']) {
-            echo self::ansiFormat('ERROR', $composeCheck['error']);
-            return;
-        }
-        
-        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $runningApps = $manager->getRunningApps();
-            
-            if (empty($runningApps)) {
-                echo self::ansiFormat('INFO', 'No running apps found.');
-                return;
-            }
-            
-            // If app name provided as argument, stop that specific app
-            $targetApp = $args[0] ?? null;
-            
-            if ($targetApp) {
-                $app = array_filter($runningApps, fn($a) => $a['name'] === $targetApp);
-                if (empty($app)) {
-                    echo self::ansiFormat('ERROR', "App '$targetApp' is not running or not found.");
-                    return;
-                }
-                $app = array_values($app)[0];
-                self::stopApp($manager, $app, $io);
-                return;
-            }
-            
-            // Otherwise, show list and let user choose
-            echo self::ansiFormat('INFO', 'Running apps:');
-            $choices = [];
-            $index = 1;
-            
-            foreach ($runningApps as $app) {
-                $runningStatus = self::formatRunningStatus($app);
-                $healthStatus = self::formatHealthStatus($app);
-                
-                echo "  [$index] {$app['name']} ($runningStatus, $healthStatus)" . PHP_EOL;
-                
-                // Show container details
-                foreach ($app['containers'] as $containerName => $status) {
-                    $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
-                    $healthIcon = self::getHealthIcon($status['health']);
-                    echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
-                }
-                
-                $choices[$index] = $app;
-                $index++;
-            }
-            
-            // Add option to stop all
-            echo "  [all] Stop all running apps" . PHP_EOL;
-            
-            $choice = $io->ask('Select app to stop (number or "all"): ');
-            
-            if (strtolower($choice ?? '') === 'all') {
-                self::stopAllApps($manager, $runningApps, $io);
-                return;
-            }
-            
-            if (!isset($choices[(int)$choice])) {
-                echo self::ansiFormat('ERROR', 'Invalid selection.');
-                return;
-            }
-            
-            $selectedApp = $choices[(int)$choice];
-            self::stopApp($manager, $selectedApp, $io);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to stop app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\ContainerTask();
+        $task->down($event);
     }
     
     private static function stopApp($manager, array $app, $io) {
@@ -688,149 +407,13 @@ class ApplicationTasks {
     }
 
     public static function nimbusStatus(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        // Check if podman-compose is installed
-        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
-        if (!$composeCheck['installed']) {
-            echo self::ansiFormat('ERROR', $composeCheck['error']);
-            return;
-        }
-        
-        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
-        
-        
-            $manager = new \Nimbus\App\AppManager();
-            $startableApps = $manager->getStartableApps();
-            
-            if (empty($startableApps)) {
-                echo self::ansiFormat('INFO', 'No apps found with compose files.');
-                echo self::ansiFormat('INFO', 'Create and install an app first:');
-                echo "  1. composer nimbus:create my-app" . PHP_EOL;
-                echo "  2. composer nimbus:install my-app" . PHP_EOL;
-                return;
-            }
-            
-            // If app name provided as argument, start that specific app
-            $targetApp = $args[0] ?? null;
-            
-            if ($targetApp) {
-                $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
-                if (empty($app)) {
-                    echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
-                    return;
-                }
-                $app = array_values($app)[0];
-                self::startApp($app);
-                return;
-            }
-            
-            // Otherwise, show list and let user choose
-            echo self::ansiFormat('INFO', 'App Status:');
-            $choices = [];
-            $index = 1;
-            
-            foreach ($startableApps as $app) {
-                $imageStatus = $app['has_image'] ? '✓ built' : '✗ not built';
-                $runningStatus = self::formatRunningStatus($app);
-                $healthStatus = self::formatHealthStatus($app);
-                
-                echo "  [$index] {$app['name']} ($imageStatus, $runningStatus, $healthStatus)" . PHP_EOL;
-                
-                // Show container details if running
-                if ($app['is_running']) {
-                    foreach ($app['containers'] as $containerName => $status) {
-                        $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
-                        $healthIcon = self::getHealthIcon($status['health']);
-                        echo "      └─ $stateIcon $containerName: {$status['state']} $healthIcon" . PHP_EOL;
-                    }
-                }
-                
-                $choices[$index] = $app;
-                $index++;
-            }
-            
-            
+        $task = new \Nimbus\Tasks\ContainerTask();
+        $task->status($event);
     }
 
     public static function nimbusUp(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        // Check if podman-compose is installed
-        $composeCheck = \Nimbus\App\AppManager::checkPodmanCompose();
-        if (!$composeCheck['installed']) {
-            echo self::ansiFormat('ERROR', $composeCheck['error']);
-            return;
-        }
-        
-        echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            $startableApps = $manager->getStartableApps();
-            
-            if (empty($startableApps)) {
-                echo self::ansiFormat('INFO', 'No apps found with compose files.');
-                echo self::ansiFormat('INFO', 'Create and install an app first:');
-                echo "  1. composer nimbus:create my-app" . PHP_EOL;
-                echo "  2. composer nimbus:install my-app" . PHP_EOL;
-                return;
-            }
-            
-            // If app name provided as argument, start that specific app
-            $targetApp = $args[0] ?? null;
-            
-            if ($targetApp) {
-                $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
-                if (empty($app)) {
-                    echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
-                    return;
-                }
-                $app = array_values($app)[0];
-                self::startApp($app);
-                return;
-            }
-            
-            // Otherwise, show list and let user choose
-            echo self::ansiFormat('INFO', 'Available apps to start:');
-            $choices = [];
-            $index = 1;
-            
-            foreach ($startableApps as $app) {
-                $imageStatus = $app['has_image'] ? '✓ built' : '✗ not built';
-                $runningStatus = self::formatRunningStatus($app);
-                $healthStatus = self::formatHealthStatus($app);
-                
-                echo "  [$index] {$app['name']} ($imageStatus, $runningStatus, $healthStatus)" . PHP_EOL;
-                
-                // Show container details if running
-                if ($app['is_running']) {
-                    foreach ($app['containers'] as $containerName => $status) {
-                        $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
-                        $healthIcon = self::getHealthIcon($status['health']);
-                        echo "      └─ $containerName: {$status['state']} $stateIcon $healthIcon" . PHP_EOL;
-                    }
-                }
-                
-                $choices[$index] = $app;
-                $index++;
-            }
-            
-            $choice = $io->ask('Select app to start (number): ');
-            
-            if (!isset($choices[(int)$choice])) {
-                echo self::ansiFormat('ERROR', 'Invalid selection.');
-                return;
-            }
-            
-            $selectedApp = $choices[(int)$choice];
-            self::startApp($selectedApp);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to start app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\ContainerTask();
+        $task->up($event);
     }
     
     private static function startApp(array $app) {
@@ -1457,167 +1040,18 @@ class ApplicationTasks {
     }
 
     public static function nimbusCreateEdaKeycloak(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = $args[0] ?? $io->ask('App name: ');
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            
-            // Create app with EDA and Keycloak enabled
-            $config = [
-                'features' => [
-                    'eda' => true,
-                    'keycloak' => true
-                ]
-            ];
-            
-            $manager->createFromTemplate($appName, 'nimbus-demo', $config);
-            
-            echo self::ansiFormat('SUCCESS', "App '$appName' created successfully with EDA and Keycloak!");
-            echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
-            echo self::ansiFormat('INFO', "✅ Features enabled:");
-            echo "  • Event-Driven Ansible (EDA)" . PHP_EOL;
-            echo "  • Keycloak SSO Integration" . PHP_EOL;
-            echo PHP_EOL;
-            
-            // Interactive walkthrough with both features
-            self::interactiveNextSteps($appName, $io, $manager, ['eda', 'keycloak']);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\CreateTask();
+        $task->createEdaKeycloak($event);
     }
     
     public static function nimbusAddEdaKeycloak(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = $args[0] ?? null;
-        
-        if (!$appName) {
-            $manager = new \Nimbus\App\AppManager();
-            $apps = $manager->listApps();
-            
-            if (empty($apps)) {
-                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
-                return;
-            }
-            
-            $appNames = array_keys($apps);
-            $choice = $io->select('Select app to add EDA and Keycloak to:', $appNames);
-            $appName = $appNames[$choice];
-        }
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            
-            // Check if app exists
-            if (!$manager->appExists($appName)) {
-                echo self::ansiFormat('ERROR', "App '$appName' not found!");
-                return;
-            }
-            
-            // Add both EDA and Keycloak to the app
-            echo self::ansiFormat('INFO', "Adding EDA and Keycloak to app '$appName'...");
-            
-            // Add EDA first
-            try {
-                $manager->addEda($appName);
-                echo self::ansiFormat('SUCCESS', "✓ EDA added successfully!");
-            } catch (\Exception $e) {
-                // If EDA already exists, that's okay
-                if (strpos($e->getMessage(), 'already enabled') === false) {
-                    throw $e;
-                }
-                echo self::ansiFormat('INFO', "✓ EDA already enabled");
-            }
-            
-            // Add Keycloak
-            try {
-                $manager->addKeycloak($appName);
-                echo self::ansiFormat('SUCCESS', "✓ Keycloak added successfully!");
-            } catch (\Exception $e) {
-                // If Keycloak already exists, that's okay
-                if (strpos($e->getMessage(), 'already enabled') === false) {
-                    throw $e;
-                }
-                echo self::ansiFormat('INFO', "✓ Keycloak already enabled");
-            }
-            
-            echo PHP_EOL;
-            echo self::ansiFormat('SUCCESS', "Both EDA and Keycloak have been added to app '$appName'!");
-            echo self::ansiFormat('INFO', "Features enabled:");
-            echo "  • Event-Driven Ansible (EDA) on port 5000" . PHP_EOL;
-            echo "  • Keycloak SSO Integration on port 8080" . PHP_EOL;
-            echo PHP_EOL;
-            
-            // Use interactive walkthrough for next steps
-            self::interactiveNextSteps($appName, $io, $manager, ['eda', 'keycloak'], false);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to add features: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->addEdaKeycloak($event);
     }
     
     public static function nimbusAddKeycloak(Event $event) {
-        $io = $event->getIO();
-        $args = $event->getArguments();
-        
-        $appName = null;
-        $force = false;
-        
-        // Parse arguments  
-        foreach ($args as $arg) {
-            if ($arg === '--force' || $arg === '-f' || $arg === 'force') {
-                $force = true;
-            } elseif (!$appName && substr($arg, 0, 1) !== '-') {
-                $appName = $arg;
-            }
-        }
-        
-        // Remove debug output
-        
-        if (!$appName) {
-            $manager = new \Nimbus\App\AppManager();
-            $apps = $manager->listApps();
-            
-            if (empty($apps)) {
-                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
-                return;
-            }
-            
-            $appNames = array_keys($apps);
-            $choice = $io->select('Select app to add Keycloak to:', $appNames);
-            $appName = $appNames[$choice];
-        }
-        
-        try {
-            $manager = new \Nimbus\App\AppManager();
-            
-            // Check if app exists
-            if (!$manager->appExists($appName)) {
-                echo self::ansiFormat('ERROR', "App '$appName' not found!");
-                return;
-            }
-            
-            // Add Keycloak to the app
-            $manager->addKeycloak($appName, $force);
-            
-            $action = $force ? 'updated' : 'added';
-            echo self::ansiFormat('SUCCESS', "Keycloak $action to app '$appName' successfully!");
-            echo self::ansiFormat('INFO', "Keycloak containers configured:");
-            echo "  🔐 Keycloak server on port 8080" . PHP_EOL;
-            echo "  💾 Keycloak database (PostgreSQL)" . PHP_EOL;
-            echo PHP_EOL;
-            
-            // Use interactive walkthrough for next steps
-            self::interactiveNextSteps($appName, $io, $manager, ['keycloak'], false);
-            
-        } catch (\Exception $e) {
-            echo self::ansiFormat('ERROR', 'Failed to add Keycloak: ' . $e->getMessage());
-        }
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->addKeycloak($event);
     }
     
     /**
