@@ -1,16 +1,18 @@
 <?php
-class IndexControllerTest extends PHPUnit_Framework_TestCase
+
+use PHPUnit\Framework\TestCase;
+
+class IndexControllerTest extends TestCase
 {
+    private $IndexCtrl;
 
-    public function setup() {
-
+    protected function setUp(): void {
         $renderer = new Main\Renderer\MustacheRenderer(new Mustache_Engine);
         $conn = new \Main\Mock\PDO;
         $this->IndexCtrl = new Main\Controllers\IndexController($renderer, $conn);
-
     }
 
-    public function tearDown() {}
+    protected function tearDown(): void {}
 
     /**
     * @small
@@ -18,6 +20,4 @@ class IndexControllerTest extends PHPUnit_Framework_TestCase
     public function testInstanceOfIController() {
         $this->assertInstanceOf('Main\Controllers\IController', $this->IndexCtrl);
     }
-
-
 }

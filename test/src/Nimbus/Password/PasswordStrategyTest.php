@@ -15,6 +15,7 @@ class PasswordStrategyTest extends TestCase
         $this->assertEquals('vault_restore', PasswordStrategy::VAULT_RESTORE->value);
         $this->assertEquals('existing_data', PasswordStrategy::EXISTING_DATA->value);
         $this->assertEquals('generate_new', PasswordStrategy::GENERATE_NEW->value);
+        $this->assertEquals('no_modifications', PasswordStrategy::NO_MODIFICATIONS->value);
     }
     
     /**
@@ -36,6 +37,11 @@ class PasswordStrategyTest extends TestCase
             'Generate new random passwords',
             PasswordStrategy::GENERATE_NEW->getDescription()
         );
+        
+        $this->assertEquals(
+            'Preserve existing passwords, generate only for new services',
+            PasswordStrategy::NO_MODIFICATIONS->getDescription()
+        );
     }
     
     /**
@@ -46,6 +52,7 @@ class PasswordStrategyTest extends TestCase
         $this->assertTrue(PasswordStrategy::VAULT_RESTORE->requiresForceInit());
         $this->assertFalse(PasswordStrategy::EXISTING_DATA->requiresForceInit());
         $this->assertFalse(PasswordStrategy::GENERATE_NEW->requiresForceInit());
+        $this->assertFalse(PasswordStrategy::NO_MODIFICATIONS->requiresForceInit());
     }
     
     /**
@@ -79,9 +86,10 @@ class PasswordStrategyTest extends TestCase
     {
         $cases = PasswordStrategy::cases();
         
-        $this->assertCount(3, $cases);
+        $this->assertCount(4, $cases);
         $this->assertContains(PasswordStrategy::VAULT_RESTORE, $cases);
         $this->assertContains(PasswordStrategy::EXISTING_DATA, $cases);
         $this->assertContains(PasswordStrategy::GENERATE_NEW, $cases);
+        $this->assertContains(PasswordStrategy::NO_MODIFICATIONS, $cases);
     }
 }
