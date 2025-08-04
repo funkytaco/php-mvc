@@ -113,7 +113,7 @@ During `createFromTemplate` in AppManager:
 
 ### Template Security
 - No production passwords are stored in templates
-- Only development test user has hardcoded password (`testpass123`)
+- Only development test user has hardcoded password (`testpass9898`)
 - All sensitive passwords use placeholders
 - Passwords are dynamically resolved at creation time
 

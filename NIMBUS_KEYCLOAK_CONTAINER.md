@@ -205,7 +205,7 @@ services:
 1. Access the realm: `http://localhost:8080/realms/{app-name}-realm`
 2. Test login with default user:
    - Username: `testuser`
-   - Password: `testpass123`
+   - Password: `testpass9898`
 
 ## Implementation Files
 
