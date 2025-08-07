@@ -65,6 +65,8 @@
         "nimbus:alias-template": "Tasks\\ApplicationTasks::nimbusAliasTemplate",
         "nimbus:alias-remove": "Tasks\\ApplicationTasks::nimbusAliasRemove",
         "nimbus:alias-list": "Tasks\\ApplicationTasks::nimbusAliasList",
+        "nimbus:template-scaffold": "Nimbus\\Tasks\\TemplateTask::scaffold",
+        "nimbus:template-check": "Nimbus\\Tasks\\TemplateTask::check",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"
