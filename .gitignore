@@ -26,7 +26,6 @@ eda/certbot
 .installer/vault/.vault_*
 .installer/vault/*.yml
 CLAUDE.md
-src/Nimbus/Vault/*
 
 # Generated files - DO NOT COMMIT
 *-compose.yml
