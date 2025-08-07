@@ -5,7 +5,7 @@
     "description": "License Key UI for SSL CSR Generation, Renewal and Retrieval",
     "features": {
         "database": true,
-        "eda": false,
+        "eda": true,
         "certbot": false,
         "keycloak": false
     },
@@ -16,6 +16,10 @@
         "db": {
             "engine": "postgres",
             "version": "14"
+        },
+        "eda": {
+            "image": "registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest",
+            "rulebooks_dir": "rulebooks"
         }
     },
     "database": {

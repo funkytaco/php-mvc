@@ -36,6 +36,10 @@ composer.lock
 .installer/apps.json
 nimbus-config.json
 
+#resolve hosts
+setup-hosts.sh
+*-setup-hosts.sh
+
 # Database data
 data/
 

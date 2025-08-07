@@ -86,7 +86,22 @@ class CreateTask extends BaseTask
             echo self::ansiFormat('INFO', "📁 App created at: .installer/apps/$appName");
             echo PHP_EOL;
             
-            $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager);
+            // Check which features are already enabled in the created app
+            $enabledFeatures = [];
+            try {
+                $appConfig = $this->appManager->loadAppConfig($appName);
+                if (isset($appConfig['features'])) {
+                    foreach ($appConfig['features'] as $feature => $enabled) {
+                        if ($enabled) {
+                            $enabledFeatures[] = $feature;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // If config can't be loaded, continue with empty features array
+            }
+            
+            $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, $enabledFeatures);
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
