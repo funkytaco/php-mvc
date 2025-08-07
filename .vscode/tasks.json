@@ -1,0 +1,173 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Nimbus: Dump Autoload",
+            "type": "shell",
+            "command": "composer",
+            "args": ["dump-autoload"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Nimbus: PHPStan Analysis",
+            "type": "shell",
+            "command": "./vendor/bin/phpstan",
+            "args": ["analyse", "--configuration=phpstan.neon"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": {
+                "owner": "phpstan",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+):(.*?)$",
+                    "file": 1,
+                    "line": 2,
+                    "message": 3
+                }
+            }
+        },
+        {
+            "label": "Nimbus: Run Tests",
+            "type": "shell",
+            "command": "./vendor/bin/phpunit",
+            "args": ["--configuration=phpunit.xml"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": {
+                "owner": "phpunit",
+                "fileLocation": "absolute",
+                "pattern": {
+                    "regexp": "^(.*):(\\d+)$",
+                    "file": 1,
+                    "line": 2
+                }
+            }
+        },
+        {
+            "label": "Nimbus: Create App",
+            "type": "shell",
+            "command": "composer",
+            "args": [
+                "nimbus:create",
+                "${input:appName}"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Nimbus: List Apps",
+            "type": "shell",
+            "command": "composer",
+            "args": ["nimbus:list"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Nimbus: App Status",
+            "type": "shell",
+            "command": "composer",
+            "args": ["nimbus:status"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Nimbus: Template Scaffold",
+            "type": "shell",
+            "command": "composer",
+            "args": [
+                "nimbus:template-scaffold",
+                "${input:templateName}"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Nimbus: Template Check",
+            "type": "shell",
+            "command": "composer",
+            "args": [
+                "nimbus:template-check",
+                "${input:templateName}"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "appName",
+            "description": "Enter the app name",
+            "default": "my-app",
+            "type": "promptString"
+        },
+        {
+            "id": "templateName",
+            "description": "Enter the template name",
+            "default": "my-template",
+            "type": "promptString"
+        }
+    ]
+}

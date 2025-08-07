@@ -1,0 +1,75 @@
+# PHPStan configuration for Nimbus Framework
+# Provides static analysis to improve IDE support and code quality
+
+parameters:
+    level: 6
+    
+    paths:
+        - src/
+        - .installer/_templates/nimbus-app-php/Controllers/
+        - .installer/_templates/nimbus-app-php/Models/
+        
+    excludePaths:
+        - vendor/
+        - data/
+        - Legacy/
+        - src/Modules/
+        - src/Mock/
+        - .installer/_templates/nimbus-app-php/app.config.php
+        - .installer/_templates/nimbus-app-php/routes/
+        - .installer/_templates/nimbus-app-php/database/
+        - .installer/_templates/nimbus-app-php/app.nimbus.json
+        
+    # Bootstrap file for PHPStan analysis
+    bootstrapFiles:
+        - vendor/autoload.php
+        
+    # Type mapping for better IDE support
+    typeAliases:
+        ConfigArray: 'array<string, mixed>'
+        RequestData: 'array<string, mixed>'
+        TemplateData: 'array<string, mixed>'
+        
+    # Ignore specific errors that are framework-specific
+    ignoreErrors:
+        # Allow dynamic properties in AbstractController (for lazy loading)
+        - '#Property Nimbus\\Controller\\AbstractController::\$view is never read, only written\.#'
+        - '#Property Nimbus\\Controller\\AbstractController::\$db is never read, only written\.#'
+        
+        # Allow global variables in Bootstrap (named_vars pattern)
+        - '#Variable \$GLOBALS is never defined\.#'
+        
+        # Allow require/include with variables (template system)
+        - '#Parameter .* of function include expects string, .* given\.#'
+        
+        # FastRoute callback patterns
+        - '#Anonymous function has an unused parameter#'
+        
+    # Stub files for better analysis
+    stubFiles: []
+    
+    # Report unused private properties/methods
+    checkMissingIterableValueType: true
+    
+    # Additional settings for framework patterns
+    universalObjectCratesClasses:
+        - Auryn\Injector
+        
+    # Check function calls with too few/many arguments
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkUninitializedProperties: true
+    checkBenevolentUnionTypes: false
+    
+    # Nimbus-specific type extensions
+    dynamicConstantNames:
+        - ENV
+        - MODELS_DIR
+        - VIEWS_DIR
+        - CONTROLLERS_DIR
+        - SOURCE_DIR
+        - VENDOR_DIR
+        - PUBLIC_DIR
+        - CUSTOM_ROUTES_FILE
+        - CONFIG_FILE
+        - DEPENDENCIES_FILE
+        - MIMETYPES_FILE

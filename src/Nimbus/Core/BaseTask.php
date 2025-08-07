@@ -1,12 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nimbus\Core;
 
 use Composer\Script\Event;
+use Composer\IO\IOInterface;
 
+/**
+ * Base class for all Nimbus task handlers
+ * 
+ * Provides common functionality for Composer script tasks including
+ * colored output, file operations, and user interaction
+ * 
+ * @package Nimbus\Core
+ * @author Nimbus Framework
+ * @license Apache-2.0
+ * @copyright 2025 SmallCloud, LLC
+ */
 abstract class BaseTask
 {
-    protected static $foreground = [
+    /**
+     * ANSI foreground color codes
+     * 
+     * @var array<string, string>
+     */
+    protected static array $foreground = [
         'black' => '0;30',
         'dark_gray' => '1;30',
         'red' => '0;31',
@@ -25,7 +44,12 @@ abstract class BaseTask
         'bold_gray' => '0;37',
     ];
 
-    protected static $background = [
+    /**
+     * ANSI background color codes
+     * 
+     * @var array<string, string>
+     */
+    protected static array $background = [
         'black' => '40',
         'red' => '41',
         'magenta' => '45',
@@ -36,7 +60,14 @@ abstract class BaseTask
         'light_gray' => '47',
     ];
 
-    protected static function ansiFormat($type, $str = ''): string
+    /**
+     * Format a string with ANSI color codes
+     * 
+     * @param string $type The message type (INFO, WARNING, ERROR, etc.)
+     * @param string $str The string to format
+     * @return string The formatted string with ANSI codes
+     */
+    protected static function ansiFormat(string $type, string $str = ''): string
     {
         $types = [
             'INFO' => self::$foreground['white'],
@@ -78,7 +109,15 @@ abstract class BaseTask
         return $ansi_type_start . "[$type] " . $ansi_end . $ansi_start .  $str . $ansi_end . PHP_EOL;
     }
 
-    protected static function copyAssetsRecursive($source, $destination, $event): bool
+    /**
+     * Recursively copy assets from source to destination
+     * 
+     * @param string $source The source directory path
+     * @param string $destination The destination directory path
+     * @param Event $event The Composer event instance
+     * @return bool True if successful, false otherwise
+     */
+    protected static function copyAssetsRecursive(string $source, string $destination, Event $event): bool
     {
         echo self::ansiFormat('INFO', 'DESTINATION TYPE: ' . (is_dir($destination) ? "DIR" : "FILE"));
         echo self::ansiFormat('INFO', 'SOURCE DIR: '. $source);
@@ -136,7 +175,13 @@ abstract class BaseTask
         return true;
     }
 
-    protected static function deleteAssetsRecursive($dir): bool
+    /**
+     * Recursively delete a directory and its contents
+     * 
+     * @param string $dir The directory to delete
+     * @return bool True if successful, false otherwise
+     */
+    protected static function deleteAssetsRecursive(string $dir): bool
     {
         $files = array_diff(scandir($dir), array('.','..'));
 
@@ -147,7 +192,16 @@ abstract class BaseTask
         return rmdir($dir);
     }
 
-    protected static function copyAssets($source, $destination, $isFile, $event): void
+    /**
+     * Copy assets (file or directory) from source to destination
+     * 
+     * @param string $source The source path
+     * @param string $destination The destination path
+     * @param bool $isFile Whether the source is a file (true) or directory (false)
+     * @param Event $event The Composer event instance
+     * @return void
+     */
+    protected static function copyAssets(string $source, string $destination, bool $isFile, Event $event): void
     {
         if ($isFile == TRUE) {
             echo self::ansiFormat('RUNNING>', 'copy Assets for: '. $source);
@@ -173,10 +227,24 @@ abstract class BaseTask
         }
     }
 
+    /**
+     * Check if Composer packages are installed
+     * 
+     * @param Event $event The Composer event instance
+     * @return bool True if vendor/autoload.php exists
+     */
     protected static function areComposerPackagesInstalled(Event $event): bool
     {
         return is_file('vendor/autoload.php');
     }
 
+    /**
+     * Execute the task
+     * 
+     * This method must be implemented by all task classes
+     * 
+     * @param Event $event The Composer event instance
+     * @return void
+     */
     abstract public function execute(Event $event): void;
 }

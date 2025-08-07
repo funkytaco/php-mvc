@@ -35,7 +35,7 @@
             "Main\\": "src/",
             "Nimbus\\": "src/Nimbus/",
             "App\\": "app/",
-            "Tasks\\": "."
+            "Tasks\\": "src/Tasks/"
         }
     },
     "scripts": {

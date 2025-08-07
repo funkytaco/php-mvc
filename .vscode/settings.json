@@ -1,0 +1,123 @@
+{
+    "php.suggest.basic": false,
+    "php.validate.enable": true,
+    "php.validate.executablePath": "/usr/bin/php",
+    
+    // Intelephense settings for better LSP support
+    "intelephense.files.maxSize": 5000000,
+    "intelephense.files.exclude": [
+        "**/vendor/**",
+        "**/data/**",
+        "**/Legacy/**",
+        "**/.git/**",
+        "**/node_modules/**",
+        "**/bower_components/**",
+        "**/tmp/**",
+        "**/.tmp/**"
+    ],
+    "intelephense.files.associations": [
+        "*.php",
+        "*.mustache"
+    ],
+    "intelephense.stubs": [
+        "Core",
+        "PDO",
+        "curl",
+        "json",
+        "session"
+    ],
+    "intelephense.diagnostics.enable": true,
+    "intelephense.diagnostics.run": "onSave",
+    "intelephense.diagnostics.embeddedLanguages": false,
+    "intelephense.completion.insertUseDeclaration": true,
+    "intelephense.completion.fullyQualifyGlobalConstantsAndFunctions": false,
+    "intelephense.completion.triggerParameterHints": true,
+    "intelephense.format.enable": true,
+    "intelephense.references.exclude": [
+        "**/vendor/**"
+    ],
+    "intelephense.rename.exclude": [
+        "**/vendor/**"
+    ],
+    "intelephense.trace.server": "off",
+    
+    // PHPStan integration
+    "phpstan.enabled": true,
+    "phpstan.configFile": "./phpstan.neon",
+    "phpstan.options": [
+        "--memory-limit=1G"
+    ],
+    
+    // File associations
+    "files.associations": {
+        "*.mustache": "html",
+        "*.php": "php"
+    },
+    
+    // Editor settings for PHP
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": true,
+    "[php]": {
+        "editor.defaultFormatter": "bmewburn.vscode-intelephense-client",
+        "editor.formatOnSave": false,
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+    },
+    
+    // Mustache/HTML settings
+    "[html]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+    },
+    
+    // Search exclusions
+    "search.exclude": {
+        "**/vendor": true,
+        "**/data": true,
+        "**/Legacy": true,
+        "**/.git": true,
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/tmp": true,
+        "**/.tmp": true,
+        "**/*.lock": true,
+        "**/composer.lock": true
+    },
+    
+    // File watcher exclusions
+    "files.watcherExclude": {
+        "**/vendor/**": true,
+        "**/data/**": true,
+        "**/Legacy/**": true,
+        "**/.git/**": true,
+        "**/node_modules/**": true,
+        "**/tmp/**": true,
+        "**/.tmp/**": true
+    },
+    
+    // PHP code sniffer (if installed)
+    "phpcs.enable": true,
+    "phpcs.standard": "PSR12",
+    "phpcs.executablePath": "./vendor/bin/phpcs",
+    
+    // Additional extensions recommendations
+    "extensions.recommendations": [
+        "bmewburn.vscode-intelephense-client",
+        "phpstan.vscode-phpstan",
+        "zobo.php-intellisense",
+        "formulahendry.auto-rename-tag",
+        "ms-vscode.vscode-json"
+    ],
+    
+    // Git settings
+    "git.ignoreLimitWarning": true,
+    
+    // Terminal settings for Nimbus commands
+    "terminal.integrated.env.osx": {
+        "COMPOSER_MEMORY_LIMIT": "1G"
+    },
+    "terminal.integrated.env.linux": {
+        "COMPOSER_MEMORY_LIMIT": "1G"  
+    }
+}

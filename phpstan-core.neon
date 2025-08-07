@@ -1,0 +1,31 @@
+# PHPStan configuration for Core Nimbus Framework only
+# Focuses on the main framework classes for testing LSP functionality
+
+parameters:
+    level: 5
+    
+    paths:
+        - src/Nimbus/Controller/
+        - src/Nimbus/Core/
+        - src/Renderer/
+        - .installer/_templates/nimbus-app-php/Controllers/IndexController.php
+        - .installer/_templates/nimbus-app-php/Models/DemoModel.php
+        
+    excludePaths:
+        - vendor/
+        
+    # Bootstrap file for PHPStan analysis
+    bootstrapFiles:
+        - vendor/autoload.php
+        
+    # Type mapping for better IDE support
+    typeAliases:
+        ConfigArray: 'array<string, mixed>'
+        RequestData: 'array<string, mixed>'
+        TemplateData: 'array<string, mixed>'
+        
+    # Focus on core types
+    ignoreErrors:
+        # Allow mixed types for framework flexibility
+        - '#has no value type specified in iterable type array#'
+        - '#Method .* has parameter .* with no type specified#'

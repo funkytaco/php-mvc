@@ -84,6 +84,7 @@ class ComposerStaticInitb5298e34361e95284376a1d4be0ec124
         'A' => 
         array (
             'Auryn\\' => 6,
+            'App\\' => 4,
         ),
     );
 
@@ -102,7 +103,7 @@ class ComposerStaticInitb5298e34361e95284376a1d4be0ec124
         ),
         'Tasks\\' => 
         array (
-            0 => __DIR__ . '/../..' . '/',
+            0 => __DIR__ . '/../..' . '/src/Tasks',
         ),
         'Psr\\SimpleCache\\' => 
         array (
@@ -200,6 +201,10 @@ class ComposerStaticInitb5298e34361e95284376a1d4be0ec124
         'Auryn\\' => 
         array (
             0 => __DIR__ . '/..' . '/rdlowrey/auryn/lib',
+        ),
+        'App\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/app',
         ),
     );
 

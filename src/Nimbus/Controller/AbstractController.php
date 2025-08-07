@@ -1,21 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nimbus\Controller;
 
 use Auryn\Injector;
+use Main\Renderer\Renderer;
+use PDO;
 
 /**
  * AbstractController provides common functionality for all controllers
+ * 
+ * @package Nimbus\Controller
+ * @author Nimbus Framework
+ * @license Apache-2.0
+ * @copyright 2025 SmallCloud, LLC
+ * 
+ * @property-read Renderer $view The view renderer instance
+ * @property-read PDO $db The database connection instance
+ * @property-read array<string, mixed> $config Application configuration
  */
 abstract class AbstractController implements ControllerInterface
 {
+    /** @var Injector Dependency injection container */
     protected Injector $container;
-    protected $view;
-    protected $db;
-    protected array $config;
+    
+    /** @var Renderer|null View renderer instance */
+    protected ?Renderer $view = null;
+    
+    /** @var PDO|null Database connection */
+    protected ?PDO $db = null;
+    
+    /** @var array<string, mixed> Application configuration */
+    protected array $config = [];
     
     /**
      * Constructor receives the dependency injection container
+     * 
+     * @param Injector $container The dependency injection container
      */
     public function __construct(Injector $container)
     {
@@ -25,6 +47,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Initialize controller dependencies
+     * 
+     * Override this method in child classes to initialize specific dependencies
+     * 
+     * @return void
      */
     protected function initialize(): void
     {
@@ -33,19 +59,29 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Get the view renderer
+     * 
+     * Lazy loads the renderer on first access
+     * 
+     * @return Renderer The view renderer instance
      */
-    protected function getView()
+    protected function getView(): Renderer
     {
         if (!$this->view) {
-            $this->view = $this->container->make('Main\Renderer\Renderer');
+            /** @var Renderer $renderer */
+            $renderer = $this->container->make('Main\Renderer\Renderer');
+            $this->view = $renderer;
         }
         return $this->view;
     }
     
     /**
      * Get the database connection
+     * 
+     * Lazy loads the PDO connection on first access
+     * 
+     * @return PDO The database connection
      */
-    protected function getDb(): \PDO
+    protected function getDb(): PDO
     {
         if (!$this->db) {
             $this->db = $this->container->make('PDO');
@@ -55,6 +91,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Get configuration
+     * 
+     * Loads configuration from CONFIG_FILE constant if defined
+     * 
+     * @return array<string, mixed> The application configuration
      */
     protected function getConfig(): array
     {
@@ -70,6 +110,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Render a view template
+     * 
+     * @param string $template The template name/path
+     * @param array<string, mixed> $data Data to pass to the template
+     * @return string The rendered HTML output
      */
     protected function render(string $template, array $data = []): string
     {
@@ -78,6 +122,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Send JSON response
+     * 
+     * @param array<string, mixed> $data The data to encode as JSON
+     * @param int $status HTTP status code (default: 200)
+     * @return void
      */
     protected function json(array $data, int $status = 200): void
     {
@@ -88,6 +136,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Send error response
+     * 
+     * @param string $message The error message
+     * @param int $status HTTP status code (default: 400)
+     * @return void
      */
     protected function error(string $message, int $status = 400): void
     {
@@ -96,8 +148,12 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Send success response
+     * 
+     * @param mixed $data Optional data to include in response
+     * @param string $message Success message (default: 'Success')
+     * @return void
      */
-    protected function success($data = null, string $message = 'Success'): void
+    protected function success(mixed $data = null, string $message = 'Success'): void
     {
         $response = ['success' => true, 'message' => $message];
         if ($data !== null) {
@@ -108,6 +164,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Redirect to URL
+     * 
+     * @param string $url The URL to redirect to
+     * @param int $status HTTP status code (default: 302)
+     * @return void
      */
     protected function redirect(string $url, int $status = 302): void
     {
@@ -118,6 +178,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Get request data from various sources
+     * 
+     * Merges data from $_POST, named_vars, and JSON body
+     * 
+     * @return array<string, mixed> The request data
      */
     protected function getRequestData(): array
     {
@@ -148,6 +212,10 @@ abstract class AbstractController implements ControllerInterface
     
     /**
      * Validate required fields
+     * 
+     * @param array<string, mixed> $data The data to validate
+     * @param array<int, string> $required List of required field names
+     * @return bool True if all required fields are present and non-empty
      */
     protected function validate(array $data, array $required): bool
     {
@@ -160,29 +228,56 @@ abstract class AbstractController implements ControllerInterface
     }
     
     /**
-     * Default implementations for HTTP methods
+     * Default implementation for GET requests
+     * 
+     * @param mixed ...$params Route parameters
+     * @return void
      */
-    public function get(...$params)
+    public function get(...$params): void
     {
         $this->error('Method not allowed', 405);
     }
     
-    public function post(...$params)
+    /**
+     * Default implementation for POST requests
+     * 
+     * @param mixed ...$params Route parameters
+     * @return void
+     */
+    public function post(...$params): void
     {
         $this->error('Method not allowed', 405);
     }
     
-    public function put(...$params)
+    /**
+     * Default implementation for PUT requests
+     * 
+     * @param mixed ...$params Route parameters
+     * @return void
+     */
+    public function put(...$params): void
     {
         $this->error('Method not allowed', 405);
     }
     
-    public function delete(...$params)
+    /**
+     * Default implementation for DELETE requests
+     * 
+     * @param mixed ...$params Route parameters
+     * @return void
+     */
+    public function delete(...$params): void
     {
         $this->error('Method not allowed', 405);
     }
     
-    public function patch(...$params)
+    /**
+     * Default implementation for PATCH requests
+     * 
+     * @param mixed ...$params Route parameters
+     * @return void
+     */
+    public function patch(...$params): void
     {
         $this->error('Method not allowed', 405);
     }
