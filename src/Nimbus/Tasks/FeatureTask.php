@@ -125,8 +125,14 @@ class FeatureTask extends BaseTask
             
             $action = $force ? 'updated' : 'added';
             echo self::ansiFormat('SUCCESS', "Keycloak $action to app '$appName' successfully!");
+            
+            // Get the dynamically assigned Keycloak port
+            $configFile = getcwd() . '/.installer/apps/' . $appName . '/app.nimbus.json';
+            $config = json_decode(file_get_contents($configFile), true);
+            $keycloakPort = $config['containers']['keycloak']['port'] ?? '9080';
+            
             echo self::ansiFormat('INFO', "Keycloak containers configured:");
-            echo "  🔐 Keycloak server on port 8080" . PHP_EOL;
+            echo "  🔐 Keycloak server on port $keycloakPort" . PHP_EOL;
             echo "  💾 Keycloak database (PostgreSQL)" . PHP_EOL;
             echo PHP_EOL;
             
@@ -187,9 +193,16 @@ class FeatureTask extends BaseTask
             
             echo PHP_EOL;
             echo self::ansiFormat('SUCCESS', "Both EDA and Keycloak have been added to app '$appName'!");
+            
+            // Get the dynamically assigned ports
+            $configFile = getcwd() . '/.installer/apps/' . $appName . '/app.nimbus.json';
+            $config = json_decode(file_get_contents($configFile), true);
+            $edaPort = $config['containers']['eda']['port'] ?? '5000';
+            $keycloakPort = $config['containers']['keycloak']['port'] ?? '9080';
+            
             echo self::ansiFormat('INFO', "Features enabled:");
-            echo "  • Event-Driven Ansible (EDA) on port 5000" . PHP_EOL;
-            echo "  • Keycloak SSO Integration on port 8080" . PHP_EOL;
+            echo "  • Event-Driven Ansible (EDA) on port $edaPort" . PHP_EOL;
+            echo "  • Keycloak SSO Integration on port $keycloakPort" . PHP_EOL;
             echo PHP_EOL;
             
             $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, ['eda', 'keycloak'], false);

@@ -136,6 +136,7 @@ class AppManager
             $placeholders['{{KEYCLOAK_REALM}}'] = $appName . '-realm';
             $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = $appName . '-client';
             $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = $passwords->keycloakClientSecret;
+            $placeholders['{{KEYCLOAK_PORT}}'] = $this->generateKeycloakPort($appName);
         } else {
             $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
             $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = '';
@@ -201,7 +202,7 @@ class AppManager
             // Add Keycloak container configuration
             $appConfig['containers']['keycloak'] = [
                 'image' => 'quay.io/keycloak/keycloak:latest',
-                'port' => '8080',
+                'port' => (string)$placeholders['{{KEYCLOAK_PORT}}'],
                 'admin_user' => 'admin',
                 'admin_password' => $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'],
                 'database' => 'keycloak_db'
@@ -489,7 +490,7 @@ class AppManager
             'volumes' => [
                 './.installer/apps/' . $appName . '/keycloak-init.sh:/opt/keycloak/keycloak-init.sh:Z'
             ],
-            'ports' => ['8080:8080'],
+            'ports' => [($config['containers']['keycloak']['port'] ?? $this->generateKeycloakPort($appName)) . ':8080'],
             'depends_on' => [
                 $appName . '-keycloak-db' => [
                     'condition' => 'service_healthy'
@@ -665,6 +666,15 @@ class AppManager
     {
         $hash = crc32($appName . '_eda');
         return 5000 + ($hash % 1000);
+    }
+    
+    /**
+     * Generate unique Keycloak port based on app name
+     */
+    private function generateKeycloakPort(string $appName): int
+    {
+        $hash = crc32($appName . '_keycloak');
+        return 9000 + ($hash % 1000);
     }
     
     /**
@@ -1593,7 +1603,7 @@ class AppManager
         // Add Keycloak containers configuration using PasswordSet
         $config['containers']['keycloak'] = [
             'image' => 'quay.io/keycloak/keycloak:latest',
-            'port' => '8080',
+            'port' => (string)$this->generateKeycloakPort($appName),
             'admin_user' => 'admin',
             'admin_password' => $passwords->keycloakAdminPassword,
             'database' => 'keycloak_db'
