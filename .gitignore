@@ -34,6 +34,7 @@ composer.lock
 
 # App instances created by nimbus:create
 .installer/apps.json
+nimbus-config.json
 
 # Database data
 data/
