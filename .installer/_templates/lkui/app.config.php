@@ -17,6 +17,14 @@ return [
     'debug' => true,
     'has_eda' => {{HAS_EDA}},
     'eda_port' => "{{EDA_PORT}}",
+    'eda' => [
+        'enabled' => {{HAS_EDA}},
+        'host' => '{{APP_NAME}}-eda',
+        'port' => '{{EDA_PORT}}',
+        'ssl_order_url' => 'http://{{APP_NAME}}-eda:5000/ssl-order',
+        'ssl_expiry_url' => 'http://{{APP_NAME}}-eda:5001/ssl-expiry',
+        'app_callback_url' => 'http://{{APP_NAME}}-app:8080/eda/api/ssl-expiry'
+    ],
     'keycloak' => [
         'enabled' => '{{KEYCLOAK_ENABLED}}',
         'realm' => '{{KEYCLOAK_REALM}}',

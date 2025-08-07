@@ -53,6 +53,11 @@
             "source": "public",
             "target": "public",
             "isFile": false
+        },
+        "setup_hosts": {
+            "source": "setup-hosts.sh",
+            "target": "setup-hosts.sh",
+            "isFile": true
         }
     }
 }

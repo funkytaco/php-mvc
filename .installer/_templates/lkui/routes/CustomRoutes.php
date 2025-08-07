@@ -10,17 +10,23 @@ require_once('Models/OrderModel.php');
 
 return function ($injector, $renderer, $conn) {
     $mod_date = $injector->make('Main\Modules\Date_Module');
+    
+    // Load app configuration
+    $config = [];
+    if (defined('CONFIG_FILE') && is_file(CONFIG_FILE)) {
+        $config = include(CONFIG_FILE);
+    }
 
     // Create model instances
     $templateModel = new \Models\TemplateModel($conn);
     $hostModel = new \Models\HostModel($conn);
     $orderModel = new \Models\OrderModel($conn);
 
-    // Create controller instances with model dependencies
+    // Create controller instances with model dependencies and config
     $HostCtrl = new HostController($renderer, $conn, $mod_date, $templateModel);
-    $OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl);
+    $OrderCtrl = new OrderController($renderer, $conn, $mod_date, $HostCtrl, $config);
     $TemplatesCtrl = new TemplatesController($renderer, $conn, $templateModel);
-    $ExpiryCtrl = new ExpiryController($renderer, $conn, $mod_date);
+    $ExpiryCtrl = new ExpiryController($renderer, $conn, $mod_date, $config);
 
     return [
         //Homepage route

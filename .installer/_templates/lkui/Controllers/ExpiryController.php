@@ -11,17 +11,20 @@ class ExpiryController
     protected $renderer;
     protected $conn;
     protected $mod_date;
+    protected $config;
     private $data;
 
 
     public function __construct(
         Renderer $renderer,
         PDO $conn, 
-        Date_Module $mod_date
+        Date_Module $mod_date,
+        array $config = []
     ) {
         $this->renderer = $renderer;
         $this->conn = $conn;
         $this->mod_date = $mod_date;
+        $this->config = $config;
 
         $this->data = [
             'appName' => 'LKUI - License Key UI',
@@ -114,8 +117,8 @@ class ExpiryController
     public function refreshCertificates() {
         try {
             // Trigger EDA webhook for SSL certificate expiry check
-            $webhook_url = 'http://lkui-eda:5001/ssl-expiry';
-            $callback_url = 'http://lkui-app:8080/eda/api/ssl-expiry';
+            $webhook_url = $this->config['eda']['ssl_expiry_url'] ?? 'http://localhost:5001/ssl-expiry';
+            $callback_url = $this->config['eda']['app_callback_url'] ?? 'http://localhost:8080/eda/api/ssl-expiry';
             
             $payload = [
                 'action' => 'refresh',

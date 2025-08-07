@@ -8,6 +8,7 @@ class OrderController implements ControllerInterface {
     protected $renderer;
     protected $conn;
     protected $mod_date;
+    protected $config;
     private $data;
     public $HostCtrl;
 
@@ -16,12 +17,14 @@ class OrderController implements ControllerInterface {
         Renderer $renderer,
         PDO $conn, 
         Date_Module $mod_date,
-        HostController $HostCtrl
+        HostController $HostCtrl,
+        array $config = []
     ) {
         $this->renderer = $renderer;
         $this->conn = $conn;
         $this->mod_date = $mod_date;
         $this->HostCtrl = $HostCtrl;
+        $this->config = $config;
 
         $this->data = [
             'appName' => 'LKUI - License Key UI',
@@ -738,7 +741,8 @@ class OrderController implements ControllerInterface {
         }
 
         // POST to EDA API
-        $ch = curl_init('http://lkui-eda:5000/ssl-order');
+        $edaUrl = $this->config['eda']['ssl_order_url'] ?? 'http://localhost:5000/ssl-order';
+        $ch = curl_init($edaUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POST, true);
