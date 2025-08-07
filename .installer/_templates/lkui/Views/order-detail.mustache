@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{> partials/header}}
+    <title>{{appName}} - Order Details</title>
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <!-- Breadcrumb -->
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/orders">Orders</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Order #{{order.id}}</li>
+            </ol>
+        </nav>
+
+        <div class="page-header">
+            <h1>Order Details</h1>
+            <p class="lead">Certificate order information and status tracking.</p>
+        </div>
+
+        <!-- Order Information -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-3">Order ID:</dt>
+                            <dd class="col-sm-9">{{order.id}}</dd>
+
+                            <dt class="col-sm-3">Host:</dt>
+                            <dd class="col-sm-9">
+                                <a href="/hosts/{{order.host_id}}">{{order.common_name}}</a>
+                            </dd>
+
+                            <dt class="col-sm-3">Status:</dt>
+                            <dd class="col-sm-9">
+                                {{#order.is_pending}}
+                                    <span class="badge bg-warning">{{order.status}}</span>
+                                {{/order.is_pending}}
+                                {{#order.is_processing}}
+                                    <span class="badge bg-info">{{order.status}}</span>
+                                {{/order.is_processing}}
+                                {{#order.is_completed}}
+                                    <span class="badge bg-success">{{order.status}}</span>
+                                {{/order.is_completed}}
+                                {{#order.is_failed}}
+                                    <span class="badge bg-danger">{{order.status}}</span>
+                                {{/order.is_failed}}
+                            </dd>
+
+                            <dt class="col-sm-3">Order Type:</dt>
+                            <dd class="col-sm-9">{{order.order_type}}</dd>
+
+                            <dt class="col-sm-3">Template:</dt>
+                            <dd class="col-sm-9">{{order.template_name}}</dd>
+
+                            <dt class="col-sm-3">Created:</dt>
+                            <dd class="col-sm-9">{{order.created_at}}</dd>
+
+                            {{#order.issued_at}}
+                            <dt class="col-sm-3">Issued:</dt>
+                            <dd class="col-sm-9">{{order.issued_at}}</dd>
+                            {{/order.issued_at}}
+                        </dl>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            {{#order.is_pending}}
+                            <button class="btn btn-primary" onclick="processOrder({{order.id}})">
+                                <i class="bi bi-play-circle"></i> Process Order
+                            </button>
+                            {{/order.is_pending}}
+                            
+                            {{#order.is_completed}}
+                            <button class="btn btn-success" onclick="downloadCertificate({{order.id}})">
+                                <i class="bi bi-download"></i> Download Certificate
+                            </button>
+                            {{/order.is_completed}}
+                            
+                            <a href="/orders" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Orders
+                            </a>
+                            
+                            <button class="btn btn-outline-secondary" onclick="window.location.reload()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CSR Information -->
+        {{#order.csr_content}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Signing Request (CSR)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="csrContent">CSR Content:</label>
+                            <textarea class="form-control" id="csrContent" rows="8" readonly>{{order.csr_content}}</textarea>
+                        </div>
+                        <div class="btn-group mb-3" role="group">
+                            <button class="btn btn-outline-primary" onclick="copyToClipboard('csrContent')">
+                                <i class="bi bi-clipboard"></i> Copy CSR
+                            </button>
+                            <button class="btn btn-outline-info" onclick="decodeCSR()">
+                                <i class="bi bi-search"></i> Decode CSR
+                            </button>
+                        </div>
+                        
+                        <!-- CSR Decoded Information -->
+                        <div id="csrDecoded" class="mt-3" style="display: none;">
+                            <div class="card bg-light">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-info-circle"></i> Decoded CSR Information
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <dl class="row" id="csrDecodedContent">
+                                        <!-- Decoded content will be inserted here -->
+                                    </dl>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.csr_content}}
+
+        <!-- Certificate Information -->
+        {{#order.cert_content}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h3 class="card-title">
+                            <i class="bi bi-shield-check"></i> Certificate
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="certContent">Certificate Content:</label>
+                            <textarea class="form-control" id="certContent" rows="10" readonly>{{order.cert_content}}</textarea>
+                        </div>
+                        <button class="btn btn-outline-success" onclick="copyToClipboard('certContent')">
+                            <i class="bi bi-clipboard"></i> Copy Certificate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.cert_content}}
+
+        <!-- Order Updates -->
+        {{#order.updates}}
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Updates</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            {{#order.updates}}
+                            <div class="timeline-item mb-3">
+                                <div class="d-flex">
+                                    <div class="flex-shrink-0">
+                                        <span class="badge bg-primary">{{status}}</span>
+                                    </div>
+                                    <div class="flex-grow-1 ms-3">
+                                        {{#message}}
+                                        <p class="mb-1">{{message}}</p>
+                                        {{/message}}
+                                        <small class="text-muted">{{created_at}}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {{/order.updates}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/order.updates}}
+    </div>
+
+    <script>
+    function processOrder(orderId) {
+        if (confirm('Process this order? This will submit it to the certificate authority.')) {
+            // Implementation depends on your EDA setup
+            fetch(`/eda/api/ssl-order/${orderId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Order submitted for processing!');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+    }
+
+    function downloadCertificate(orderId) {
+        window.location.href = `/lkui/api/orders/${orderId}/certificate/download`;
+    }
+
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        element.select();
+        document.execCommand('copy');
+        
+        // Show feedback
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i> Copied!';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+    }
+
+    function decodeCSR() {
+        const csrContent = document.getElementById('csrContent').value;
+        const decodedDiv = document.getElementById('csrDecoded');
+        const contentDiv = document.getElementById('csrDecodedContent');
+        const decodeButton = document.querySelector('button[onclick="decodeCSR()"]');
+        
+        // Validate CSR content
+        if (!csrContent || !csrContent.trim()) {
+            contentDiv.innerHTML = `
+                <dt class="col-sm-3">Error:</dt>
+                <dd class="col-sm-9 text-danger">No CSR content found</dd>
+            `;
+            decodedDiv.style.display = 'block';
+            return;
+        }
+        
+        // Show loading state
+        const originalButtonText = decodeButton.innerHTML;
+        decodeButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Decoding...';
+        decodeButton.disabled = true;
+        
+        // Send CSR to backend for secure decoding
+        fetch('/lkui/api/csr/decode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                csr_content: csrContent.trim()
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                displayCSRInfo(data.data);
+            } else {
+                contentDiv.innerHTML = `
+                    <dt class="col-sm-3">Error:</dt>
+                    <dd class="col-sm-9 text-danger">${escapeHtml(data.message)}</dd>
+                `;
+                decodedDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            contentDiv.innerHTML = `
+                <dt class="col-sm-3">Error:</dt>
+                <dd class="col-sm-9 text-danger">Failed to decode CSR: ${escapeHtml(error.message)}</dd>
+            `;
+            decodedDiv.style.display = 'block';
+        })
+        .finally(() => {
+            // Restore button state
+            decodeButton.innerHTML = originalButtonText;
+            decodeButton.disabled = false;
+        });
+    }
+    
+    function displayCSRInfo(csrInfo) {
+        const contentDiv = document.getElementById('csrDecodedContent');
+        const decodedDiv = document.getElementById('csrDecoded');
+        
+        let html = '';
+        
+        if (csrInfo.subject) {
+            html += `
+                <dt class="col-sm-3">Subject:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.subject)}</dd>
+            `;
+        }
+        
+        if (csrInfo.commonName) {
+            html += `
+                <dt class="col-sm-3">Common Name:</dt>
+                <dd class="col-sm-9"><code>${escapeHtml(csrInfo.commonName)}</code></dd>
+            `;
+        }
+        
+        if (csrInfo.organization) {
+            html += `
+                <dt class="col-sm-3">Organization:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.organization)}</dd>
+            `;
+        }
+        
+        if (csrInfo.organizationalUnit) {
+            html += `
+                <dt class="col-sm-3">Organizational Unit:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.organizationalUnit)}</dd>
+            `;
+        }
+        
+        if (csrInfo.country) {
+            html += `
+                <dt class="col-sm-3">Country:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.country)}</dd>
+            `;
+        }
+        
+        if (csrInfo.state) {
+            html += `
+                <dt class="col-sm-3">State/Province:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.state)}</dd>
+            `;
+        }
+        
+        if (csrInfo.locality) {
+            html += `
+                <dt class="col-sm-3">City/Locality:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.locality)}</dd>
+            `;
+        }
+        
+        if (csrInfo.email) {
+            html += `
+                <dt class="col-sm-3">Email:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.email)}</dd>
+            `;
+        }
+        
+        if (csrInfo.keySize) {
+            html += `
+                <dt class="col-sm-3">Key Size:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.keySize)} bits</dd>
+            `;
+        }
+        
+        if (csrInfo.algorithm) {
+            html += `
+                <dt class="col-sm-3">Algorithm:</dt>
+                <dd class="col-sm-9">${escapeHtml(csrInfo.algorithm)}</dd>
+            `;
+        }
+        
+        contentDiv.innerHTML = html;
+        decodedDiv.style.display = 'block';
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    </script>
+</body>
+</html>

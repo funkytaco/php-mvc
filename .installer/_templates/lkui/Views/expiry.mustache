@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{appName}} - SSL Certificate Expiry</title>
+    {{> partials/header}}
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-expiry}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>{{title}}</h1>
+            <p class="lead">Monitor SSL certificate expiration dates and renewal status.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Expiry Status</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Expiry Date</th>
+                                <th>Days Remaining</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {{#expiries}}
+                            <tr>
+                                <td>{{domain}}</td>
+                                <td>{{expiry_date}}</td>
+                                <td>{{days_remaining}}</td>
+                                <td>
+                                <span class="label {{labelClass}}">{{status}}</span>
+                                </td>
+                                <td>
+                                <button class="btn btn-sm btn-info" onclick="viewDetails('{{domain}}')">Details</button>
+                                <button class="btn btn-sm btn-warning" onclick="renewCertificate('{{domain}}')">Renew</button>
+                                </td>
+                            </tr>
+                            {{/expiries}}
+                            </tbody>
+                        </table>
+                        </div>
+                        {{^expiries}}
+                        <div class="alert alert-info">
+                            <strong>No certificates found.</strong> Certificates will appear here once detected.
+                        </div>
+                        {{/expiries}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Certificate Operations</h3>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" onclick="refreshExpiries()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Status
+                        </button>
+                        <button class="btn btn-success" onclick="checkAllCertificates()">
+                            <i class="bi bi-search"></i> Check All Certificates
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Expiry Updates</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+                            {{#expiry_updates}}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <p class="mb-1">{{message}}</p>
+                                    <small class="text-muted">{{created_at}}</small>
+                                </div>
+                            </div>
+                            {{/expiry_updates}}
+                            {{^expiry_updates}}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <p class="mb-1">No certificates are being tracked for expiry.</p>
+                                </div>
+                            </div>
+                            {{/expiry_updates}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p>Refreshing SSL certificate status...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div> <!-- /container -->
+
+    <script>
+    // Development mock data
+    const isDevelopment = false; //window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const mockExpiries = [
+        {
+            domain: 'test.serveapps.com',
+            expiry_date: '2025-12-31',
+            days_remaining: 178,
+            status: 'Valid',
+            labelClass: 'bg-success'
+        },
+        {
+            domain: 'expiring.test.serveapps.com',
+            expiry_date: '2025-07-15',
+            days_remaining: 9,
+            status: 'Expiring Soon',
+            labelClass: 'bg-warning'
+        },
+        {
+            domain: 'expired.test.serveapps.com',
+            expiry_date: '2025-06-01',
+            days_remaining: -25,
+            status: 'Expired',
+            labelClass: 'bg-danger'
+        }
+    ];
+
+    function refreshExpiries() {
+        if (isDevelopment) {
+            renderExpiries(mockExpiries);
+            return;
+        }
+        
+        // Show loading modal
+        const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+        loadingModal.show();
+        
+        // First trigger refresh
+        fetch('/lkui/api/expiry/refresh', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Wait 4 seconds then refresh page
+                setTimeout(() => {
+                    loadingModal.hide();
+                    location.reload();
+                }, 4000);
+            } else {
+                loadingModal.hide();
+                alert('Error refreshing certificates: ' + data.message);
+            }
+        })
+        .catch(error => {
+            loadingModal.hide();
+            alert('Error: ' + error.message);
+        });
+    }
+
+    function renderExpiries(expiries) {
+        const tbody = document.querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        if (expiries.length === 0) {
+            document.querySelector('.alert-info').style.display = 'block';
+            return;
+        }
+
+        document.querySelector('.alert-info').style.display = 'none';
+        
+        expiries.forEach(expiry => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${expiry.domain}</td>
+                <td>${expiry.expiry_date}</td>
+                <td>${expiry.days_remaining}</td>
+                <td><span class="label ${expiry.labelClass}">${expiry.status}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-info" onclick="viewDetails('${expiry.domain}')">Details</button>
+                    <button class="btn btn-sm btn-warning" onclick="renewCertificate('${expiry.domain}')">Renew</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // Initialize with mock data in development
+    if (isDevelopment) {
+        refreshExpiries();
+    }
+</script>
+
+    <!-- begin footer includes //-->
+    {{> partials/bootstrap-footer}}
+    <!-- end footer includes //-->
+</body>
+</html>

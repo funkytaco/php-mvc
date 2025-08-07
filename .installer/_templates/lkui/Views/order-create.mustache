@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{> partials/header}}
+    <title>{{appName}} - Create Order</title>
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-orders}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>Create New Order</h1>
+            <p class="lead">Generate a new SSL certificate order for the selected host.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="createOrderForm">
+                            <div class="form-group mb-3">
+                                <label for="host_id" class="form-label">Host:</label>
+                                <select class="form-control" id="host_id" name="host_id" required>
+                                    <option value="">Select a host...</option>
+                                    {{#hosts}}
+                                    <option value="{{id}}">{{common_name}} ({{template_name}})</option>
+                                    {{/hosts}}
+                                </select>
+                                <div class="form-text">Choose the host for which to create the certificate order.</div>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="certificate_authority" class="form-label">Certificate Authority:</label>
+                                <select class="form-control" id="certificate_authority" name="certificate_authority" required>
+                                    <option value="">Select certificate authority...</option>
+                                    <option value="certbot">Certbot (Let's Encrypt)</option>
+                                    <option value="letsencrypt">Let's Encrypt (Direct)</option>
+                                    <option value="self-signed">Self-Signed (Testing)</option>
+                                </select>
+                                <div class="form-text">Choose the certificate authority to process this order.</div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-plus-circle"></i> Create Order
+                                </button>
+                                <a href="/orders" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Back to Orders
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Order Process</h3>
+                    </div>
+                    <div class="card-body">
+                        <ol class="list-group list-group-numbered">
+                            <li class="list-group-item">Select host with existing CSR</li>
+                            <li class="list-group-item">Choose certificate authority</li>
+                            <li class="list-group-item">Submit order for processing</li>
+                            <li class="list-group-item">Monitor order status</li>
+                            <li class="list-group-item">Download completed certificate</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('createOrderForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            host_id: parseInt(formData.get('host_id')),
+            certificate_authority: formData.get('certificate_authority')
+        };
+        
+        fetch('/lkui/api/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Order created successfully! ID: ' + data.data.id);
+                window.location.href = '/orders/' + data.data.id;
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    });
+    </script>
+</body>
+</html>

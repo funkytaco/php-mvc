@@ -1,0 +1,42 @@
+/* LKUI Custom Styles */
+.lkui-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem 0;
+}
+
+.lkui-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status-badge {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.status-csr-generated {
+    background-color: #e3f2fd;
+    color: #1976d2;
+}
+
+.status-order-pending {
+    background-color: #fff3e0;
+    color: #f57c00;
+}
+
+.status-order-completed {
+    background-color: #e8f5e8;
+    color: #388e3c;
+}
+
+.btn-lkui {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+}
+
+.btn-lkui:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    color: white;
+}

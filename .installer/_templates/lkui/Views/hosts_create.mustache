@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {{> partials/header}}
+    <title>{{appName}} - Create Host</title>
+</head>
+<body role="document">
+<br><br><br>
+    <!-- navbar -->
+    {{> partials/navbar-hosts}}
+    <!-- //navbar -->
+
+    <div class="container theme-showcase" role="main">
+        <div class="page-header">
+            <h1>Create New Host</h1>
+            <p class="lead">Generate a new host entry and CSR for SSL certificate management.</p>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Host Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="createHostForm">
+                            <div class="form-group mb-3">
+                                <label for="template_id" class="form-label">Template:</label>
+                                <select class="form-control" id="template_id" name="template_id" required>
+                                    <option value="">Select a template...</option>
+                                    <option value="1">RHEL6 (RSA 2048)</option>
+                                    <option value="2">RHEL7 (RSA 2048)</option>
+                                    <option value="3">RHEL8 (RSA 4096)</option>
+                                </select>
+                                <div class="form-text">Choose the template that matches your server configuration.</div>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label for="common_name" class="form-label">Common Name:</label>
+                                <input type="text" class="form-control" id="common_name" name="common_name" 
+                                       placeholder="*.example.com" value="*.example.com" required>
+                                <div class="form-text">Enter the domain name for the certificate (e.g., *.example.com, www.example.com)</div>
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-plus-circle"></i> Generate CSR
+                                </button>
+                                <a href="/hosts" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left"></i> Back to Hosts
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Template Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            <li><strong>RHEL6:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL7:</strong> RSA 2048-bit key</li>
+                            <li><strong>RHEL8:</strong> RSA 4096-bit key</li>
+                        </ul>
+                        <hr>
+                        <p><small>All templates use SHA-256 digest algorithm and include standard organization details.</small></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('createHostForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = {
+            template_id: parseInt(formData.get('template_id')),
+            common_name: formData.get('common_name')
+        };
+        
+        fetch('/lkui/api/hosts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                //Host created successfully! ID: data.data.id
+                window.location.href = '/hosts/' + data.data.id;
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
+    });
+    </script>
+</body>
+</html>

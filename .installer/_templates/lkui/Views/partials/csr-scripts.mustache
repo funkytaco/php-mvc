@@ -1,0 +1,111 @@
+<script>
+// Template data for CSR generation
+const templates = {
+    {{#templates}}
+    {{id}}: {
+        name: "{{name}}",
+        display_name: "{{display_name}}",
+        csr_options: {{{csr_options}}}
+    },
+    {{/templates}}
+};
+
+let currentFormData = null;
+
+// Clean up any trailing commas in templates object
+console.log('Templates loaded:', Object.keys(templates).length, 'templates');
+
+document.getElementById('createHostForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const templateId = parseInt(formData.get('template_id'));
+    const commonName = formData.get('common_name');
+    
+    if (!templateId || !commonName) {
+        alert('Please select a template and enter a common name.');
+        return;
+    }
+    
+    // Store form data for later submission
+    currentFormData = {
+        template_id: templateId,
+        common_name: commonName
+    };
+    
+    // Show preview modal
+    showCSRPreview(templateId, commonName);
+});
+
+function showCSRPreview(templateId, commonName) {
+    const template = templates[templateId];
+    if (!template) {
+        alert('Template not found.');
+        return;
+    }
+    
+    const csrOptions = template.csr_options || {};
+    
+    // Populate preview modal
+    document.getElementById('previewCommonName').textContent = commonName;
+    document.getElementById('previewTemplateName').textContent = template.display_name;
+    document.getElementById('previewKeyType').textContent = csrOptions.key_type || 'RSA';
+    document.getElementById('previewKeySize').textContent = csrOptions.key_size || '2048';
+    document.getElementById('previewDigest').textContent = csrOptions.digest_alg || 'SHA-256';
+    document.getElementById('previewOrganization').textContent = csrOptions.organization || 'N/A';
+    document.getElementById('previewOrgUnit').textContent = csrOptions.organizational_unit || 'N/A';
+    document.getElementById('previewLocality').textContent = csrOptions.locality || 'N/A';
+    document.getElementById('previewState').textContent = csrOptions.state || 'N/A';
+    document.getElementById('previewCountry').textContent = csrOptions.country || 'N/A';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('csrPreviewModal'));
+    modal.show();
+}
+
+function confirmGenerateCSR() {
+    if (!currentFormData) {
+        alert('No form data available.');
+        return;
+    }
+    
+    // Hide preview modal
+    const previewModal = bootstrap.Modal.getInstance(document.getElementById('csrPreviewModal'));
+    previewModal.hide();
+    
+    // Show loading modal
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    loadingModal.show();
+    
+    // Submit the form
+    fetch('/lkui/api/hosts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(currentFormData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.hide();
+        if (data.status === 'success') {
+            alert('Host created successfully! ID: ' + data.data.id);
+            {{#redirectToHosts}}
+            window.location.href = '/hosts';
+            {{/redirectToHosts}}
+            {{^redirectToHosts}}
+            window.location.reload();
+            {{/redirectToHosts}}
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        loadingModal.hide();
+        alert('Error: ' + error.message);
+    });
+    
+    // Clear form data
+    currentFormData = null;
+}
+</script>
