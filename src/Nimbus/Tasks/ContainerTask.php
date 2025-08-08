@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
@@ -256,8 +258,98 @@ class ContainerTask extends BaseTask
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
             echo $statusOutput;
             
+            // Display comprehensive app information
+            $this->displayAppDetails($appName);
+            
             $this->interactiveHelper->displayKeycloakCredentials($appName);
         }
+    }
+
+    /**
+     * Display comprehensive app details after successful startup
+     * Generic implementation - reads app config to determine what to show
+     */
+    private function displayAppDetails(string $appName): void
+    {
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', "📋 App Details:");
+        
+        try {
+            // Load app configuration to get details
+            $appConfig = $this->appManager->loadAppConfig($appName);
+            $appConfigPhp = $this->loadAppConfigPhp($appName);
+            
+            // Show app URL
+            $appPort = $appConfig['containers']['app']['port'] ?? '8080';
+            echo "  🌐 App URL: http://localhost:$appPort" . PHP_EOL;
+            
+            // Show database connection info
+            if ($appConfig['features']['database'] ?? true) {
+                $dbName = $appConfig['database']['name'] ?? ($appName . '_db');
+                $dbUser = $appConfig['database']['user'] ?? ($appName . '_user');
+                echo "  📊 Database: $dbName (user: $dbUser)" . PHP_EOL;
+                echo "  🐘 Postgres container: $appName-postgres" . PHP_EOL;
+            }
+            
+            // Show EDA info if enabled
+            if ($appConfig['features']['eda'] ?? false) {
+                $edaPort = $this->generateEdaPort($appName);
+                echo "  🔄 EDA endpoint: http://localhost:$edaPort" . PHP_EOL;
+                echo "  📂 EDA container: $appName-eda" . PHP_EOL;
+            }
+            
+            // Show enabled features
+            $features = [];
+            foreach ($appConfig['features'] ?? [] as $feature => $enabled) {
+                if ($enabled) {
+                    $features[] = $feature;
+                }
+            }
+            if (!empty($features)) {
+                echo "  ✅ Features: " . implode(', ', $features) . PHP_EOL;
+            }
+            
+            // Show DNS setup instructions if DNS script exists
+            $this->displayDnsInstructions($appName);
+            
+        } catch (\Exception $e) {
+            echo "  ⚠️  Could not load app details: " . $e->getMessage() . PHP_EOL;
+        }
+    }
+    
+    /**
+     * Display DNS setup instructions if DNS script exists
+     */
+    private function displayDnsInstructions(string $appName): void
+    {
+        $dnsScriptPath = getcwd() . "/dns-setup-$appName-hosts.sh";
+        
+        if (file_exists($dnsScriptPath)) {
+            echo "  🌍 DNS Setup: sudo ./dns-setup-$appName-hosts.sh" . PHP_EOL;
+        }
+    }
+    
+    /**
+     * Load app.config.php (separate from app.nimbus.json)
+     */
+    private function loadAppConfigPhp(string $appName): ?array
+    {
+        $configFile = getcwd() . "/.installer/apps/$appName/app.config.php";
+        
+        if (!file_exists($configFile)) {
+            return null;
+        }
+        
+        return include $configFile;
+    }
+    
+    /**
+     * Generate unique EDA port based on app name (duplicated from AppManager)
+     */
+    private function generateEdaPort(string $appName): int
+    {
+        $hash = crc32($appName . '_eda');
+        return 5000 + ($hash % 1000);
     }
 
     private function stopApp($manager, array $app, $io): void

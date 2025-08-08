@@ -24,9 +24,15 @@ class MustacheEngine implements EngineInterface
      */
     private function initializeMustache(): void
     {
+        // Check if partials directory exists, use main directory as fallback
+        $partialsDir = $this->templateDirectory . '/partials';
+        if (!is_dir($partialsDir)) {
+            $partialsDir = $this->templateDirectory;
+        }
+        
         $this->mustache = new Mustache_Engine([
             'loader' => new Mustache_Loader_FilesystemLoader($this->templateDirectory),
-            'partials_loader' => new Mustache_Loader_FilesystemLoader($this->templateDirectory . '/partials'),
+            'partials_loader' => new Mustache_Loader_FilesystemLoader($partialsDir),
             'cache' => sys_get_temp_dir() . '/mustache_cache',
             'cache_file_mode' => 0666,
             'charset' => 'UTF-8',

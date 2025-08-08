@@ -9,7 +9,7 @@
     order_id: ""
     validation_method: "http"
     acme_version: 1
-    app_name: "{{ app_name | default('lkui') }}"
+    app_name: "') }}"
 
   tasks:
     - name: Ensure python3 and pip installed
@@ -28,8 +28,8 @@
       ansible.builtin.command: >
         certbot certonly --standalone
         --non-interactive --agree-tos
-        -m {{ email }}
-        -d {{ domain }}
+        -m 
+        -d 
       when: validation_method == "http"
       register: certbot_result
       ignore_errors: yes
@@ -38,8 +38,8 @@
     #   ansible.builtin.command: >
     #     certbot certonly --manual --preferred-challenges dns
     #     --non-interactive --agree-tos
-    #     -m {{ email }}
-    #     -d {{ domain }}
+    #     -m 
+    #     -d 
     #   when: validation_method == "dns"
     #   register: certbot_result
     #   ignore_errors: yes
@@ -47,31 +47,32 @@
     - name: Debug output on success
       debug:
         msg: |
-          Certificate issued for {{ domain }} with order ID {{ order_id }}
-          Certbot output: {{ certbot_result.stdout | default('Certificate issued') }}
+          Certificate issued for  with order ID 
+          Certbot output: 
       when: certbot_result is succeeded
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://{{ app_name }}-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/{{ order_id }}"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_FAILED"
-          error_message: "{{ certbot_result.stderr | default('Unknown certbot error. See /var/log/letsencrypt/letsencrypt.log') }}"
+          error_message: "Certbot failed: {{ certbot_result.stderr | default('Unknown error') }}"
+        status_code: [200, 201]
       when: certbot_result is failed
 
     - name: Post success to order endpoint
       ansible.builtin.uri:
-        url: "http://{{ app_name }}-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://testgenerated-app:8080/lkui/api/orders/{{ order_id }}"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_COMPLETED"
-          order_id: "{{ order_id }}"
-          error_message: "Self-signed certificate generated successfully"
+          certificate_path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+        status_code: [200, 201]
       when: certbot_result is succeeded

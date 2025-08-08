@@ -11,7 +11,7 @@
   tasks:
     - name: Get order details
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/"
         method: GET
         headers:
           Content-Type: "application/json"
@@ -19,7 +19,7 @@
 
     - name: Get host details with private key
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/hosts/{{ order_response.json.data.host_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/hosts/"
         method: GET
         headers:
           Content-Type: "application/json"
@@ -33,90 +33,91 @@
 
     - name: Write private key to temporary file
       ansible.builtin.copy:
-        content: "{{ host_response.json.data.private_key }}"
-        dest: "{{ temp_dir.path }}/private.key"
+        content: ""
+        dest: "/private.key"
         mode: '0600'
       register: private_key_result
 
     - name: Generate self-signed certificate using existing private key
       ansible.builtin.command:
         cmd: >
-          openssl req -new -x509 -key {{ temp_dir.path }}/private.key
-          -out {{ temp_dir.path }}/certificate.crt -days 365
-          -subj "/CN={{ domain }}/emailAddress={{ email }}"
+          openssl req -new -x509 -key /private.key
+          -out /certificate.crt -days 365
+          -subj "/CN=/emailAddress="
       register: cert_result
       when: private_key_result is succeeded
 
     - name: Read certificate content
       ansible.builtin.slurp:
-        src: "{{ temp_dir.path }}/certificate.crt"
+        src: "/certificate.crt"
       register: cert_content
       when: cert_result is succeeded
 
     - name: Create certbot live directory for domain for expiry monitoring
       ansible.builtin.file:
-        path: "/etc/letsencrypt/live/{{ domain }}"
+        path: "/etc/letsencrypt/live/"
         state: directory
         mode: '0755'
       when: cert_result is succeeded
 
     - name: Copy certificate to certbot live directory for expiry monitoring
       ansible.builtin.copy:
-        src: "{{ temp_dir.path }}/certificate.crt"
-        dest: "/etc/letsencrypt/live/{{ domain }}/cert.pem"
+        src: "/certificate.crt"
+        dest: "/etc/letsencrypt/live//cert.pem"
         mode: '0644'
       when: cert_result is succeeded
 
     - name: Copy private key to certbot live directory for expiry monitoring
       ansible.builtin.copy:
-        src: "{{ temp_dir.path }}/private.key"
-        dest: "/etc/letsencrypt/live/{{ domain }}/privkey.pem"
+        src: "/private.key"
+        dest: "/etc/letsencrypt/live//privkey.pem"
         mode: '0600'
       when: cert_result is succeeded
 
     - name: Clean up temporary directory
       ansible.builtin.file:
-        path: "{{ temp_dir.path }}"
+        path: ""
         state: absent
       when: temp_dir.path is defined
 
     - name: Clean up any loose key files in letsencrypt directory
       ansible.builtin.file:
-        path: "/etc/letsencrypt/{{ domain }}.key"
+        path: "/etc/letsencrypt/.key"
         state: absent
       when: cert_result is succeeded
 
     - name: Post certificate to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://testgenerated-app:8080/lkui/api/orders//certificate"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
-          cert_content: "{{ cert_content.content | b64decode }}"
+          cert_content: ""
       when: cert_result is succeeded and cert_content is defined
+
     - name: Post success to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_COMPLETED"
-          order_id: "{{ order_id }}"
+          order_id: ""
           error_message: "Self-signed certificate generated successfully"
       when: cert_result is succeeded and cert_content is defined
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_FAILED"
-          error_message: "{{ private_key_result.stderr | default(cert_result.stderr) | default('Unknown self-signed certificate generation error.') }}"
+          error_message: ""
       when: private_key_result is failed or cert_result is failed

@@ -15,10 +15,10 @@ return [
     'app_name' => '{{APP_NAME_UPPER}} - LKUI',
     'base_url' => '/',
     'debug' => true,
-    'has_eda' => {{HAS_EDA}},
+    'has_eda' => '{{HAS_EDA}}',
     'eda_port' => "{{EDA_PORT}}",
     'eda' => [
-        'enabled' => {{HAS_EDA}},
+        'enabled' => '{{HAS_EDA}}',
         'host' => '{{APP_NAME}}-eda',
         'port' => '{{EDA_PORT}}',
         'ssl_order_url' => 'http://{{APP_NAME}}-eda:5000/ssl-order',
@@ -34,12 +34,31 @@ return [
         'redirect_uri' => 'http://localhost:{{APP_PORT}}/auth/callback'
     ],
     
-    // Template variables for file generation (EDA playbooks, etc.)
-    'template_vars' => [
-        'API_PREFIX' => 'lkui',  // LKUI apps always use /lkui/ API prefix
-        'APP_TYPE' => 'lkui',
-        'API_BASE_URL' => 'http://{{APP_NAME}}-app:8080/lkui/api',
-        'ORDER_UPDATE_ENDPOINT' => '/lkui/api/orders',
-        'CERTIFICATE_UPDATE_ENDPOINT' => '/lkui/api/orders'
+    // Generator templates - defines which template files to generate and where
+    'generator_templates' => [
+        'eda/templates/ssl-order-playbook-certbot.yml.mustache' => [
+            'output_path' => 'eda/playbooks/ssl-order-playbook-certbot.yml',
+            'variables' => [
+                'API_PREFIX' => 'lkui',
+                'ORDER_UPDATE_ENDPOINT' => '/lkui/api/orders',
+                'CERTIFICATE_UPDATE_ENDPOINT' => '/lkui/api/orders'
+            ]
+        ],
+        'eda/templates/ssl-order-playbook-letsencrypt.yml.mustache' => [
+            'output_path' => 'eda/playbooks/ssl-order-playbook-letsencrypt.yml',
+            'variables' => [
+                'API_PREFIX' => 'lkui',
+                'ORDER_UPDATE_ENDPOINT' => '/lkui/api/orders',
+                'CERTIFICATE_UPDATE_ENDPOINT' => '/lkui/api/orders'
+            ]
+        ],
+        'eda/templates/ssl-order-playbook-selfsigned.yml.mustache' => [
+            'output_path' => 'eda/playbooks/ssl-order-playbook-selfsigned.yml',
+            'variables' => [
+                'API_PREFIX' => 'lkui',
+                'ORDER_UPDATE_ENDPOINT' => '/lkui/api/orders',
+                'CERTIFICATE_UPDATE_ENDPOINT' => '/lkui/api/orders'
+            ]
+        ]
     ]
 ];

@@ -1,0 +1,77 @@
+---
+- name: Generate self-signed SSL certificate (EDA triggered)
+  hosts: localhost
+  vars:
+    app_name: "{{APP_NAME}}"
+    order_id: "{{ order_id }}"
+    domain: "{{ domain }}"
+    api_prefix: "{{API_PREFIX}}"
+    order_update_endpoint: "{{ORDER_UPDATE_ENDPOINT}}"
+    cert_path: "/tmp/ssl/{{ domain }}"
+    
+  tasks:
+    - name: Create certificate directory
+      file:
+        path: "{{ cert_path }}"
+        state: directory
+        mode: '0755'
+        
+    - name: Generate private key
+      openssl_privatekey:
+        path: "{{ cert_path }}/privkey.pem"
+        size: 2048
+      register: private_key_result
+      failed_when: false
+      
+    - name: Generate certificate signing request
+      openssl_csr:
+        path: "{{ cert_path }}/cert.csr"
+        privatekey_path: "{{ cert_path }}/privkey.pem"
+        common_name: "{{ domain }}"
+        subject_alt_name:
+          - "DNS:{{ domain }}"
+      register: csr_result
+      failed_when: false
+      when: private_key_result.rc is not defined or private_key_result.rc == 0
+      
+    - name: Generate self-signed certificate
+      openssl_certificate:
+        path: "{{ cert_path }}/fullchain.pem"
+        privatekey_path: "{{ cert_path }}/privkey.pem"
+        csr_path: "{{ cert_path }}/cert.csr"
+        provider: selfsigned
+        selfsigned_not_after: "+365d"
+      register: cert_result
+      failed_when: false
+      when: (private_key_result.rc is not defined or private_key_result.rc == 0) and (csr_result.rc is not defined or csr_result.rc == 0)
+      
+    - name: Debug output on success
+      debug:
+        msg: "Self-signed certificate generated successfully for {{ domain }}"
+      when: cert_result.rc is not defined or cert_result.rc == 0
+      
+    - name: Post failure to order endpoint
+      uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        body_format: json
+        body:
+          status: "ORDER_FAILED"
+          error_message: "Self-signed certificate generation failed"
+        headers:
+          Content-Type: "application/json"
+        status_code: [200, 201]
+      when: cert_result.failed is defined and cert_result.failed
+      
+    - name: Post success to order endpoint
+      uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        body_format: json
+        body:
+          status: "ORDER_COMPLETED"
+          certificate_path: "{{ cert_path }}/fullchain.pem"
+        headers:
+          Content-Type: "application/json"
+        status_code: [200, 201]
+      when: cert_result.rc is not defined or cert_result.rc == 0

@@ -4,74 +4,74 @@
   gather_facts: no
   vars:
     acme_account_key: "/etc/letsencrypt/account.key"
-    cert_key: "/etc/letsencrypt/{{ domain }}.key"
-    cert_fullchain: "/etc/letsencrypt/{{ domain }}.crt"
-    acme_version: 2
+    cert_key: "/etc/letsencrypt/.key"
+    cert_fullchain: "/etc/letsencrypt/.crt"
+    acme_version: ""
   tasks:
     - name: Ensure account key exists
       community.crypto.openssl_privatekey:
-        path: "{{ acme_account_key }}"
+        path: ""
         size: 4096
       register: account_key_result
 
     - name: Ensure domain private key exists
       community.crypto.openssl_privatekey:
-        path: "{{ cert_key }}"
+        path: ""
         size: 2048
       register: domain_key_result
 
     - name: Order certificate using DNS challenge
       community.crypto.acme_certificate:
-        account_key_src: "{{ acme_account_key }}"
-        csr: "{{ csr }}"
-        dest: "{{ cert_fullchain }}"
+        account_key_src: ""
+        csr: ""
+        dest: ""
         challenge: dns-01
         acme_directory: https://acme-v02.api.letsencrypt.org/directory
         terms_agreed: yes
         remaining_days: 30
-        acme_version: "{{acme_version | int }}"
+        acme_version: ""
       register: cert_result
       ignore_errors: yes
 
     - name: Debug output on success
       debug:
         msg: |
-          Certificate issued for {{ domain }} with order ID {{ order_id }}
-          Cert path: {{ cert_fullchain }}
+          Certificate issued for  with order ID 
+          Cert path: 
       when: cert_result is succeeded
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_FAILED"
-          error_message: "{{ cert_result.msg | default('Unknown Lets Encrypt error during certificate issuance') }}"
+          error_message: ""
       when: cert_result is failed
 
     - name: Post certificate to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://testgenerated-app:8080/lkui/api/orders//certificate"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
-          cert_content: "{{cert_result}}" #fixme
+          cert_content: "" #fixme
       when: cert_result is succeeded
 
     - name: Post success to order endpoint
       ansible.builtin.uri:
-        url: "http://lkui-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://testgenerated-app:8080/lkui/api/orders/"
         method: POST
         headers:
           Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_COMPLETED"
-          order_id: "{{ order_id }}"
+          order_id: ""
           error_message: "Self-signed certificate generated successfully"
       when: cert_result is succeeded

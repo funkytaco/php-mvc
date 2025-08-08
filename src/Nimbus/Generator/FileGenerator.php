@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nimbus\Generator;
 
 use Nimbus\View\TemplateEngine\MustacheEngine;
@@ -12,10 +14,12 @@ class FileGenerator
     private MustacheEngine $engine;
     private string $baseDir;
 
-    public function __construct(string $baseDir = null)
+    public function __construct(?string $baseDir = null)
     {
         $this->baseDir = $baseDir ?? getcwd();
-        $this->engine = new MustacheEngine();
+        // Pass a default template directory to avoid VIEWS_DIR constant dependency
+        $templateDir = $this->baseDir . '/.installer/_templates';
+        $this->engine = new MustacheEngine($templateDir);
     }
 
     /**

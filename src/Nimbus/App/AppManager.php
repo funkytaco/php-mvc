@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Nimbus\App;
 
 use Composer\Script\Event;
 use Nimbus\Template\TemplateManager;
 use Nimbus\Template\TemplateConfig;
+use Nimbus\Generator\FileGenerator;
 
 /**
  * AppManager handles app creation and installation
@@ -50,26 +53,39 @@ class AppManager
             throw new \RuntimeException("App '$appName' already exists");
         }
         
-        // 1. FIRST: Resolve password strategy using new PasswordManager
-        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswords($appName);
-        
-        // 2. Copy template with password-aware setup
-        $this->copyTemplateWithPasswordStrategy($templatePath, $targetPath, $passwords);
-        
-        // 3. Generate configuration with resolved passwords
-        $this->generateAppConfigWithPasswords($appName, $targetPath, $passwords, $config);
-        
-        // 4. Auto-backup to vault if new passwords generated
-        if ($passwords->strategy === \Nimbus\Password\PasswordStrategy::GENERATE_NEW) {
-            $passwordManager->backupToVault($appName, $passwords);
+        try {
+            // 1. FIRST: Resolve password strategy using new PasswordManager
+            $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
+            $passwords = $passwordManager->resolvePasswords($appName);
+            
+            // 2. Copy template with password-aware setup
+            $this->copyTemplateWithPasswordStrategy($templatePath, $targetPath, $passwords);
+            
+            // 3. Generate configuration with resolved passwords
+            $this->generateAppConfigWithPasswords($appName, $targetPath, $passwords, $config, $template);
+            
+            // 4. Auto-backup to vault if new passwords generated
+            if ($passwords->strategy === \Nimbus\Password\PasswordStrategy::GENERATE_NEW) {
+                $passwordManager->backupToVault($appName, $passwords);
+            }
+            
+            // Register app in apps.json
+            $this->registerApp($appName, $template);
+            
+            // Update composer.json
+            $this->updateComposerJson($appName);
+            
+        } catch (\Exception $e) {
+            // Clean up failed app directory
+            if (is_dir($targetPath)) {
+                $this->removeDirectory($targetPath);
+            }
+            
+            // Clean up from apps.json if it was registered
+            $this->unregisterApp($appName);
+            
+            throw new \RuntimeException("Failed to create app: " . $e->getMessage(), 0, $e);
         }
-        
-        // Register app in apps.json
-        $this->registerApp($appName, $template);
-        
-        // Update composer.json
-        $this->updateComposerJson($appName);
         
         return true;
     }
@@ -111,7 +127,8 @@ class AppManager
         string $appName,
         string $targetPath,
         \Nimbus\Password\PasswordSet $passwords,
-        array $config
+        array $config,
+        string $template
     ): void {
         // Prepare placeholders with resolved passwords
         $placeholders = [
@@ -148,8 +165,61 @@ class AppManager
         // Replace placeholders in files
         $this->replacePlaceholders($targetPath, $placeholders);
         
+        // Process generator templates (completely generic, template-driven)
+        $this->processGeneratorTemplates($appName, $targetPath, $template, $placeholders);
+        
         // Update app.nimbus.json with features and password strategy
         $this->updateAppConfigJson($targetPath, $appName, $passwords, $placeholders, $config);
+    }
+    
+    /**
+     * Process generator templates defined in template's app.config.php
+     * Completely generic - no hardcoded app types or template names
+     */
+    private function processGeneratorTemplates(string $appName, string $targetPath, string $template, array $placeholders): void
+    {
+        // Read the template's config to see if it defines generator_templates
+        $templateConfigPath = $this->templatesDir . '/' . $template . '/app.config.php';
+        if (!file_exists($templateConfigPath)) {
+            return; // No template config, no generation needed
+        }
+        
+        $templateConfig = include $templateConfigPath;
+        $generatorTemplates = $templateConfig['generator_templates'] ?? [];
+        
+        if (empty($generatorTemplates)) {
+            return; // No templates to generate
+        }
+        
+        $fileGenerator = new \Nimbus\Generator\FileGenerator($this->baseDir);
+        
+        foreach ($generatorTemplates as $templatePath => $config) {
+            $outputPath = $config['output_path'] ?? null;
+            $templateVars = $config['variables'] ?? [];
+            
+            if (!$outputPath) continue;
+            
+            // Merge template variables with standard placeholders
+            $allVars = array_merge($placeholders, $templateVars, [
+                'APP_NAME' => $appName,
+                'app_name' => $appName,
+                'APP_NAME_LOWER' => strtolower($appName),
+                'APP_NAME_UPPER' => strtoupper($appName)
+            ]);
+            
+            // Generate the file
+            $fullTemplatePath = $targetPath . '/' . $templatePath;
+            $fullOutputPath = $targetPath . '/' . str_replace('{{APP_NAME}}', $appName, $outputPath);
+            
+            if (file_exists($fullTemplatePath)) {
+                try {
+                    $fileGenerator->generateFile($fullTemplatePath, $fullOutputPath, $allVars);
+                } catch (\Exception $e) {
+                    // Log error but don't fail app creation for template generation issues
+                    error_log("Failed to generate template file $templatePath: " . $e->getMessage());
+                }
+            }
+        }
     }
     
     /**
@@ -557,7 +627,7 @@ class AppManager
                     mkdir($destPath, 0755, true);
                 }
             } else {
-                copy($item, $destPath);
+                copy($item->getPathname(), $destPath);
             }
         }
     }
@@ -591,9 +661,9 @@ class AppManager
                     if (basename($file->getPathname()) === 'keycloak-init.sh') {
                         continue;
                     }
-                    $content = file_get_contents($file);
+                    $content = file_get_contents($file->getPathname());
                     $content = str_replace(array_keys($replacements), array_values($replacements), $content);
-                    file_put_contents($file, $content);
+                    file_put_contents($file->getPathname(), $content);
                 }
             }
             return '';
@@ -1474,10 +1544,18 @@ class AppManager
     /**
      * Check if a value needs to be quoted in YAML
      */
-    private function needsQuoting(string $value): bool
+    private function needsQuoting(mixed $value): bool
     {
+        // Numbers and booleans don't need quoting
+        if (is_numeric($value) || is_bool($value)) {
+            return false;
+        }
+        
+        // Convert to string for checking
+        $stringValue = (string) $value;
+        
         // Quote if it contains special YAML characters that could cause parsing issues
-        return preg_match('/[!@#$%^&*()+=\[\]{}|;:,.<>?~`]/', $value) === 1;
+        return preg_match('/[!@#$%^&*()+=\[\]{}|;:,.<>?~`]/', $stringValue) === 1;
     }
     
     /**
@@ -1785,5 +1863,45 @@ class AppManager
         }
         
         file_put_contents($appConfigFile, $content);
+    }
+    
+    /**
+     * Remove directory recursively for cleanup on failed app creation
+     */
+    private function removeDirectory(string $dir): bool
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+        
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        
+        foreach ($files as $fileinfo) {
+            $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+            $todo($fileinfo->getRealPath());
+        }
+        
+        return rmdir($dir);
+    }
+    
+    /**
+     * Remove app from apps.json registry for cleanup on failed creation
+     */
+    private function unregisterApp(string $appName): void
+    {
+        $appsFile = $this->installerDir . '/apps.json';
+        
+        if (!file_exists($appsFile)) {
+            return;
+        }
+        
+        $apps = json_decode(file_get_contents($appsFile), true);
+        if (isset($apps['apps'][$appName])) {
+            unset($apps['apps'][$appName]);
+            file_put_contents($appsFile, json_encode($apps, JSON_PRETTY_PRINT));
+        }
     }
 }

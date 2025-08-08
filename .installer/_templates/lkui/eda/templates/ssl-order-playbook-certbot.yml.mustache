@@ -1,0 +1,65 @@
+---
+- name: Order SSL certificate with certbot (EDA triggered)
+  hosts: localhost
+  vars:
+    app_name: "{{APP_NAME}}"
+    order_id: "{{ order_id }}"
+    domain: "{{ domain }}"
+    email: "{{ email }}"
+    api_prefix: "{{API_PREFIX}}"
+    order_update_endpoint: "{{ORDER_UPDATE_ENDPOINT}}"
+    
+  tasks:
+    - name: Ensure python3 and pip installed
+      package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - python3
+        - python3-pip
+      become: yes
+      
+    - name: Install certbot via pip3
+      pip:
+        name: certbot
+        executable: pip3
+        state: latest
+
+    - name: Run certbot with http-01 validation (standalone)
+      command: >
+        certbot certonly --standalone --non-interactive --agree-tos 
+        -m "{{ email }}"
+        -d "{{ domain }}"
+      register: certbot_result
+      failed_when: false
+      
+    - name: Debug output on success
+      debug:
+        msg: "Certificate generated successfully for {{ domain }}"
+      when: certbot_result.rc == 0
+      
+    - name: Post failure to order endpoint
+      uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        body_format: json
+        body:
+          status: "ORDER_FAILED"
+          error_message: "Certbot failed: {{ certbot_result.stderr | default('Unknown error') }}"
+        headers:
+          Content-Type: "application/json"
+        status_code: [200, 201]
+      when: certbot_result.rc != 0
+      
+    - name: Post success to order endpoint
+      uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        body_format: json
+        body:
+          status: "ORDER_COMPLETED"
+          certificate_path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
+        headers:
+          Content-Type: "application/json"
+        status_code: [200, 201]
+      when: certbot_result.rc == 0
