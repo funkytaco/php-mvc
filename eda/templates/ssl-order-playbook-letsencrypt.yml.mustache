@@ -1,0 +1,77 @@
+---
+- name: Order SSL certificate with Let's Encrypt
+  hosts: localhost
+  gather_facts: no
+  vars:
+    acme_account_key: "/etc/letsencrypt/account.key"
+    cert_key: "/etc/letsencrypt/{{ domain }}.key"
+    cert_fullchain: "/etc/letsencrypt/{{ domain }}.crt"
+    acme_version: "{{ acme_version | default(2) }}"
+  tasks:
+    - name: Ensure account key exists
+      community.crypto.openssl_privatekey:
+        path: "{{ acme_account_key }}"
+        size: 4096
+      register: account_key_result
+
+    - name: Ensure domain private key exists
+      community.crypto.openssl_privatekey:
+        path: "{{ cert_key }}"
+        size: 2048
+      register: domain_key_result
+
+    - name: Order certificate using DNS challenge
+      community.crypto.acme_certificate:
+        account_key_src: "{{ acme_account_key }}"
+        csr: "{{ csr }}"
+        dest: "{{ cert_fullchain }}"
+        challenge: dns-01
+        acme_directory: https://acme-v02.api.letsencrypt.org/directory
+        terms_agreed: yes
+        remaining_days: 30
+        acme_version: "{{ acme_version | int }}"
+      register: cert_result
+      ignore_errors: yes
+
+    - name: Debug output on success
+      debug:
+        msg: |
+          Certificate issued for {{ domain }} with order ID {{ order_id }}
+          Cert path: {{ cert_fullchain }}
+      when: cert_result is succeeded
+
+    - name: Post failure to order endpoint
+      ansible.builtin.uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_FAILED"
+          error_message: "{{ cert_result.msg | default('Unknown Lets Encrypt error during certificate issuance') }}"
+      when: cert_result is failed
+
+    - name: Post certificate to order endpoint
+      ansible.builtin.uri:
+        url: "http://{{APP_NAME}}-app:8080{{CERTIFICATE_UPDATE_ENDPOINT}}/{{ order_id }}/certificate"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          cert_content: "{{cert_result}}" #fixme
+      when: cert_result is succeeded
+
+    - name: Post success to order endpoint
+      ansible.builtin.uri:
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          status: "ORDER_COMPLETED"
+          order_id: "{{ order_id }}"
+          error_message: "Self-signed certificate generated successfully"
+      when: cert_result is succeeded
