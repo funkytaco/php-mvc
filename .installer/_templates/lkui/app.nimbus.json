@@ -59,8 +59,13 @@
             "isFile": false
         },
         "setup_hosts": {
-            "source": "setup-hosts.sh",
-            "target": "setup-hosts.sh",
+            "source": "../../dns/dns-template-setup-hosts.sh",
+            "target": "dns-setup-{{APP_NAME}}-hosts.sh",
+            "isFile": true
+        },
+        "init_entrypoint": {
+            "source": "init-entrypoint.sh",
+            "target": "init-entrypoint.sh",
             "isFile": true
         }
     }

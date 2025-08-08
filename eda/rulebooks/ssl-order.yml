@@ -29,6 +29,7 @@
             email: "{{ event.payload.email }}"
             order_id: "{{ event.payload.order_id }}"
             acme_version: "{{ event.payload.acme_version | int }}"
+            app_name: "{{ event.payload.app_name | default('lkui') }}"
     - name: Process SSL Order (Self-Signed)
       condition: event.payload.action == "order_ssl_self-signed"
       action:

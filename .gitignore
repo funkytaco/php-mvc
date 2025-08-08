@@ -38,7 +38,7 @@ nimbus-config.json
 
 #resolve hosts
 setup-hosts.sh
-*-setup-hosts.sh
+dns-*-setup-hosts.sh
 
 # Database data
 data/

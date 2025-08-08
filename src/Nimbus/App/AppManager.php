@@ -373,9 +373,9 @@ class AppManager
                 'container_name' => $appName . '-eda',
                 'ports' => [$edaPort . ':5000'],
                 'volumes' => [
-                    './.installer/apps/' . $appName . '/' . $rulebooksDir . ':/rulebooks:Z',
+                    './eda/rulebooks:/rulebooks:Z',
+                    './eda/playbooks:/playbooks:Z',
                     './.installer/apps/' . $appName . '/inventory:/inventory:Z',
-                    './.installer/apps/' . $appName . '/playbooks:/playbooks:Z',
                     './.installer/apps/' . $appName . '/logs:/logs:Z',
                     './.installer/apps/' . $appName . '/init-entrypoint.sh:/init-entrypoint.sh:Z'
                 ],

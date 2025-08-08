@@ -32,5 +32,14 @@ return [
         'client_secret' => '{{KEYCLOAK_CLIENT_SECRET}}',
         'auth_url' => 'http://{{APP_NAME}}-keycloak:8080',
         'redirect_uri' => 'http://localhost:{{APP_PORT}}/auth/callback'
+    ],
+    
+    // Template variables for file generation (EDA playbooks, etc.)
+    'template_vars' => [
+        'API_PREFIX' => 'lkui',  // LKUI apps always use /lkui/ API prefix
+        'APP_TYPE' => 'lkui',
+        'API_BASE_URL' => 'http://{{APP_NAME}}-app:8080/lkui/api',
+        'ORDER_UPDATE_ENDPOINT' => '/lkui/api/orders',
+        'CERTIFICATE_UPDATE_ENDPOINT' => '/lkui/api/orders'
     ]
 ];

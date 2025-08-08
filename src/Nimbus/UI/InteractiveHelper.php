@@ -199,10 +199,11 @@ class InteractiveHelper extends BaseTask
         echo "  • composer nimbus:down $appName     # Stop containers" . PHP_EOL;
         echo "  • composer nimbus:delete $appName   # Delete app" . PHP_EOL;
         
-        $setupHostsPath = ".installer/apps/$appName/setup-hosts.sh";
+        $setupHostsPath = ".installer/apps/$appName/dns-setup-$appName-hosts.sh";
         if (file_exists($setupHostsPath) && PHP_OS === 'Darwin') {
             echo PHP_EOL;
             echo self::ansiFormat('INFO', "🌐 Setup local hostnames (macOS):");
+            echo "  • chmod +x $setupHostsPath      # Make script executable" . PHP_EOL;
             echo "  • sudo ./$setupHostsPath         # Add .test hostnames to /etc/hosts" . PHP_EOL;
             echo "  • View network info: cat .installer/apps/$appName/podman-network.md" . PHP_EOL;
         }

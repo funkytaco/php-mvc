@@ -9,7 +9,7 @@
     order_id: ""
     validation_method: "http"
     acme_version: 1
-    app_name: "{{ app_name | default('lkui') }}"
+    app_name: "{{ app_name | default('{{APP_NAME}}') }}"
 
   tasks:
     - name: Ensure python3 and pip installed
@@ -53,7 +53,7 @@
 
     - name: Post failure to order endpoint
       ansible.builtin.uri:
-        url: "http://{{ app_name }}-app:8080/lkui/api/orders/{{ order_id }}"
+        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
         method: POST
         headers:
           Content-Type: "application/json"
@@ -65,7 +65,7 @@
 
     - name: Post success to order endpoint
       ansible.builtin.uri:
-        url: "http://{{ app_name }}-app:8080/lkui/api/orders/{{ order_id }}/certificate"
+        url: "http://{{APP_NAME}}-app:8080{{CERTIFICATE_UPDATE_ENDPOINT}}/{{ order_id }}/certificate"
         method: POST
         headers:
           Content-Type: "application/json"

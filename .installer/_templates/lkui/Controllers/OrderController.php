@@ -726,7 +726,8 @@ class OrderController implements ControllerInterface {
             "timestamp" => $timestamp,
             "certificate_authority" => $certificate_authority,
             "validation_method" => $validation_method,
-            "acme_version" => 1
+            "acme_version" => 1,
+            "app_name" => "{{APP_NAME}}"
         ]);
 
         // Only handle certbot, letsencrypt, self-signed for now
