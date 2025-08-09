@@ -1,65 +1,69 @@
 ---
 - name: Order SSL certificate with certbot (EDA triggered)
   hosts: localhost
+  gather_facts: no
+
   vars:
-    app_name: "{{APP_NAME}}"
-    order_id: "{{ order_id }}"
-    domain: "{{ domain }}"
-    email: "{{ email }}"
-    api_prefix: "{{API_PREFIX}}"
-    order_update_endpoint: "{{ORDER_UPDATE_ENDPOINT}}"
-    
+    app_name: "<%APP_NAME%>"
+    order_update_endpoint: "<%ORDER_UPDATE_ENDPOINT%>"
+
   tasks:
     - name: Ensure python3 and pip installed
-      package:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - python3
-        - python3-pip
-      become: yes
-      
+      ansible.builtin.shell: |
+        microdnf install -y python3 python3-pip
+      args:
+        creates: /usr/bin/pip3
+      ignore_errors: yes
+
     - name: Install certbot via pip3
-      pip:
-        name: certbot
-        executable: pip3
-        state: latest
+      ansible.builtin.shell: |
+        pip3 install --upgrade certbot
+      args:
+        creates: /usr/local/bin/certbot
+      ignore_errors: yes
 
     - name: Run certbot with http-01 validation (standalone)
-      command: >
-        certbot certonly --standalone --non-interactive --agree-tos 
-        -m "{{ email }}"
-        -d "{{ domain }}"
+      ansible.builtin.command: >
+        certbot certonly --standalone
+        --non-interactive --agree-tos
+        -m {{ email }}
+        -d {{ domain }}
+      when: validation_method == "http"
       register: certbot_result
-      failed_when: false
-      
+      ignore_errors: yes
+
     - name: Debug output on success
       debug:
-        msg: "Certificate generated successfully for {{ domain }}"
-      when: certbot_result.rc == 0
-      
+        msg: |
+          Certificate issued for {{ domain }} with order ID {{ order_id }}
+          Certbot output: {{ certbot_result.stdout | default('Certificate issued') }}
+      when: certbot_result is succeeded
+
     - name: Post failure to order endpoint
-      uri:
-        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+      ansible.builtin.uri:
+        url: "http://{{ app_name }}-app:8080{{ order_update_endpoint }}/{{ order_id }}"
         method: POST
+        headers:
+          Content-Type: "application/json"
         body_format: json
         body:
           status: "ORDER_FAILED"
-          error_message: "Certbot failed: {{ certbot_result.stderr | default('Unknown error') }}"
+          error_message: "{{ certbot_result.stderr | default('Unknown certbot error') }}"
+        status_code: [200, 201]
+      when: certbot_result is failed
+      ignore_errors: yes
+
+    - name: Post success to order endpoint
+      ansible.builtin.uri:
+        url: "http://{{{APP_NAME}}}-app:8080{{{ORDER_UPDATE_ENDPOINT}}}/{{ order_id }}/certificate"
+        method: POST
         headers:
           Content-Type: "application/json"
-        status_code: [200, 201]
-      when: certbot_result.rc != 0
-      
-    - name: Post success to order endpoint
-      uri:
-        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
-        method: POST
         body_format: json
         body:
           status: "ORDER_COMPLETED"
+          order_id: "{{ order_id }}"
           certificate_path: "/etc/letsencrypt/live/{{ domain }}/fullchain.pem"
-        headers:
-          Content-Type: "application/json"
         status_code: [200, 201]
-      when: certbot_result.rc == 0
+      when: certbot_result is succeeded
+      ignore_errors: yes

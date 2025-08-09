@@ -34,15 +34,17 @@ class FileGenerator
         // Read template content directly (not using Mustache loader)
         $templateContent = file_get_contents($templatePath);
         
-        // Create temporary Mustache engine for string templates
+        // Use Mustache with custom delimiters for template variables
+        // <% %> for template variables, leaving {{ }} for Ansible
         $mustache = new \Mustache_Engine([
             'cache' => sys_get_temp_dir() . '/file_generator_cache',
             'cache_file_mode' => 0666,
             'charset' => 'UTF-8',
             'strict_callables' => true,
+            'delimiters' => '<% %>'
         ]);
 
-        // Render the template with data
+        // Render the template with data using <% %> delimiters
         $renderedContent = $mustache->render($templateContent, $data);
 
         // Ensure output directory exists

@@ -1,38 +1,36 @@
 ---
 - name: Order SSL certificate with Let's Encrypt (EDA triggered)
   hosts: localhost
+  gather_facts: no
+  
   vars:
-    app_name: "{{APP_NAME}}"
-    order_id: "{{ order_id }}"
-    domain: "{{ domain }}"
-    email: "{{ email }}"
-    api_prefix: "{{API_PREFIX}}"
-    order_update_endpoint: "{{ORDER_UPDATE_ENDPOINT}}"
+    app_name: "<%APP_NAME%>"
+    api_prefix: "<%API_PREFIX%>"
+    order_update_endpoint: "<%ORDER_UPDATE_ENDPOINT%>"
     
   tasks:
     - name: Ensure python3 and pip installed
-      package:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - python3
-        - python3-pip
-      become: yes
+      ansible.builtin.shell: |
+        microdnf install -y python3 python3-pip
+      args:
+        creates: /usr/bin/pip3
+      ignore_errors: yes
       
     - name: Install certbot via pip3
-      pip:
-        name: certbot
-        executable: pip3
-        state: latest
+      ansible.builtin.shell: |
+        pip3 install --upgrade certbot
+      args:
+        creates: /usr/local/bin/certbot
+      ignore_errors: yes
 
     - name: Run Let's Encrypt certificate generation
-      command: >
+      ansible.builtin.command: >
         certbot certonly --standalone --non-interactive --agree-tos 
         --preferred-challenges http
-        -m "{{ email }}"
-        -d "{{ domain }}"
+        -m {{ email }}
+        -d {{ domain }}
       register: letsencrypt_result
-      failed_when: false
+      ignore_errors: yes
       
     - name: Debug output on success
       debug:
@@ -40,8 +38,8 @@
       when: letsencrypt_result.rc == 0
       
     - name: Post failure to order endpoint
-      uri:
-        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+      ansible.builtin.uri:
+        url: "http://{{ app_name }}-app:8080{{ order_update_endpoint }}/{{ order_id }}"
         method: POST
         body_format: json
         body:
@@ -51,10 +49,11 @@
           Content-Type: "application/json"
         status_code: [200, 201]
       when: letsencrypt_result.rc != 0
+      ignore_errors: yes
       
     - name: Post success to order endpoint
-      uri:
-        url: "http://{{APP_NAME}}-app:8080{{ORDER_UPDATE_ENDPOINT}}/{{ order_id }}"
+      ansible.builtin.uri:
+        url: "http://{{ app_name }}-app:8080{{ order_update_endpoint }}/{{ order_id }}"
         method: POST
         body_format: json
         body:
@@ -64,3 +63,4 @@
           Content-Type: "application/json"
         status_code: [200, 201]
       when: letsencrypt_result.rc == 0
+      ignore_errors: yes

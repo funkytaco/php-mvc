@@ -443,8 +443,8 @@ class AppManager
                 'container_name' => $appName . '-eda',
                 'ports' => [$edaPort . ':5000'],
                 'volumes' => [
-                    './eda/rulebooks:/rulebooks:Z',
-                    './eda/playbooks:/playbooks:Z',
+                    './.installer/apps/' . $appName . '/eda/rulebooks:/rulebooks:Z',
+                    './.installer/apps/' . $appName . '/eda/playbooks:/playbooks:Z',
                     './.installer/apps/' . $appName . '/inventory:/inventory:Z',
                     './.installer/apps/' . $appName . '/logs:/logs:Z',
                     './.installer/apps/' . $appName . '/init-entrypoint.sh:/init-entrypoint.sh:Z'
@@ -1026,10 +1026,10 @@ class AppManager
         $edaFiles = [
             'init-entrypoint.sh',
             'inventory/inventory.yml',
-            'playbooks/api-notification.yml'
+            'eda/playbooks/api-notification.yml'
         ];
         
-        $edaDirs = ['rulebooks', 'inventory', 'playbooks', 'logs'];
+        $edaDirs = ['eda/rulebooks', 'eda/playbooks', 'inventory', 'logs'];
         
         // Create directories
         foreach ($edaDirs as $dir) {
@@ -1064,7 +1064,7 @@ class AppManager
         }
         
         // Copy existing rulebooks
-        $this->copyEdaRulebooks($appName, $appPath . '/rulebooks');
+        $this->copyEdaRulebooks($appName, $appPath . '/eda/rulebooks');
     }
     
     /**
@@ -1072,10 +1072,15 @@ class AppManager
      */
     private function copyEdaRulebooks(string $appName, string $targetDir): void
     {
-        $templateRulebooksDir = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate() . '/rulebooks';
+        $templateRulebooksDir = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate() . '/eda/rulebooks';
         
         if (!is_dir($templateRulebooksDir)) {
-            throw new \RuntimeException("Template rulebooks not found");
+            // Try old location for backward compatibility
+            $templateRulebooksDir = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate() . '/rulebooks';
+            if (!is_dir($templateRulebooksDir)) {
+                // Rulebooks are optional for some templates
+                return;
+            }
         }
         
         $iterator = new \RecursiveIteratorIterator(

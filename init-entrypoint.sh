@@ -4,7 +4,7 @@ set -e
 echo "Installing Ansible collections..."
 ansible-galaxy collection install ansible.eda community.crypto community.general
 
-echo "Starting testgenerated rulebooks..."
+echo "Starting newapp rulebooks..."
 # Start SSL order processing rulebook
 ansible-rulebook --rulebook ssl-order.yml --inventory /inventory/inventory.yml --verbose &
 
