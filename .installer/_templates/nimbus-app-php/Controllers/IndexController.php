@@ -79,6 +79,7 @@ class IndexController extends AbstractController
         // Get Keycloak details from app config if available
         $keycloakAdminPassword = '';
         $keycloakRealm = '{{APP_NAME}}-realm';
+        $keycloakPort = 8080;
         
         // Try to read from app.nimbus.json for runtime values
         $appConfigFile = dirname(__DIR__) . '/app.nimbus.json';
@@ -86,6 +87,9 @@ class IndexController extends AbstractController
             $appConfig = json_decode(file_get_contents($appConfigFile), true);
             if (isset($appConfig['containers']['keycloak']['admin_password'])) {
                 $keycloakAdminPassword = $appConfig['containers']['keycloak']['admin_password'];
+            }
+            if (isset($appConfig['containers']['keycloak']['port'])) {
+                $keycloakPort = $appConfig['containers']['keycloak']['port'];
             }
             if (isset($appConfig['keycloak']['realm'])) {
                 $keycloakRealm = $appConfig['keycloak']['realm'];
@@ -104,7 +108,7 @@ class IndexController extends AbstractController
             'app_name' => '{{APP_NAME}}',
             'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
             'KEYCLOAK_REALM' => $keycloakRealm,
-            'APP_PORT_KEYCLOAK' => 8080
+            'APP_PORT_KEYCLOAK' => $keycloakPort
         ];
         
         $html = $this->render('demo/index', $data);

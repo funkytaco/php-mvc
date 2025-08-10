@@ -103,7 +103,7 @@ class CreateTask extends BaseTask
             
             $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, $enabledFeatures);
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }
     }
@@ -128,7 +128,7 @@ class CreateTask extends BaseTask
             
             $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, ['eda']);
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }
     }
@@ -159,7 +159,7 @@ class CreateTask extends BaseTask
             
             $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, ['eda', 'keycloak']);
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }
     }

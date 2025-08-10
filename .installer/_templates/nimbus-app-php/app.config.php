@@ -13,7 +13,7 @@ return [
     'app_name' => '{{APP_NAME_UPPER}} Demo',
     'base_url' => '/',
     'debug' => true,
-    'has_eda' => {{HAS_EDA}},
+    'has_eda' => "{{HAS_EDA}}",
     'eda_port' => "{{EDA_PORT}}",
     'keycloak' => [
         'enabled' => '{{KEYCLOAK_ENABLED}}',

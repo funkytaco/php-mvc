@@ -75,7 +75,7 @@ class AppManager
             // Update composer.json
             $this->updateComposerJson($appName);
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Clean up failed app directory
             if (is_dir($targetPath)) {
                 $this->removeDirectory($targetPath);
@@ -184,7 +184,11 @@ class AppManager
             return; // No template config, no generation needed
         }
         
-        $templateConfig = include $templateConfigPath;
+        try {
+            $templateConfig = include $templateConfigPath;
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("Template config has syntax error in $templateConfigPath: " . $e->getMessage(), 0, $e);
+        }
         $generatorTemplates = $templateConfig['generator_templates'] ?? [];
         
         if (empty($generatorTemplates)) {
@@ -214,7 +218,7 @@ class AppManager
             if (file_exists($fullTemplatePath)) {
                 try {
                     $fileGenerator->generateFile($fullTemplatePath, $fullOutputPath, $allVars);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     // Log error but don't fail app creation for template generation issues
                     error_log("Failed to generate template file $templatePath: " . $e->getMessage());
                 }

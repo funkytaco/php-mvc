@@ -239,8 +239,9 @@ class InteractiveHelper extends BaseTask
             $adminPassword = trim(shell_exec($inspectCmd));
             
             echo PHP_EOL;
+            $keycloakPort = $config['containers']['keycloak']['port'] ?? '8080';
             echo self::ansiFormat('INFO', "🔐 Keycloak Admin Console Access:");
-            echo "  URL: http://localhost:8080" . PHP_EOL;
+            echo "  URL: http://localhost:$keycloakPort" . PHP_EOL;
             echo "  Username: admin" . PHP_EOL;
             
             if (!empty($adminPassword)) {
