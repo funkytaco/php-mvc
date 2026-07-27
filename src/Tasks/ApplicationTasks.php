@@ -209,11 +209,11 @@ class ApplicationTasks {
         \RecursiveIteratorIterator::SELF_FIRST) as $file
         ) {
             if ($file->isDir()) {
-                echo self::ansiFormat('MKDIR>', $file);
+                echo self::ansiFormat('MKDIR>', $file->getPathname());
                 mkdir($destination . DIRECTORY_SEPARATOR . $directoryPath->getSubPathName(), 0755);
             } else {
-                echo self::ansiFormat('COPYING>', $file);
-                copy($file, $destination . DIRECTORY_SEPARATOR . $directoryPath->getSubPathName());
+                echo self::ansiFormat('COPYING>', $file->getPathname());
+                copy($file->getPathname(), $destination . DIRECTORY_SEPARATOR . $directoryPath->getSubPathName());
             }
         }
 

@@ -1092,14 +1092,18 @@ class AppManager
         );
         
         foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
             $targetFile = $targetDir . '/' . $iterator->getSubPathName();
             $targetFileDir = dirname($targetFile);
-            
+
             if (!is_dir($targetFileDir)) {
                 mkdir($targetFileDir, 0755, true);
             }
-            
-            $content = file_get_contents($file);
+
+            $content = file_get_contents($file->getPathname());
             // Replace placeholders
             $content = str_replace('{{APP_NAME}}', $appName, $content);
             $content = str_replace('{{APP_NAME_UPPER}}', strtoupper($appName), $content);
