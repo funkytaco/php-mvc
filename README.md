@@ -2,7 +2,43 @@
 
 A containerized PHP MVC application generator with Event-Driven Automation (EDA) support. Nimbus replaces manual development workflows with automated app creation, container orchestration, and optional Ansible EDA integration.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (bin/nimbus — recommended)
+
+Host needs only **git + podman + podman-compose**. PHP, Composer and Ansible run
+inside the `nimbus-tools` container (RHEL UBI9), built automatically on first use.
+
+```bash
+# One-shot: create + install + start
+bin/nimbus init my-app
+
+# Live-edit dev mode: bind-mounts app/ + src/ into the container and starts
+# code-server (VS Code in your browser). Edit locally OR in the browser —
+# same files, changes are live, no rebuild.
+bin/nimbus dev my-app
+
+# Everyday lifecycle (honest exit codes)
+bin/nimbus up my-app [--dev]     # start
+bin/nimbus down my-app           # stop
+bin/nimbus status                # all apps
+bin/nimbus logs my-app           # follow logs
+bin/nimbus rebuild my-app        # force image rebuild
+
+# Features on/off per app
+bin/nimbus create my-app --no-db          # app without postgres
+bin/nimbus add-eda my-app / remove-eda my-app
+bin/nimbus add-keycloak my-app / remove-keycloak my-app
+
+# Ansible, inside the tools container
+bin/nimbus playbook path/to/playbook.yml
+
+bin/nimbus help                  # everything else
+```
+
+`composer nimbus:*` (below) still works if you have PHP+Composer installed locally —
+it is the same engine. Note the legacy `composer nimbus:up` path does not
+propagate container failures as exit codes; `bin/nimbus` does.
+
+## 🚀 Quick Start (composer, legacy path)
 
 ```bash
 # Create a new app with EDA
@@ -32,22 +68,40 @@ composer install-lkui
 
 ## Nimbus Commands
 
+Every `composer nimbus:*` script below also works as `bin/nimbus <command>` (drop
+the `nimbus:` prefix) — see the Quick Start above. The examples here use the
+composer form since it's the lowest-common-denominator (no tools image needed).
+
 ### App Lifecycle Management
 ```bash
 # Create basic app
 composer nimbus:create my-app
 
+# Create an app with no database container
+composer nimbus:create my-app -- --no-db
+
 # Create app with EDA enabled
 composer nimbus:create-with-eda my-app
 
-# Add EDA to existing app
+# Create app with both EDA and Keycloak enabled
+composer nimbus:create-eda-keycloak my-app
+
+# Add/remove EDA on an existing app
 composer nimbus:add-eda my-app
+composer nimbus:remove-eda my-app
+
+# Add/remove Keycloak on an existing app
+composer nimbus:add-keycloak my-app
+composer nimbus:remove-keycloak my-app
 
 # Install app (copy files and generate containers)
 composer nimbus:install my-app
 
 # List all apps with status
 composer nimbus:list
+
+# Delete an app
+composer nimbus:delete my-app
 ```
 
 ### Container Management
@@ -63,30 +117,62 @@ composer nimbus:down
 
 # Stop specific app with cleanup options
 composer nimbus:down my-app
+
+# Check status
+composer nimbus:status
+```
+
+### Dev Mode & Live Editing
+```bash
+# Generate <app>-compose.dev.yml: bind-mounts app/ + src/ into the running
+# container (edits are live, no rebuild) and adds a code-server sidecar.
+composer nimbus:dev my-app
+
+# Apply it (bin/nimbus does this in one step via `bin/nimbus dev my-app`):
+podman-compose -f my-app-compose.yml -f my-app-compose.dev.yml up --build -d
+```
+
+### Vault, Templates & Aliases
+```bash
+composer nimbus:vault-init | vault-backup <app> | vault-restore <app> | vault-list | vault-view <app>
+composer nimbus:template-scaffold <name> | template-check [name]
+composer nimbus:alias-template | alias-remove | alias-list
 ```
 
 ## Nimbus Architecture
 
 ### What You Get
-Each Nimbus app generates a complete containerized stack:
+Each Nimbus app generates a containerized stack. Every feature below is
+independently on/off per app via `--no-db`, `add-eda`/`remove-eda`, and
+`add-keycloak`/`remove-keycloak`:
 
 **Standard App (2 containers):**
-- **app-name-app**: PHP 8.2 + Apache application server
-- **app-name-postgres**: PostgreSQL 14 database with health checks
+- **app-name-app**: PHP 8.3 + Apache application server
+- **app-name-postgres**: PostgreSQL 14 database with health checks (omit with `--no-db`)
 
-**EDA-Enabled App (3 containers):**
-- **app-name-app**: PHP 8.2 + Apache application server  
-- **app-name-postgres**: PostgreSQL 14 database
-- **app-name-eda**: Ansible EDA server with webhook listener on port 5000
+**EDA-Enabled App (+1 container):**
+- **app-name-eda**: Ansible EDA server with webhook listener on a per-app port
+
+**Keycloak-Enabled App (+2 containers):**
+- **app-name-keycloak**: Keycloak SSO server
+- **app-name-keycloak-db**: PostgreSQL 14 database for Keycloak
+
+**Dev Mode (`bin/nimbus dev` / `nimbus:dev`, +1 container):**
+- **app-name-code-server**: VS Code in the browser, editing the same host
+  files bind-mounted into `app-name-app` — so laptop edits and browser edits
+  are the same tree and go live without a rebuild
 
 ### Features
 - ✅ **Zero Configuration**: Apps work out-of-the-box
 - ✅ **Automatic Port Assignment**: No port conflicts between apps
 - ✅ **Health Monitoring**: Container status and health checks
-- ✅ **Live Development**: Files mounted for immediate changes
-- ✅ **Database Integration**: Schema loading with sample data
-- ✅ **EDA Automation**: Event-driven Ansible playbooks
+- ✅ **Live Development**: `bin/nimbus dev` bind-mounts code for immediate changes, no rebuild
+- ✅ **Database Integration**: Schema loading with sample data, or opt out with `--no-db`
+- ✅ **EDA Automation**: Event-driven Ansible playbooks, addable/removable per app
+- ✅ **Keycloak SSO**: Addable/removable per app
 - ✅ **Template System**: Extensible app templates
+- ✅ **No local PHP/Composer/Ansible required**: `bin/nimbus` runs the engine and
+  ansible-playbook inside a RHEL UBI9 tools container; host only needs podman
 
 ### App Structure
 ```

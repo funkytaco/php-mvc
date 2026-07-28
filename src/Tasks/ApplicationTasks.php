@@ -328,6 +328,26 @@ class ApplicationTasks {
         $task->addEda($event);
     }
 
+    public static function nimbusRemoveEda(Event $event) {
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->removeEda($event);
+    }
+
+    public static function nimbusRemoveKeycloak(Event $event) {
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->removeKeycloak($event);
+    }
+
+    public static function nimbusCommit(Event $event) {
+        $task = new \Nimbus\Tasks\DevTask();
+        $task->commit($event);
+    }
+
+    public static function nimbusDev(Event $event) {
+        $task = new \Nimbus\Tasks\DevTask();
+        $task->dev($event);
+    }
+
     public static function nimbusDown(Event $event) {
         $task = new \Nimbus\Tasks\ContainerTask();
         $task->down($event);
@@ -709,14 +729,24 @@ class ApplicationTasks {
                 return;
             }
             
-            // Perform deletion
+            // Perform deletion. If the app directory was already gone (stale
+            // registry entry from manual cleanup, an interrupted prior
+            // delete, etc.), deleteApp() cleans up stragglers and returns
+            // true rather than throwing — the end state the user wants
+            // (app gone) was already true.
+            $wasAlreadyGone = !is_dir(getcwd() . '/.installer/apps/' . $appName);
+
             $manager->deleteApp($appName, [
                 'remove_volumes' => $io->askConfirmation('Remove volumes? [y/N]: ', false),
                 'remove_containers' => $io->askConfirmation('Remove containers? [y/N]: ', false),
                 'remove_images' => $io->askConfirmation('Remove app images? [y/N]: ', false)
             ]);
-            
-            echo self::ansiFormat('SUCCESS', "App '$appName' deleted successfully!");
+
+            if ($wasAlreadyGone) {
+                echo self::ansiFormat('SUCCESS', "App '$appName' was already gone — cleaned up stale registry entry.");
+            } else {
+                echo self::ansiFormat('SUCCESS', "App '$appName' deleted successfully!");
+            }
             
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to delete app: ' . $e->getMessage());

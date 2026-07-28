@@ -1,0 +1,27 @@
+# nimbus-tools — RHEL UBI9 image carrying the Nimbus engine's runtime deps:
+# PHP 8.3 + Composer (runs the Nimbus task classes) and ansible-core
+# (ansible-playbook / ansible-vault available in-container, no podman-in-podman).
+#
+# Built automatically by bin/nimbus on first use:
+#   podman build -f Containerfile.tools -t nimbus-tools:latest .
+#
+# This is a DEV TOOLS image, not the app runtime image (see Dockerfile).
+FROM registry.access.redhat.com/ubi9/ubi:latest
+
+# UBI9's default python3 is 3.9; ansible-core 2.16 needs >=3.10, so install
+# python3.11 explicitly and put ansible on it.
+RUN dnf -y module enable php:8.3 && \
+    dnf -y install \
+        php-cli php-json php-mbstring php-pdo php-pgsql php-zip php-xml \
+        git unzip which python3.11 python3.11-pip && \
+    pip3.11 install --no-cache-dir "ansible-core==2.16.*" && \
+    dnf clean all
+
+COPY --from=docker.io/library/composer:latest /usr/bin/composer /usr/local/bin/composer
+
+# Composer inside the container runs as the invoking user's mapped UID with
+# the repo bind-mounted at /work; keep cache out of the mount.
+ENV COMPOSER_CACHE_DIR=/tmp/composer-cache \
+    COMPOSER_ALLOW_SUPERUSER=1
+
+WORKDIR /work

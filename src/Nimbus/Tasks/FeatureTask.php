@@ -143,6 +143,64 @@ class FeatureTask extends BaseTask
         }
     }
 
+    public function removeEda(Event $event): void
+    {
+        $this->removeFeature($event, 'eda', 'EDA');
+    }
+
+    public function removeKeycloak(Event $event): void
+    {
+        $this->removeFeature($event, 'keycloak', 'Keycloak');
+    }
+
+    /**
+     * Shared remove flow: pick an app that has the feature enabled,
+     * flip it off via AppManager::setFeature, report what happened.
+     */
+    private function removeFeature(Event $event, string $feature, string $label): void
+    {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+
+        $appName = $args[0] ?? null;
+
+        if (!$appName) {
+            $apps = $this->appManager->listApps();
+            $enabledApps = [];
+
+            foreach ($apps as $name => $info) {
+                $configFile = getcwd() . '/.installer/apps/' . $name . '/app.nimbus.json';
+                if (file_exists($configFile)) {
+                    $config = json_decode(file_get_contents($configFile), true);
+                    if ($config['features'][$feature] ?? false) {
+                        $enabledApps[] = $name;
+                    }
+                }
+            }
+
+            if (empty($enabledApps)) {
+                echo self::ansiFormat('INFO', "No apps found with $label enabled.");
+                return;
+            }
+
+            $choice = $io->select("Select app to remove $label from:", $enabledApps);
+            $appName = $enabledApps[$choice];
+        }
+
+        try {
+            $this->appManager->setFeature($appName, $feature, false);
+
+            echo self::ansiFormat('SUCCESS', "$label removed from '$appName' successfully!");
+            echo self::ansiFormat('INFO', 'Changes made:');
+            echo "  ✓ Disabled $label in app configuration" . PHP_EOL;
+            echo "  ✓ Regenerated compose file without the $label container(s)" . PHP_EOL;
+            echo self::ansiFormat('INFO', "Note: $label files under .installer/apps/$appName/ were left on disk — re-enabling is cheap; delete manually if unwanted.");
+            echo self::ansiFormat('INFO', "Apply with: composer nimbus:up $appName (or bin/nimbus rebuild $appName)");
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', "Failed to remove $label: " . $e->getMessage());
+        }
+    }
+
     public function addEdaKeycloak(Event $event): void
     {
         $io = $event->getIO();

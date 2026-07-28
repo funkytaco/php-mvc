@@ -36,7 +36,11 @@ class CreateTask extends BaseTask
     {
         $io = $event->getIO();
         $args = $event->getArguments();
-        
+
+        // --no-db: create the app without a database container/service
+        $noDb = in_array('--no-db', $args, true);
+        $args = array_values(array_filter($args, fn ($a) => $a !== '--no-db'));
+
         $appName = $args[0] ?? $io->ask('App name: ');
         
         if (!isset($args[1])) {
@@ -75,8 +79,12 @@ class CreateTask extends BaseTask
             echo PHP_EOL;
             
             $this->checkVaultCredentials($appName);
-            
-            $this->appManager->createFromTemplate($appName, $template);
+
+            $config = $noDb ? ['features' => ['database' => false]] : [];
+            $this->appManager->createFromTemplate($appName, $template, $config);
+            if ($noDb) {
+                echo self::ansiFormat('INFO', '🚫 Database disabled for this app (--no-db)');
+            }
             
             if ($resolvedTemplate !== $template) {
                 echo self::ansiFormat('SUCCESS', "App '$appName' created successfully using alias '$template' → template '$resolvedTemplate'!");

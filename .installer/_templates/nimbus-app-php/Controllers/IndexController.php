@@ -55,30 +55,40 @@ class IndexController extends AbstractController
     public function index(): void
     {
         $config = $this->getConfig();
-        $hasEda = $config['has_eda'] ?? false;
-        $keycloakConfig = $config['keycloak'] ?? null;
-        $hasKeycloak = $keycloakConfig && ($keycloakConfig['enabled'] ?? false);
-        
+        $appSlug = $config['installer-name'] ?? 'app';
+
+        // Feature flags. filter_var(FILTER_VALIDATE_BOOLEAN) accepts real booleans
+        // as well as legacy string values ('true'/'false'/'1'/'0') from older
+        // generated configs, so a stale app.config.php can never mis-render state.
+        $hasEda = filter_var($config['has_eda'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $hasKeycloak = filter_var($config['keycloak']['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // Live probe, not config: true only if the database actually answers.
+        $hasDatabase = $this->demoModel->isConnected();
+
         $features = [
-            'MVC Architecture',
-            'Database Integration',
-            'Container Ready',
-            'RESTful API Support'
+            ['name' => 'MVC Architecture', 'enabled' => true],
+            ['name' => 'RESTful API Support', 'enabled' => true],
+            [
+                'name' => 'Database (PostgreSQL)',
+                'enabled' => $hasDatabase,
+                'command' => $hasDatabase ? null : 'composer nimbus:up ' . $appSlug
+            ],
+            [
+                'name' => 'Event-Driven Ansible (EDA)',
+                'enabled' => $hasEda,
+                'command' => $hasEda ? null : 'composer nimbus:add-eda ' . $appSlug
+            ],
+            [
+                'name' => 'Keycloak SSO Integration',
+                'enabled' => $hasKeycloak,
+                'command' => $hasKeycloak ? null : 'composer nimbus:add-keycloak ' . $appSlug
+            ]
         ];
-        
-        if ($hasEda) {
-            $features[] = 'Event-Driven Ansible (EDA)';
-        } else {
-            $features[] = 'Event-Driven Ansible (EDA) - Not enabled';
-        }
-        
-        if ($hasKeycloak) {
-            $features[] = 'Keycloak SSO Integration';
-        }
         
         // Get Keycloak details from app config if available
         $keycloakAdminPassword = '';
-        $keycloakRealm = '{{APP_NAME}}-realm';
+        $keycloakRealm = $appSlug . '-realm';
         $keycloakPort = 8080;
         
         // Try to read from app.nimbus.json for runtime values
@@ -97,15 +107,17 @@ class IndexController extends AbstractController
         }
         
         $data = [
-            'title' => '{{APP_NAME_UPPER}} Demo',
+            'title' => $config['app_name'] ?? 'Nimbus Demo',
             'message' => 'Welcome to your Nimbus application!',
             'features' => $features,
             'stats' => $this->demoModel->getStats(),
             'has_eda' => $hasEda,
             'eda_port' => $config['eda_port'] ?? 5000,
             'has_keycloak' => $hasKeycloak,
+            'has_database' => $hasDatabase,
+            'enable_keycloak_command' => 'composer nimbus:add-keycloak ' . $appSlug,
             'user' => $_SESSION['user'] ?? null,
-            'app_name' => '{{APP_NAME}}',
+            'app_name' => $appSlug,
             'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
             'KEYCLOAK_REALM' => $keycloakRealm,
             'APP_PORT_KEYCLOAK' => $keycloakPort
@@ -252,10 +264,13 @@ class IndexController extends AbstractController
         }
         
         $edaPort = $config['eda_port'] ?? 5000;
+        $appSlug = $config['installer-name'] ?? 'app';
         $requestData = $this->getRequestData();
-        
-        // Forward the request to the EDA container
-        $edaUrl = "http://{{APP_NAME}}-eda:5000/endpoint";
+
+        // Forward the request to the EDA container. Container-to-container
+        // traffic always targets the EDA server's own internal port (5000),
+        // not the host-published $edaPort, which only matters from outside.
+        $edaUrl = "http://{$appSlug}-eda:5000/endpoint";
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $edaUrl);

@@ -13,10 +13,10 @@ return [
     'app_name' => '{{APP_NAME_UPPER}} Demo',
     'base_url' => '/',
     'debug' => true,
-    'has_eda' => "{{HAS_EDA}}",
-    'eda_port' => "{{EDA_PORT}}",
+    'has_eda' => {{HAS_EDA}},
+    'eda_port' => {{EDA_PORT}},
     'keycloak' => [
-        'enabled' => '{{KEYCLOAK_ENABLED}}',
+        'enabled' => {{KEYCLOAK_ENABLED}},
         'realm' => '{{KEYCLOAK_REALM}}',
         'client_id' => '{{KEYCLOAK_CLIENT_ID}}',
         'client_secret' => '{{KEYCLOAK_CLIENT_SECRET}}',

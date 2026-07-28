@@ -369,16 +369,39 @@ class VaultManager
     }
     
     /**
-     * Run vault utility container for operations requiring ansible-vault
+     * Run an ansible-vault command.
+     *
+     * Prefers a local ansible-vault binary when one is on PATH (always true
+     * inside the nimbus-tools container, which ships ansible-core) — this
+     * avoids podman-in-podman when the Nimbus engine itself is containerized.
+     * Falls back to the original ansible-runner container for bare hosts
+     * without ansible installed.
      */
     private function runVaultContainer(string $command): string
     {
+        if ($this->hasLocalAnsibleVault()) {
+            $localCmd = sprintf('cd %s && %s', escapeshellarg($this->vaultDir), $command);
+            return shell_exec($localCmd) ?: '';
+        }
+
         $containerCmd = sprintf(
             "podman run --rm -v %s:/vault:Z -w /vault quay.io/ansible/ansible-runner:latest sh -c %s",
             escapeshellarg($this->vaultDir),
             escapeshellarg($command)
         );
-        
+
         return shell_exec($containerCmd) ?: '';
+    }
+
+    /**
+     * Check once whether ansible-vault is available locally
+     */
+    private function hasLocalAnsibleVault(): bool
+    {
+        static $available = null;
+        if ($available === null) {
+            $available = trim(shell_exec('command -v ansible-vault 2>/dev/null') ?: '') !== '';
+        }
+        return $available;
     }
 }

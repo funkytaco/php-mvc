@@ -118,6 +118,25 @@
         .status-success { background: #28a745; }
         .status-warning { background: #ffc107; }
         .status-error { background: #dc3545; }
+        .enable-hint {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .enable-hint code, .feature-hint code {
+            background: rgba(0, 0, 0, 0.35);
+            color: #ffc107;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .feature-hint {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        .feature-hint code { color: #b8860b; background: #eee; }
     </style>
 </head>
 <body>
@@ -135,6 +154,12 @@
             {{/user}}
         </div>
         {{/has_keycloak}}
+        {{^has_keycloak}}
+        <div class="enable-hint">
+            <span class="status-indicator status-warning"></span>
+            Keycloak is not enabled. Enable it with: <code>{{enable_keycloak_command}}</code>
+        </div>
+        {{/has_keycloak}}
     </div>
 
     <div class="container">
@@ -143,7 +168,10 @@
             <div class="features">
                 {{#features}}
                 <div class="feature">
-                    {{.}}
+                    <span class="status-indicator {{#enabled}}status-success{{/enabled}}{{^enabled}}status-error{{/enabled}}"></span>{{name}}
+                    {{^enabled}}
+                    <div class="feature-hint">Enable with:<br><code>{{command}}</code></div>
+                    {{/enabled}}
                 </div>
                 {{/features}}
             </div>
@@ -151,6 +179,9 @@
 
         <div class="card">
             <h2>Database Stats</h2>
+            {{^has_database}}
+            <p><span class="status-indicator status-error"></span>Database is not reachable. Start the stack with: <code>composer nimbus:up {{app_name}}</code></p>
+            {{/has_database}}
             <div class="stats">
                 <div class="stat">
                     <div class="stat-value">{{stats.total_items}}</div>

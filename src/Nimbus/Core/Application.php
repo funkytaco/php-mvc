@@ -147,10 +147,20 @@ class Application
     
     /**
      * Setup database connection
+     *
+     * Non-fatal by design: apps created with --no-db (or whose database is
+     * down) must still boot and render. Controllers that need the database
+     * lazy-load it via AbstractController::getDb(), which throws at the
+     * point of use where it can be handled per-request.
      */
     private function setupDatabase(): void
     {
-        $this->conn = $this->injector->make('PDO');
+        try {
+            $this->conn = $this->injector->make('PDO');
+        } catch (\Throwable $e) {
+            $this->conn = null;
+            error_log('Nimbus: database unavailable at bootstrap (continuing without it): ' . $e->getMessage());
+        }
     }
     
     /**

@@ -15,10 +15,10 @@ return [
     'app_name' => '{{APP_NAME_UPPER}} - LKUI',
     'base_url' => '/',
     'debug' => true,
-    'has_eda' => '{{HAS_EDA}}',
-    'eda_port' => "{{EDA_PORT}}",
+    'has_eda' => {{HAS_EDA}},
+    'eda_port' => {{EDA_PORT}},
     'eda' => [
-        'enabled' => '{{HAS_EDA}}',
+        'enabled' => {{HAS_EDA}},
         'host' => '{{APP_NAME}}-eda',
         'port' => '{{EDA_PORT}}',
         'ssl_order_url' => 'http://{{APP_NAME}}-eda:5000/ssl-order',
@@ -26,7 +26,7 @@ return [
         'app_callback_url' => 'http://{{APP_NAME}}-app:8080/eda/api/ssl-expiry'
     ],
     'keycloak' => [
-        'enabled' => '{{KEYCLOAK_ENABLED}}',
+        'enabled' => {{KEYCLOAK_ENABLED}},
         'realm' => '{{KEYCLOAK_REALM}}',
         'client_id' => '{{KEYCLOAK_CLIENT_ID}}',
         'client_secret' => '{{KEYCLOAK_CLIENT_SECRET}}',

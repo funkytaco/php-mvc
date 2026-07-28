@@ -198,7 +198,8 @@ class InteractiveHelper extends BaseTask
         echo "  • composer nimbus:status            # Check app status" . PHP_EOL;
         echo "  • composer nimbus:down $appName     # Stop containers" . PHP_EOL;
         echo "  • composer nimbus:delete $appName   # Delete app" . PHP_EOL;
-        
+        echo "  • bin/nimbus dev $appName           # Live-edit dev mode + code-server (VS Code in browser)" . PHP_EOL;
+
         $setupHostsPath = ".installer/apps/$appName/dns-setup-$appName-hosts.sh";
         if (file_exists($setupHostsPath) && PHP_OS === 'Darwin') {
             echo PHP_EOL;

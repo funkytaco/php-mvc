@@ -126,7 +126,7 @@
             {{^keycloak_enabled}}
             <div class="warning-box">
                 <strong>⚠️ Keycloak is not enabled</strong>
-                <p>Run <code>composer nimbus:add-keycloak {{APP_NAME}}</code> to add Keycloak support.</p>
+                <p>Run <code>composer nimbus:add-keycloak {{app_name}}</code> to add Keycloak support.</p>
             </div>
             {{/keycloak_enabled}}
             
@@ -136,13 +136,13 @@
             <form id="keycloak-config-form">
                 <div class="form-group">
                     <label for="realm">Realm Name</label>
-                    <input type="text" id="realm" name="realm" value="{{APP_NAME}}-realm" required>
+                    <input type="text" id="realm" name="realm" value="{{realm_name}}" required>
                     <small style="color: #666;">The Keycloak realm for this application</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="client_id">Client ID</label>
-                    <input type="text" id="client_id" name="client_id" value="{{APP_NAME}}-client" required>
+                    <input type="text" id="client_id" name="client_id" value="{{client_id}}" required>
                     <small style="color: #666;">The OAuth2 client identifier</small>
                 </div>
                 
@@ -154,7 +154,7 @@
                 
                 <div class="form-group">
                     <label for="auth_url">Keycloak URL</label>
-                    <input type="url" id="auth_url" name="auth_url" value="http://{{APP_NAME}}-keycloak:8080" required>
+                    <input type="url" id="auth_url" name="auth_url" value="{{keycloak_auth_url}}" required>
                     <small style="color: #666;">The base URL of your Keycloak server</small>
                 </div>
                 
@@ -172,7 +172,7 @@
                     <li>Create a new realm with the name specified above</li>
                     <li>Create a new client with the Client ID specified above</li>
                     <li>Set the client access type to "confidential"</li>
-                    <li>Add valid redirect URIs: <code>http://localhost:{{APP_PORT}}/*</code></li>
+                    <li>Add valid redirect URIs: <code>http://localhost:8158/*</code></li>
                     <li>Copy the client secret from the Credentials tab</li>
                     <li>Submit this form to save the configuration</li>
                 </ol>

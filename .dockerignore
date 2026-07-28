@@ -7,3 +7,16 @@ node_modules
 docker-compose.yml
 podman-compose.yml
 *.log
+# Generated/runtime state — never belongs in an image build context.
+# (Dockerfile rm -rf's app/ anyway; excluding it stops local edits from
+# busting the build cache. .installer/apps must STAY included — the build
+# runs `composer nimbus:install` against it.)
+app/
+data/
+html/
+*-compose.yml
+*-compose.dev.yml
+coverage/
+.phpunit.cache/
+Containerfile.tools
+bin/

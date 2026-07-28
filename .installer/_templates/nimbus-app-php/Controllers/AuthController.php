@@ -145,13 +145,16 @@ class AuthController extends AbstractController
      */
     public function configure()
     {
+        $appSlug = $this->getConfig()['installer-name'] ?? 'app';
+
         $data = [
             'title' => 'Keycloak Configuration',
             'keycloak_config' => $this->keycloakConfig,
             'keycloak_admin_url' => $this->keycloakConfig['auth_url'] . '/admin',
-            'app_name' => '{{APP_NAME}}',
-            'realm_name' => $this->keycloakConfig['realm'] ?? '{{APP_NAME}}-realm',
-            'client_id' => $this->keycloakConfig['client_id'] ?? '{{APP_NAME}}-client',
+            'keycloak_auth_url' => $this->keycloakConfig['auth_url'] ?? '',
+            'app_name' => $appSlug,
+            'realm_name' => $this->keycloakConfig['realm'] ?? $appSlug . '-realm',
+            'client_id' => $this->keycloakConfig['client_id'] ?? $appSlug . '-client',
             'keycloak_enabled' => $this->isKeycloakEnabled(),
             'setup_complete' => $this->isKeycloakSetupComplete()
         ];
@@ -313,9 +316,9 @@ class AuthController extends AbstractController
      */
     private function isKeycloakEnabled(): bool
     {
-        return !empty($this->keycloakConfig) && 
-               isset($this->keycloakConfig['enabled']) && 
-               ($this->keycloakConfig['enabled'] === true || $this->keycloakConfig['enabled'] === 'true');
+        // Same normalization as IndexController: real booleans from current
+        // configs, legacy 'true'/'false' strings from older generated ones.
+        return filter_var($this->keycloakConfig['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
     
     /**

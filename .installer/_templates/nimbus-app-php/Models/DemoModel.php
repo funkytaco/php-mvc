@@ -34,10 +34,28 @@ class DemoModel
     }
     
     /**
+     * Check whether the database connection is actually usable
+     *
+     * Runs a trivial query rather than trusting configuration,
+     * so callers get the live state of the connection.
+     *
+     * @return bool True if the database answers queries
+     */
+    public function isConnected(): bool
+    {
+        try {
+            $this->db->query('SELECT 1');
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
      * Get statistics about demo items
-     * 
+     *
      * Returns total count and last updated timestamp
-     * 
+     *
      * @return array<string, int|string> Statistics data
      */
     public function getStats(): array

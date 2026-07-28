@@ -157,9 +157,11 @@ class AppManager
         } else {
             $placeholders['{{KEYCLOAK_ENABLED}}'] = 'false';
             $placeholders['{{KEYCLOAK_ADMIN_PASSWORD}}'] = '';
+            $placeholders['{{KEYCLOAK_DB_PASSWORD}}'] = '';
             $placeholders['{{KEYCLOAK_REALM}}'] = '';
             $placeholders['{{KEYCLOAK_CLIENT_ID}}'] = '';
             $placeholders['{{KEYCLOAK_CLIENT_SECRET}}'] = '';
+            $placeholders['{{KEYCLOAK_PORT}}'] = $this->generateKeycloakPort($appName);
         }
         
         // Replace placeholders in files
@@ -178,12 +180,15 @@ class AppManager
      */
     private function processGeneratorTemplates(string $appName, string $targetPath, string $template, array $placeholders): void
     {
-        // Read the template's config to see if it defines generator_templates
-        $templateConfigPath = $this->templatesDir . '/' . $template . '/app.config.php';
+        // Read the app's config to see if it defines generator_templates.
+        // Use the already-substituted copy in $targetPath, NOT the raw template:
+        // template sources contain bare {{PLACEHOLDER}} tokens (e.g. unquoted
+        // booleans) and are not valid PHP until placeholders are replaced.
+        $templateConfigPath = $targetPath . '/app.config.php';
         if (!file_exists($templateConfigPath)) {
             return; // No template config, no generation needed
         }
-        
+
         try {
             $templateConfig = include $templateConfigPath;
         } catch (\Throwable $e) {
@@ -326,17 +331,40 @@ class AppManager
     
     /**
      * List available apps
+     *
+     * Self-healing: apps.json is a registry that only stays in sync with
+     * .installer/apps/ on the happy create/delete path — anything else that
+     * removes an app directory (manual rm -rf, an interrupted delete, etc.)
+     * leaves a stale "ghost" entry behind. Rather than let every caller
+     * (nimbus:list, nimbus:delete, ...) trust a registry that might be lying,
+     * prune ghosts here and persist the cleanup, so the fix applies once and
+     * every caller of listApps() automatically sees only real apps.
      */
     public function listApps(): array
     {
         $appsFile = $this->baseDir . '/.installer/apps.json';
-        
+
         if (!file_exists($appsFile)) {
             return [];
         }
-        
-        $apps = json_decode(file_get_contents($appsFile), true);
-        return $apps['apps'] ?? [];
+
+        $registry = json_decode(file_get_contents($appsFile), true);
+        $apps = $registry['apps'] ?? [];
+
+        $ghosts = array_filter(
+            array_keys($apps),
+            fn (string $name) => !is_dir($this->installerDir . '/' . $name)
+        );
+
+        if (!empty($ghosts)) {
+            foreach ($ghosts as $name) {
+                unset($apps[$name]);
+            }
+            $registry['apps'] = $apps;
+            file_put_contents($appsFile, json_encode($registry, JSON_PRETTY_PRINT));
+        }
+
+        return $apps;
     }
     
     /**
@@ -414,7 +442,8 @@ class AppManager
             'services' => []
         ];
         
-        // App container
+        // App container. depends_on is built up per enabled feature below;
+        // an app with no database must not reference the missing -db service.
         $compose['services'][$appName . '-app'] = [
             'build' => [
                 'context' => '.',
@@ -427,12 +456,13 @@ class AppManager
             'volumes' => [
                 './.installer/apps/' . $appName . ':/var/www/.installer/' . $appName . ':Z'
             ],
-            'depends_on' => [$appName . '-db'],
             'networks' => [$appName . '-net']
         ];
-        
+
         // Database container
-        if ($config['features']['database'] ?? true) {
+        $hasDatabase = $config['features']['database'] ?? true;
+        if ($hasDatabase) {
+            $compose['services'][$appName . '-app']['depends_on'][] = $appName . '-db';
             $compose['services'][$appName . '-db'] = $this->buildDatabaseService($appName, $config, $passwords);
         }
         
@@ -455,27 +485,27 @@ class AppManager
                 ],
                 'working_dir' => '/rulebooks',
                 'entrypoint' => ['sh', '/init-entrypoint.sh'],
-                'depends_on' => [
-                    $appName . '-db' => [
-                        'condition' => 'service_healthy'
-                    ]
-                ],
                 'restart' => 'unless-stopped',
                 'networks' => [$appName . '-net']
             ];
+
+            // EDA waits for the database only when the app actually has one
+            if ($hasDatabase) {
+                $compose['services'][$appName . '-eda']['depends_on'] = [
+                    $appName . '-db' => [
+                        'condition' => 'service_healthy'
+                    ]
+                ];
+            }
         }
         
         // Keycloak containers
         if ($config['features']['keycloak'] ?? false) {
             $keycloakServices = $this->buildKeycloakServices($appName, $config, $passwords);
             $compose['services'] = array_merge($compose['services'], $keycloakServices);
-            
-            // Update app container dependencies to include Keycloak
-            if (isset($compose['services'][$appName . '-app']['depends_on'])) {
-                if (is_array($compose['services'][$appName . '-app']['depends_on'])) {
-                    $compose['services'][$appName . '-app']['depends_on'][] = $appName . '-keycloak';
-                }
-            }
+
+            // App waits for Keycloak regardless of whether a database is present
+            $compose['services'][$appName . '-app']['depends_on'][] = $appName . '-keycloak';
         }
         
         return $compose;
@@ -487,9 +517,9 @@ class AppManager
     private function buildDatabaseService(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
     {
         $dbEnvironment = [
-            'POSTGRES_DB' => $config['database']['name'],
-            'POSTGRES_USER' => $config['database']['user'],
-            'POSTGRES_PASSWORD' => $passwords ? $passwords->databasePassword : $config['database']['password']
+            'POSTGRES_DB' => $config['database']['name'] ?? $appName . '_db',
+            'POSTGRES_USER' => $config['database']['user'] ?? $appName . '_user',
+            'POSTGRES_PASSWORD' => $passwords ? $passwords->databasePassword : ($config['database']['password'] ?? '')
         ];
         
         $dbVolumes = [
@@ -510,7 +540,7 @@ class AppManager
             'volumes' => $dbVolumes,
             'networks' => [$appName . '-net'],
             'healthcheck' => [
-                'test' => ['CMD-SHELL', 'pg_isready -U ' . $config['database']['user'] . ' -d ' . $config['database']['name']],
+                'test' => ['CMD-SHELL', 'pg_isready -U ' . ($config['database']['user'] ?? $appName . '_user') . ' -d ' . ($config['database']['name'] ?? $appName . '_db')],
                 'interval' => '5s',
                 'timeout' => '5s',
                 'retries' => 5
@@ -749,6 +779,16 @@ class AppManager
     {
         $hash = crc32($appName . '_keycloak');
         return 9000 + ($hash % 1000);
+    }
+
+    /**
+     * Generate unique code-server (dev mode) port based on app name
+     */
+    private function generateCodeServerPort(string $appName): int
+    {
+        // 10500-11499: clear of app (8xxx), eda (5xxx) and keycloak (9xxx) bands
+        $hash = crc32($appName . '_codeserver');
+        return 10500 + ($hash % 1000);
     }
     
     /**
@@ -1014,13 +1054,270 @@ class AppManager
         
         // Update app.config.php to enable EDA in the app
         $this->updateAppConfigForEda($appPath, true);
-        
+
         // Regenerate compose file with validation
         $this->regenerateComposeFile($appName, $config);
-        
+
         return true;
     }
-    
+
+    /**
+     * Enable or disable a feature on an existing app.
+     *
+     * Flips the flag in app.nimbus.json, keeps app.config.php in sync, and
+     * regenerates the compose file. Files on disk (eda/, keycloak scripts)
+     * are deliberately left untouched so re-enabling is cheap.
+     *
+     * Only 'eda' and 'keycloak' are supported: 'database' toggling after
+     * creation is out of scope (data-loss questions), use --no-db at create.
+     */
+    public function setFeature(string $appName, string $feature, bool $enabled): bool
+    {
+        if (!in_array($feature, ['eda', 'keycloak'], true)) {
+            throw new \InvalidArgumentException("Unsupported feature '$feature' (supported: eda, keycloak)");
+        }
+
+        if (!$this->appExists($appName)) {
+            throw new \RuntimeException("App '$appName' not found");
+        }
+
+        $appPath = $this->installerDir . '/' . $appName;
+        $configFile = $appPath . '/app.nimbus.json';
+        if (!file_exists($configFile)) {
+            throw new \RuntimeException("App config file not found for '$appName'");
+        }
+
+        $config = json_decode(file_get_contents($configFile), true);
+
+        if (($config['features'][$feature] ?? false) === $enabled) {
+            $state = $enabled ? 'enabled' : 'disabled';
+            throw new \RuntimeException(ucfirst($feature) . " is already $state for app '$appName'");
+        }
+
+        $config['features'][$feature] = $enabled;
+        file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+
+        // Keep app.config.php flags in sync
+        if ($feature === 'eda') {
+            $this->updateAppConfigForEda($appPath, $enabled);
+        } else {
+            $this->updateAppConfig($appPath, null, $enabled);
+        }
+
+        $this->regenerateComposeFile($appName, $config);
+
+        return true;
+    }
+
+    /**
+     * Asset keys that are create-time RESOLVED (placeholders substituted with
+     * this app's concrete name/ports/passwords), not verbatim copies of the
+     * template source. Committing these back to a shared template would bake
+     * one app's identity and secrets into every future nimbus:create — never
+     * do it. Safe only when committing to a single app's own instance dir,
+     * where resolved values are exactly what belongs.
+     */
+    private const TEMPLATE_UNSAFE_ASSET_KEYS = ['config'];
+
+    /**
+     * Copy live app/ edits back to their source of truth.
+     *
+     * Dev mode (bin/nimbus dev) bind-mounts app/ into the running container
+     * so edits there are live immediately — but app/ itself is gitignored
+     * and gets silently overwritten by the next nimbus:install. This walks
+     * the app's asset map (app.nimbus.json 'assets': source => target,
+     * the same map install() uses to populate app/ in the first place) in
+     * reverse, target => source, so edits flow back out.
+     *
+     * @param string $appName
+     * @param bool $toTemplate  true (default): write to .installer/_templates/<type>/,
+     *                          the shared source every future nimbus:create scaffolds
+     *                          from. Resolved assets (app.config.php) are skipped in
+     *                          this mode — see TEMPLATE_UNSAFE_ASSET_KEYS.
+     *                          false: write everything, including resolved assets,
+     *                          to .installer/apps/<appName>/ only, leaving the shared
+     *                          template untouched.
+     * @return string[] Target-relative paths that were committed (e.g. 'app/Controllers')
+     */
+    public function commitAppToTemplate(string $appName, bool $toTemplate = true): array
+    {
+        if (!$this->appExists($appName)) {
+            throw new \RuntimeException("App '$appName' not found");
+        }
+
+        $config = $this->loadAppConfig($appName);
+        $assets = $config['assets'] ?? [];
+        if (empty($assets)) {
+            throw new \RuntimeException("App '$appName' has no asset map in app.nimbus.json — nothing to commit");
+        }
+
+        $destRoot = $toTemplate
+            ? $this->templatesDir . '/' . ($config['type'] ?? $appName)
+            : $this->installerDir . '/' . $appName;
+
+        if (!is_dir($destRoot)) {
+            throw new \RuntimeException(
+                $toTemplate
+                    ? "Template directory not found: $destRoot (app.nimbus.json 'type' must match a directory under .installer/_templates/)"
+                    : "App directory not found: $destRoot"
+            );
+        }
+
+        // This app's identity strings, to scan for AFTER copying. app/ (the
+        // resolved instance) is EXPECTED to contain these — e.g. a template
+        // fallback `?? '{{APP_NAME}}'` legitimately resolves to `?? 'demo-dev'`
+        // in the installed copy, which is correct and not contamination. What
+        // must never happen is one of these strings surviving in the file that
+        // ends up in the TEMPLATE, since replacePlaceholders() only runs at
+        // create time — a clean template file can only contain the app's name
+        // if someone hardcoded it as a literal (the exact bug this guards
+        // against). So we scan the destination, not the source.
+        $identityStrings = array_unique(array_filter([
+            $appName,
+            strtoupper($appName),
+            strtolower($appName),
+        ]));
+
+        // Resolve which assets will actually be copied, and where from/to.
+        $toCopy = [];
+        $skipped = [];
+        foreach ($assets as $assetKey => $asset) {
+            $source = $asset['source'] ?? null;
+            $target = $asset['target'] ?? null;
+            if ($source === null || $target === null) {
+                continue;
+            }
+
+            if ($toTemplate && in_array($assetKey, self::TEMPLATE_UNSAFE_ASSET_KEYS, true)) {
+                $skipped[] = $target;
+                continue;
+            }
+
+            // target is always 'app/...' — strip that prefix to read from the live app/ dir
+            $liveSource = $this->baseDir . '/' . $target;
+            $dest = $destRoot . '/' . $source;
+            $isFile = !empty($asset['isFile']);
+
+            if ($isFile ? !is_file($liveSource) : !is_dir($liveSource)) {
+                continue; // nothing live to commit for this asset
+            }
+
+            $toCopy[] = ['source' => $liveSource, 'dest' => $dest, 'target' => $target, 'isFile' => $isFile];
+        }
+
+        if (!$toTemplate) {
+            // --app-only: no leak risk (writing to this app's own instance dir), copy directly.
+            $committed = [];
+            foreach ($toCopy as $item) {
+                $item['isFile'] ? $this->copyFile($item['source'], $item['dest']) : $this->copyDirectory($item['source'], $item['dest']);
+                $committed[] = $item['target'];
+            }
+            return ['committed' => $committed, 'skipped' => $skipped];
+        }
+
+        // Committing to the SHARED template: back up any destination we're about
+        // to overwrite, copy, scan the result, and roll every asset back to its
+        // backup if any single one leaks identity — the commit is all-or-nothing.
+        $backups = [];
+        $created = []; // assets that had no pre-existing dest — rollback deletes these entirely
+        try {
+            $committed = [];
+            foreach ($toCopy as $item) {
+                if (file_exists($item['dest'])) {
+                    $backup = $item['dest'] . '.nimbus-commit-backup';
+                    if ($item['isFile']) {
+                        $this->copyFile($item['dest'], $backup);
+                    } else {
+                        $this->copyDirectory($item['dest'], $backup);
+                    }
+                    $backups[] = ['dest' => $item['dest'], 'backup' => $backup, 'isFile' => $item['isFile']];
+                } else {
+                    $created[] = $item;
+                }
+
+                if ($item['isFile']) {
+                    $this->copyFile($item['source'], $item['dest']);
+                    $this->assertNoAppIdentityLeak($item['dest'], $identityStrings);
+                } else {
+                    // Overwrite in place, not merge: clear the old tree first so a
+                    // shrinking template (a file removed from app/) is reflected,
+                    // and so restore-on-failure below starts from a clean slate.
+                    $this->deleteDirectory($item['dest']);
+                    $this->copyDirectory($item['source'], $item['dest']);
+                    $this->assertDirectoryHasNoAppIdentityLeak($item['dest'], $identityStrings);
+                }
+
+                $committed[] = $item['target'];
+            }
+        } catch (\RuntimeException $e) {
+            foreach ($backups as $b) {
+                if ($b['isFile']) {
+                    $this->copyFile($b['backup'], $b['dest']);
+                    unlink($b['backup']);
+                } else {
+                    $this->deleteDirectory($b['dest']);
+                    $this->copyDirectory($b['backup'], $b['dest']);
+                    $this->deleteDirectory($b['backup']);
+                }
+            }
+            foreach ($created as $item) {
+                if (!file_exists($item['dest'])) {
+                    continue; // never got copied before the failure — nothing to remove
+                }
+                if ($item['isFile']) {
+                    unlink($item['dest']);
+                } else {
+                    $this->deleteDirectory($item['dest']);
+                }
+            }
+            throw $e;
+        }
+
+        foreach ($backups as $b) {
+            if ($b['isFile']) {
+                unlink($b['backup']);
+            } else {
+                $this->deleteDirectory($b['backup']);
+            }
+        }
+
+        return ['committed' => $committed, 'skipped' => $skipped];
+    }
+
+    /**
+     * Throw if $file contains any of this app's identity strings — evidence
+     * of resolved per-app content that must never reach a shared template.
+     */
+    private function assertNoAppIdentityLeak(string $file, array $identityStrings): void
+    {
+        $content = file_get_contents($file);
+        foreach ($identityStrings as $needle) {
+            if ($needle !== '' && str_contains($content, $needle)) {
+                throw new \RuntimeException(
+                    "Refusing to commit to template: '$file' contains the literal app identity '$needle'. " .
+                    "Template source must read this from \$appConfig at runtime instead of hardcoding it " .
+                    "(see CLAUDE.md: \"Runtime config: read from \$appConfig\"). Fix the source file, or use " .
+                    "--app-only to write only to this app's own .installer/apps/ copy."
+                );
+            }
+        }
+    }
+
+    /**
+     * Recursively apply assertNoAppIdentityLeak() to every file in a directory.
+     */
+    private function assertDirectoryHasNoAppIdentityLeak(string $dir, array $identityStrings): void
+    {
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $this->assertNoAppIdentityLeak($file->getPathname(), $identityStrings);
+            }
+        }
+    }
+
     /**
      * Create all EDA directories and files from template
      */
@@ -1126,20 +1423,14 @@ class AppManager
         
         $content = file_get_contents($appConfigFile);
         
-        // Update the has_eda value
-        if ($hasEda) {
-            $content = preg_replace(
-                "/'has_eda'\s*=>\s*false/",
-                "'has_eda' => true",
-                $content
-            );
-        } else {
-            $content = preg_replace(
-                "/'has_eda'\s*=>\s*true/",
-                "'has_eda' => false",
-                $content
-            );
-        }
+        // Update the has_eda value.
+        // Tolerate legacy quoted values ('false'/"false") and always write a real boolean.
+        $edaValue = $hasEda ? 'true' : 'false';
+        $content = preg_replace(
+            "/'has_eda'\s*=>\s*['\"]?(true|false)['\"]?/",
+            "'has_eda' => $edaValue",
+            $content
+        );
         
         file_put_contents($appConfigFile, $content);
     }
@@ -1344,14 +1635,19 @@ class AppManager
     private function getAppContainers(string $appName): array
     {
         $containers = [
-            $appName . '-app',
-            $appName . '-postgres'  // database container
+            $appName . '-app'
         ];
-        
-        // Check if EDA is enabled for this app
+
+        // Feature-gated containers, read from app.nimbus.json
         $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
-        if (file_exists($configFile)) {
-            $config = json_decode(file_get_contents($configFile), true);
+        $config = file_exists($configFile)
+            ? json_decode(file_get_contents($configFile), true)
+            : [];
+
+        if ($config['features']['database'] ?? true) {
+            $containers[] = $appName . '-postgres';  // database container
+        }
+        if ($config !== []) {
             if ($config['features']['eda'] ?? false) {
                 $containers[] = $appName . '-eda';
             }
@@ -1492,8 +1788,90 @@ class AppManager
         
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
-        
+
         file_put_contents($this->baseDir . '/' . $appName . '-compose.yml', $yamlContent);
+    }
+
+    /**
+     * Build the dev-mode compose overlay for an app.
+     *
+     * The overlay is applied as a second -f file on top of <app>-compose.yml:
+     *  - bind-mounts the served code (app/, src/, index.php, html/assets) from
+     *    the host so edits are live without an image rebuild
+     *  - mounts a dev php.ini enabling opcache timestamp revalidation
+     *  - overrides the entrypoint to re-dump a non-optimized autoloader so
+     *    classes added mid-session resolve via PSR-4
+     *  - adds a code-server sidecar editing the same host tree in the browser
+     */
+    private function buildDevOverlay(string $appName, array $config): array
+    {
+        $codeServerPort = $config['containers']['codeserver']['port']
+            ?? $this->generateCodeServerPort($appName);
+        $codeServerPassword = $config['containers']['codeserver']['password'] ?? '';
+
+        return [
+            'version' => '3.8',
+            'services' => [
+                $appName . '-app' => [
+                    'volumes' => [
+                        './app:/var/www/app:Z',
+                        './src:/var/www/src:Z',
+                        './public/index.php:/var/www/html/index.php:Z',
+                        './html/assets:/var/www/html/assets:Z',
+                        './docker/dev/opcache-dev.ini:/usr/local/etc/php/conf.d/zz-opcache-dev.ini:Z'
+                    ],
+                    'entrypoint' => ['/bin/sh', '-c', 'composer dump-autoload -d /var/www && apache2-foreground']
+                ],
+                $appName . '-code-server' => [
+                    'image' => 'codercom/code-server:latest',
+                    'container_name' => $appName . '-code-server',
+                    'ports' => [$codeServerPort . ':8080'],
+                    'volumes' => [
+                        '.:/home/coder/workspace:Z'
+                    ],
+                    'environment' => [
+                        'PASSWORD' => $codeServerPassword
+                    ],
+                    'command' => ['--bind-addr', '0.0.0.0:8080', '/home/coder/workspace'],
+                    'networks' => [$appName . '-net']
+                ]
+            ]
+        ];
+    }
+
+    /**
+     * Generate <app>-compose.dev.yml and persist code-server settings.
+     *
+     * Returns ['file' => ..., 'port' => ..., 'password' => ...] so callers
+     * can print connection details.
+     */
+    public function generateDevCompose(string $appName): array
+    {
+        if (!$this->appExists($appName)) {
+            throw new \RuntimeException("App '$appName' not found. Create it first with nimbus:create");
+        }
+
+        $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
+        $config = $this->loadAppConfig($appName);
+
+        // Persist code-server port + password once so they survive regeneration
+        if (empty($config['containers']['codeserver']['password'])) {
+            $config['containers']['codeserver'] = [
+                'port' => (string) $this->generateCodeServerPort($appName),
+                'password' => $this->generatePassword()
+            ];
+            file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+        }
+
+        $overlay = $this->buildDevOverlay($appName, $config);
+        $file = $this->baseDir . '/' . $appName . '-compose.dev.yml';
+        file_put_contents($file, $this->arrayToYaml($overlay));
+
+        return [
+            'file' => $file,
+            'port' => $config['containers']['codeserver']['port'],
+            'password' => $config['containers']['codeserver']['password']
+        ];
     }
     
     /**
@@ -1577,12 +1955,33 @@ class AppManager
     public function deleteApp(string $appName, array $options = []): bool
     {
         $appDir = $this->installerDir . '/' . $appName;
+        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
+
         if (!is_dir($appDir)) {
-            throw new \RuntimeException("App '$appName' not found");
+            // Directory is already gone (manual cleanup, interrupted prior
+            // delete, etc.) — the end state the caller wants (app gone) is
+            // already true. Clean up any stragglers (stale registry entry,
+            // orphaned compose file, data dir) and report success rather
+            // than erroring on a delete that's effectively already done.
+            $appsFile = $this->baseDir . '/.installer/apps.json';
+            if (file_exists($appsFile)) {
+                $registry = json_decode(file_get_contents($appsFile), true);
+                if (isset($registry['apps'][$appName])) {
+                    unset($registry['apps'][$appName]);
+                    file_put_contents($appsFile, json_encode($registry, JSON_PRETTY_PRINT));
+                }
+            }
+            if (file_exists($composeFile)) {
+                unlink($composeFile);
+            }
+            $dataDir = $this->baseDir . '/data/' . $appName;
+            if (is_dir($dataDir)) {
+                $this->deleteDirectory($dataDir);
+            }
+            return true;
         }
 
         // Stop and remove containers first
-        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
         if (file_exists($composeFile)) {
             $downCommand = "podman-compose -f $composeFile down";
             if ($options['remove_volumes'] ?? false) {
@@ -1825,22 +2224,25 @@ class AppManager
         
         $content = file_get_contents($appConfigFile);
         
-        // Update has_eda if specified
+        // Update has_eda if specified.
+        // Tolerate legacy quoted values and always write a real boolean.
         if ($hasEda !== null) {
             $edaValue = $hasEda ? 'true' : 'false';
             $content = preg_replace(
-                "/'has_eda'\s*=>\s*(true|false)/",
+                "/'has_eda'\s*=>\s*['\"]?(true|false)['\"]?/",
                 "'has_eda' => $edaValue",
                 $content
             );
         }
-        
-        // Update Keycloak enabled status if specified
+
+        // Update Keycloak enabled status if specified.
+        // Anchor to the 'keycloak' block: templates may have other 'enabled' keys
+        // (e.g. lkui's eda section), and write a real boolean, not a string.
         if ($hasKeycloak !== null) {
-            $keycloakValue = $hasKeycloak ? "'true'" : "'false'";
+            $keycloakValue = $hasKeycloak ? 'true' : 'false';
             $content = preg_replace(
-                "/'enabled'\s*=>\s*'(true|false)'/",
-                "'enabled' => $keycloakValue",
+                "/('keycloak'\s*=>\s*\[\s*'enabled'\s*=>\s*)['\"]?(true|false)['\"]?/",
+                "\${1}$keycloakValue",
                 $content
             );
             
