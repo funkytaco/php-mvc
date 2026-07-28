@@ -71,6 +71,7 @@
         "nimbus:alias-list": "Tasks\\ApplicationTasks::nimbusAliasList",
         "nimbus:template-scaffold": "Nimbus\\Tasks\\TemplateTask::scaffold",
         "nimbus:template-check": "Nimbus\\Tasks\\TemplateTask::check",
+        "nimbus:lint-check": "Nimbus\\Tasks\\LintTask::lint",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",
         "post-install-cmd": [
             "Tasks\\ApplicationTasks::postInstall"

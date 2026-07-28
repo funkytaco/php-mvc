@@ -3,47 +3,50 @@
 namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
+use Nimbus\Template\TemplateApp;
 use Composer\Script\Event;
 
 /**
- * @phpstan-type Finding array{msg: string, locs: list<string>}
+ * nimbus:template-scaffold — generate a vanilla template.
+ * nimbus:template-check    — verify a template's MVC would render. Read-only:
+ * reports findings, fixes NOTHING — fixing is the human's job.
+ *
+ * template-check builds each template into a TemplateApp (the MVC object) and
+ * verifies: the MVC scaffolding is present (the vanilla scaffold is the source
+ * of truth, see STRUCTURE), mustache views parse and smoke-render, referenced
+ * partials exist, and the variables views expect are provided by controllers.
+ * Linting is a separate concern — composer nimbus:lint-check (LintTask).
+ *
+ * @phpstan-import-type Finding from FindingReporting
+ * @phpstan-type Section array{label: string, summary: string, errors: list<Finding>, warnings: list<Finding>, notes: list<string>}
  */
 class TemplateTask extends BaseTask
 {
+    use FindingReporting;
+
     /**
-     * Placeholders AppManager::generateAppConfigWithPasswords() substitutes at
-     * create time. A {{TOKEN}} outside this list is never replaced and ships
-     * verbatim into the generated app.
+     * Expected MVC scaffolding, derived from what nimbus:template-scaffold
+     * generates (the vanilla scaffold is the source of truth). Directory
+     * entries assert "contains at least one match", not exact filenames, so
+     * real templates with their own naming stay green.
      *
-     * @var array<string, string> token => dummy value used for syntax checking
+     * @var array<string, array{required: bool, expect: string}> expect: 'file' | 'dir' | glob suffix
      */
-    private const PLACEHOLDERS = [
-        'APP_NAME' => 'checkapp',
-        'APP_NAME_UPPER' => 'CHECKAPP',
-        'APP_NAME_LOWER' => 'checkapp',
-        'APP_PORT' => '8080',
-        'EDA_PORT' => '5000',
-        'DB_NAME' => 'checkapp_db',
-        'DB_USER' => 'checkapp_user',
-        'DB_PASSWORD' => 'checkpass',
-        'HAS_EDA' => 'true',
-        'KEYCLOAK_ENABLED' => 'true',
-        'KEYCLOAK_PORT' => '8081',
-        'KEYCLOAK_REALM' => 'checkapp-realm',
-        'KEYCLOAK_CLIENT_ID' => 'checkapp-client',
-        'KEYCLOAK_CLIENT_SECRET' => 'checksecret',
-        'KEYCLOAK_ADMIN_PASSWORD' => 'checkpass',
-        'KEYCLOAK_DB_PASSWORD' => 'checkpass',
+    private const STRUCTURE = [
+        'app.config.php'          => ['required' => true,  'expect' => 'file'],
+        'app.nimbus.json'         => ['required' => true,  'expect' => 'file'],
+        'routes/CustomRoutes.php' => ['required' => true,  'expect' => 'file'],
+        'Controllers'             => ['required' => true,  'expect' => '.php'],
+        'Views'                   => ['required' => true,  'expect' => '.mustache'],
+        'Models'                  => ['required' => false, 'expect' => '.php'],
+        'template.json'           => ['required' => false, 'expect' => 'file'],
+        'database/schema.sql'     => ['required' => false, 'expect' => 'file'],
+        'public'                  => ['required' => false, 'expect' => 'dir'],
     ];
 
-    /** The only files allowed to carry {{PLACEHOLDER}} tokens (see CLAUDE.md). */
-    private const PLACEHOLDER_FILES = ['app.config.php', 'app.nimbus.json'];
-
-    private string $templatesDir;
-
-    public function __construct()
+    public function __construct(?string $templatesDir = null)
     {
-        $this->templatesDir = getcwd() . '/.installer/_templates';
+        $this->templatesDir = $templatesDir ?? getcwd() . '/.installer/_templates';
     }
     
     public function execute(Event $event): void
@@ -112,7 +115,7 @@ class TemplateTask extends BaseTask
             echo self::ansiFormat('INFO', 'Next steps:');
             echo "  1. Customize the template files in .installer/_templates/$templateName" . PHP_EOL;
             echo "  2. Update template.json with your template description" . PHP_EOL;
-            echo "  3. Run 'composer nimbus:template-check $templateName' to validate" . PHP_EOL;
+            echo "  3. Run 'composer nimbus:lint-check $templateName' to validate" . PHP_EOL;
             echo "  4. Test with 'composer nimbus:create test-app' and select your template" . PHP_EOL;
             
         } catch (\Exception $e) {
@@ -121,35 +124,335 @@ class TemplateTask extends BaseTask
     }
     
     /**
-     * Check/validate a template
+     * nimbus:template-check [<name>] — verify MVC scaffolding + mustache
+     * rendering. Read-only; exits 1 when any template has errors.
      */
     public static function check(Event $event): void
     {
         $task = new self();
         $task->handleCheck($event);
     }
-    
+
     private function handleCheck(Event $event): void
     {
         $args = $event->getArguments();
         $templateName = $args[0] ?? null;
 
-        if ($templateName) {
-            $templates = [$templateName];
-        } else {
-            $templates = $this->getAvailableTemplates();
-            if (empty($templates)) {
-                echo self::ansiFormat('WARNING', 'No templates found in .installer/_templates');
-                return;
+        $templates = $templateName ? [$templateName] : $this->getAvailableTemplates();
+        if (empty($templates)) {
+            echo self::ansiFormat('WARNING', 'No templates found in .installer/_templates');
+            return;
+        }
+
+        $ok = $warned = $failed = 0;
+
+        foreach ($templates as $template) {
+            $sections = $this->checkTemplateMvc($template);
+            $errorCount = array_sum(array_map(fn (array $s): int => count($s['errors']), $sections));
+            $warningCount = array_sum(array_map(fn (array $s): int => count($s['warnings']), $sections));
+
+            $this->renderTemplateReport($template, $sections, $errorCount, $warningCount);
+
+            if ($errorCount) {
+                $failed++;
+            } elseif ($warningCount) {
+                $warned++;
+            } else {
+                $ok++;
             }
         }
 
-        $results = [];
-        foreach ($templates as $template) {
-            $results[] = $this->checkTemplate($template);
+        echo self::hr();
+        $total = count($templates);
+        echo sprintf(
+            '%d template%s — %d ok, %d with warnings, %d failed',
+            $total,
+            $total === 1 ? '' : 's',
+            $ok,
+            $warned,
+            $failed
+        ) . PHP_EOL;
+
+        if ($failed > 0) {
+            exit(1);
+        }
+    }
+
+    /**
+     * Build the MVC object and run every check against it.
+     *
+     * @return list<Section>
+     */
+    private function checkTemplateMvc(string $templateName): array
+    {
+        $templatePath = $this->templatesDir . '/' . $templateName;
+
+        if (!is_dir($templatePath)) {
+            $errors = [];
+            self::addFinding($errors, 'template not found in .installer/_templates');
+            return [['label' => 'structure', 'summary' => '', 'errors' => $errors, 'warnings' => [], 'notes' => []]];
         }
 
-        $this->renderResults($results);
+        $app = TemplateApp::fromDirectory($templatePath);
+
+        return [
+            $this->checkStructure($templatePath, $app),
+            $this->checkViews($templatePath, $app),
+            $this->checkVariables($app),
+        ];
+    }
+
+    /**
+     * MVC scaffolding present? The vanilla scaffold is the source of truth.
+     *
+     * @return Section
+     */
+    private function checkStructure(string $templatePath, TemplateApp $app): array
+    {
+        $errors = [];
+        $warnings = [];
+        $marks = [];
+
+        foreach (self::STRUCTURE as $entry => $rule) {
+            $full = $templatePath . '/' . $entry;
+            $present = match ($rule['expect']) {
+                'file' => is_file($full),
+                'dir' => is_dir($full),
+                default => self::countFilesWithSuffix($full, $rule['expect']) > 0,
+            };
+
+            if ($present) {
+                if ($rule['expect'] === 'file' || $rule['expect'] === 'dir') {
+                    $marks[] = basename($entry, '.php') . ' ✓';
+                } else {
+                    $marks[] = strtolower($entry) . ' ' . self::countFilesWithSuffix($full, $rule['expect']);
+                }
+            } elseif ($rule['required']) {
+                self::addFinding($errors, "missing required $entry (scaffold provides it — app cannot boot without it)");
+            } else {
+                self::addFinding($warnings, "missing optional $entry (vanilla scaffold provides it)");
+            }
+        }
+
+        $marks[] = 'routes ' . count($app->routes);
+
+        return [
+            'label' => 'structure',
+            'summary' => implode(' · ', $marks),
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'notes' => [],
+        ];
+    }
+
+    /**
+     * Mustache rendering works: config loads (controllers read it), every view
+     * parses, every referenced partial exists (missing partials render as
+     * SILENT blanks at request time), and each page view smoke-renders through
+     * the same engine configuration the live app uses (Dependencies.php).
+     *
+     * @return Section
+     */
+    private function checkViews(string $templatePath, TemplateApp $app): array
+    {
+        $errors = [];
+        $warnings = [];
+
+        if ($app->configError !== null) {
+            self::addFinding($errors, $app->configError . ' — controllers read this at request time');
+        }
+
+        $partialCount = 0;
+        foreach ($app->views as $viewName => $info) {
+            if (str_starts_with($viewName, 'partials/')) {
+                $partialCount++;
+            }
+            if ($info['syntaxError'] !== null) {
+                self::addFinding($errors, 'view does not parse: ' . $info['syntaxError'], $info['path']);
+            }
+        }
+
+        foreach ($app->missingPartials() as $partial => $locations) {
+            foreach ($locations as $location) {
+                self::addFinding($errors, "partial not found: $partial — renders blank at runtime", $location);
+            }
+        }
+
+        $rendered = $this->smokeRenderViews($templatePath, $app, $errors);
+
+        return [
+            'label' => 'views',
+            'summary' => sprintf(
+                '%d views · %d partials · %d smoke-rendered',
+                count($app->views) - $partialCount,
+                $partialCount,
+                $rendered
+            ),
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'notes' => [],
+        ];
+    }
+
+    /**
+     * Render every page view through the live engine configuration with the
+     * controller-provided keys as context. Output is discarded — this only
+     * proves the render call would not throw.
+     *
+     * @param list<Finding> $errors
+     * @return int views rendered
+     */
+    private function smokeRenderViews(string $templatePath, TemplateApp $app, array &$errors): int
+    {
+        $viewsPath = $templatePath . '/' . $app->viewsDir;
+        if (!is_dir($viewsPath)) {
+            return 0;
+        }
+
+        // Mirror src/Dependencies.php: same loader for views and partials.
+        $options = ['extension' => '.mustache'];
+        $engine = new \Mustache_Engine([
+            'loader' => new \Mustache_Loader_FilesystemLoader($viewsPath, $options),
+            'partials_loader' => new \Mustache_Loader_FilesystemLoader($viewsPath, $options),
+        ]);
+
+        $rendered = 0;
+        foreach ($app->views as $viewName => $info) {
+            if (str_starts_with($viewName, 'partials/') || $info['syntaxError'] !== null) {
+                continue;
+            }
+
+            $context = array_fill_keys($app->dataFor($viewName)['keys'], '');
+            try {
+                $engine->render($viewName, $context);
+                $rendered++;
+            } catch (\Throwable $e) {
+                self::addFinding($errors, 'view failed to render: ' . $e->getMessage(), $info['path']);
+            }
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * Every root-level variable a view uses should be provided by some
+     * controller render call. Mustache renders missing variables as blank
+     * (no error), so these are warnings for the human to judge.
+     *
+     * @return Section
+     */
+    private function checkVariables(TemplateApp $app): array
+    {
+        $warnings = [];
+        $notes = [];
+        $covered = 0;
+        $skipped = 0;
+
+        foreach ($app->views as $viewName => $info) {
+            if (str_starts_with($viewName, 'partials/')) {
+                continue; // partials inherit the including view's context
+            }
+
+            $data = $app->dataFor($viewName);
+            if ($data['unresolved']) {
+                $skipped++;
+                continue;
+            }
+
+            $covered++;
+            foreach ($info['vars'] as $var => $lines) {
+                if (in_array($var, $data['keys'], true)) {
+                    continue;
+                }
+                foreach ($lines as $line) {
+                    self::addFinding(
+                        $warnings,
+                        "$viewName: {{{$var}}} not provided by any controller",
+                        $info['path'] . ':' . $line
+                    );
+                }
+            }
+        }
+
+        foreach ($app->unrenderedViews() as $viewName) {
+            self::addFinding($warnings, "$viewName is never rendered by any controller or included as a partial");
+        }
+
+        if ($skipped > 0) {
+            $notes[] = "coverage skipped for $skipped view" . ($skipped === 1 ? '' : 's')
+                . ' — controller data not statically resolvable';
+        }
+
+        return [
+            'label' => 'variables',
+            'summary' => sprintf('%d views checked · %d skipped', $covered, $skipped),
+            'errors' => [],
+            'warnings' => $warnings,
+            'notes' => $notes,
+        ];
+    }
+
+    /**
+     * One block per template: labeled ─ rule, one [TAG] line per section
+     * (passing sections stay one line), findings expanded beneath.
+     *
+     * @param list<Section> $sections
+     */
+    private function renderTemplateReport(string $name, array $sections, int $errorCount, int $warningCount): void
+    {
+        echo self::hr($name);
+
+        foreach ($sections as $section) {
+            $status = $section['errors'] ? 'ERROR' : ($section['warnings'] ? 'WARNING' : 'SUCCESS');
+            $label = str_pad($section['label'], 11);
+            $counts = self::countsLabel($section['errors'], $section['warnings']);
+            $summary = implode('  ·  ', array_filter([$counts, $section['summary']]));
+
+            echo self::ansiFormat($status, $label . $summary);
+
+            foreach ($section['errors'] as $finding) {
+                echo self::renderFinding('bold_red', 'E', $finding);
+            }
+            foreach ($section['warnings'] as $finding) {
+                echo self::renderFinding('yellow', 'W', $finding);
+            }
+            foreach ($section['notes'] as $note) {
+                echo '  ' . self::paint('dark_gray', 'i  ' . $note) . PHP_EOL;
+            }
+        }
+
+        if ($errorCount) {
+            $verdict = self::paint('bold_red', 'FAIL');
+        } elseif ($warningCount) {
+            $verdict = self::paint('yellow', 'WARN');
+        } else {
+            $verdict = self::paint('bold_green', 'OK');
+        }
+        echo $name . ' — ' . $verdict
+            . self::paint('dark_gray', sprintf(' · %d errors, %d warnings', $errorCount, $warningCount))
+            . PHP_EOL;
+    }
+
+    /**
+     * Recursive count of files with a suffix under a directory.
+     */
+    private static function countFilesWithSuffix(string $dir, string $suffix): int
+    {
+        if (!is_dir($dir)) {
+            return 0;
+        }
+
+        $count = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), $suffix)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
     
     /**
@@ -774,510 +1077,4 @@ PHP;
         file_put_contents($templatePath . '/app.config.php', $configContent);
     }
     
-    /**
-     * Validate one template against what nimbus:create / nimbus:install
-     * actually do with it: read app.nimbus.json, copy every asset source,
-     * substitute placeholders, then include app.config.php at request time.
-     *
-     * @return array{name: string, summary: string, errors: list<Finding>, warnings: list<Finding>}
-     */
-    private function checkTemplate(string $templateName): array
-    {
-        $templatePath = $this->templatesDir . '/' . $templateName;
-        $errors = [];
-        $warnings = [];
-
-        if (!is_dir($templatePath)) {
-            self::addFinding($errors, 'template not found in .installer/_templates');
-            return ['name' => $templateName, 'summary' => '', 'errors' => $errors, 'warnings' => $warnings];
-        }
-
-        $nimbus = $this->checkNimbusJson($templatePath, $errors, $warnings);
-        $assetSources = $this->checkAssets($templatePath, $nimbus['assets'] ?? [], $errors, $warnings);
-        $appConfig = $this->checkAppConfig($templatePath, $errors);
-
-        $files = $this->templateFiles($templatePath);
-        $phpCount = $this->checkPhpSyntax($templatePath, $files, $errors);
-        $this->checkPlaceholders($templatePath, $files, $assetSources, $errors, $warnings);
-        $this->checkFeatures($templatePath, $nimbus, $warnings);
-        $this->checkGeneratorTemplates($templatePath, $appConfig, $errors);
-
-        return [
-            'name' => $templateName,
-            'summary' => sprintf(
-                '%d assets · %d php · %d files',
-                count($nimbus['assets'] ?? []),
-                $phpCount,
-                count($files)
-            ),
-            'errors' => $errors,
-            'warnings' => $warnings,
-        ];
-    }
-
-    /**
-     * app.nimbus.json drives AppManager::install() — without it nothing is copied.
-     *
-     * @param list<Finding> $errors
-     * @param list<Finding> $warnings
-     * @return array<string, mixed>
-     */
-    private function checkNimbusJson(string $templatePath, array &$errors, array &$warnings): array
-    {
-        $file = $templatePath . '/app.nimbus.json';
-
-        if (!is_file($file)) {
-            self::addFinding($errors, 'missing app.nimbus.json — declares features, containers and the asset map');
-            return [];
-        }
-
-        $config = json_decode((string) file_get_contents($file), true);
-        if (!is_array($config)) {
-            self::addFinding($errors, 'app.nimbus.json is not valid JSON: ' . json_last_error_msg());
-            return [];
-        }
-
-        foreach (['name', 'features', 'assets'] as $key) {
-            if (!isset($config[$key])) {
-                $severity = $key === 'assets' ? 'error' : 'warning';
-                $msg = "app.nimbus.json has no \"$key\"";
-                if ($severity === 'error') {
-                    self::addFinding($errors, $msg . ' — nimbus:install would copy nothing');
-                } else {
-                    self::addFinding($warnings, $msg);
-                }
-            }
-        }
-
-        return $config;
-    }
-
-    /**
-     * Every asset source must exist, and match the kind isFile claims it is —
-     * AppManager::install() copies these paths verbatim.
-     *
-     * @param array<string, mixed> $assets
-     * @param list<Finding> $errors
-     * @param list<Finding> $warnings
-     * @return string[] template-relative sources that exist
-     */
-    private function checkAssets(string $templatePath, array $assets, array &$errors, array &$warnings): array
-    {
-        $found = [];
-
-        foreach ($assets as $key => $asset) {
-            $source = is_array($asset) ? ($asset['source'] ?? null) : null;
-            if (!is_string($source) || $source === '') {
-                self::addFinding($errors, "asset '$key' has no \"source\"");
-                continue;
-            }
-
-            if (empty($asset['target'])) {
-                self::addFinding($warnings, "asset '$key' has no \"target\" — install would copy it to the project root");
-            }
-
-            $full = $templatePath . '/' . $source;
-            $isFile = !empty($asset['isFile']);
-
-            if ($isFile ? is_file($full) : is_dir($full)) {
-                $found[] = $source;
-            } elseif (file_exists($full)) {
-                self::addFinding($errors, sprintf(
-                    "asset '%s' is marked isFile=%s but %s is a %s",
-                    $key,
-                    $isFile ? 'true' : 'false',
-                    $source,
-                    is_dir($full) ? 'directory' : 'file'
-                ));
-            } else {
-                self::addFinding($errors, "asset '$key' source does not exist: $source");
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * app.config.php is included as a plain array at request time, but only
-     * parses once placeholders are substituted (it holds bare tokens such as
-     * 'has_eda' => {{HAS_EDA}}), so check the substituted form.
-     *
-     * @param list<Finding> $errors
-     * @return array<string, mixed>
-     */
-    private function checkAppConfig(string $templatePath, array &$errors): array
-    {
-        $file = $templatePath . '/app.config.php';
-
-        if (!is_file($file)) {
-            self::addFinding($errors, 'missing app.config.php — runtime config every controller reads');
-            return [];
-        }
-
-        $substituted = self::substitutePlaceholders((string) file_get_contents($file));
-        $error = self::lintPhp($substituted);
-        if ($error !== null) {
-            self::addFinding($errors, 'app.config.php does not parse after placeholder substitution: ' . $error);
-            return [];
-        }
-
-        $tmp = tempnam(sys_get_temp_dir(), 'nimbus_check_') . '.php';
-        file_put_contents($tmp, $substituted);
-        try {
-            $config = include $tmp;
-        } catch (\Throwable $e) {
-            self::addFinding($errors, 'app.config.php threw on include: ' . $e->getMessage());
-            return [];
-        } finally {
-            @unlink($tmp);
-        }
-
-        if (!is_array($config)) {
-            self::addFinding($errors, 'app.config.php must return an array');
-            return [];
-        }
-
-        return $config;
-    }
-
-    /**
-     * Lint every PHP file the way it will exist at runtime: after substitution.
-     *
-     * @param string[] $files template-relative paths
-     * @param list<Finding> $errors
-     * @return int files linted
-     */
-    private function checkPhpSyntax(string $templatePath, array $files, array &$errors): int
-    {
-        $count = 0;
-
-        foreach ($files as $rel) {
-            if (!str_ends_with($rel, '.php') || $rel === 'app.config.php') {
-                continue; // app.config.php is checked separately, including its include
-            }
-
-            $count++;
-            $error = self::lintPhp(self::substitutePlaceholders((string) file_get_contents($templatePath . '/' . $rel)));
-            if ($error !== null) {
-                self::addFinding($errors, 'PHP syntax error: ' . $error, $rel);
-            }
-        }
-
-        return $count;
-    }
-
-    /**
-     * Two distinct problems:
-     *  - an unknown {{TOKEN}} is never substituted and ships verbatim;
-     *  - a known token inside a copied asset resolves to one app's identity,
-     *    which nimbus:commit would then bake back into the shared template
-     *    (CLAUDE.md: read from $appConfig at runtime instead).
-     *
-     * @param string[] $files template-relative paths
-     * @param string[] $assetSources
-     * @param list<Finding> $errors
-     * @param list<Finding> $warnings
-     */
-    private function checkPlaceholders(
-        string $templatePath,
-        array $files,
-        array $assetSources,
-        array &$errors,
-        array &$warnings
-    ): void {
-        foreach ($files as $rel) {
-            if (in_array($rel, self::PLACEHOLDER_FILES, true)) {
-                continue;
-            }
-
-            $content = self::readText($templatePath . '/' . $rel);
-            if ($content === null || !preg_match_all('/\{\{([A-Z][A-Z0-9_]*)\}\}/', $content, $m, PREG_OFFSET_CAPTURE)) {
-                continue;
-            }
-
-            // Only PHP and views can read $appConfig; shell/yml assets have no
-            // other way to learn the app name, so placeholders are fine there.
-            $isCode = str_ends_with($rel, '.php') || str_ends_with($rel, '.mustache');
-            $inAsset = $isCode && self::isUnderAsset($rel, $assetSources);
-
-            foreach ($m[1] as $i => $match) {
-                $token = $match[0];
-                $line = substr_count($content, "\n", 0, (int) $m[0][$i][1]) + 1;
-
-                if (!isset(self::PLACEHOLDERS[$token])) {
-                    self::addFinding($errors, "unknown placeholder {{{$token}}} is never substituted", "$rel:$line");
-                } elseif ($inAsset) {
-                    self::addFinding(
-                        $warnings,
-                        'app-specific {{PLACEHOLDER}} in a copied asset — read the value from $appConfig at runtime',
-                        "$rel:$line ({{{$token}}})"
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     * A declared feature needs the files that back it.
-     *
-     * @param array<string, mixed> $nimbus
-     * @param list<Finding> $warnings
-     */
-    private function checkFeatures(string $templatePath, array $nimbus, array &$warnings): void
-    {
-        $features = $nimbus['features'] ?? [];
-
-        if (!empty($features['database']) && !is_file($templatePath . '/database/schema.sql')) {
-            self::addFinding($warnings, 'features.database is on but database/schema.sql is missing');
-        }
-
-        if (!empty($features['eda'])
-            && !is_dir($templatePath . '/rulebooks')
-            && !is_dir($templatePath . '/eda/rulebooks')
-        ) {
-            self::addFinding($warnings, 'features.eda is on but there is no rulebooks/ or eda/rulebooks/ directory');
-        }
-
-        if (!empty($features['keycloak']) && empty($nimbus['keycloak'])) {
-            self::addFinding($warnings, 'features.keycloak is on but app.nimbus.json has no "keycloak" section');
-        }
-    }
-
-    /**
-     * FileGenerator failures are only error_log()'d during create, so a missing
-     * generator template source silently produces no output file.
-     *
-     * @param array<string, mixed> $appConfig
-     * @param list<Finding> $errors
-     */
-    private function checkGeneratorTemplates(string $templatePath, array $appConfig, array &$errors): void
-    {
-        foreach (($appConfig['generator_templates'] ?? []) as $source => $spec) {
-            if (!is_file($templatePath . '/' . $source)) {
-                self::addFinding($errors, "generator_templates source does not exist: $source");
-            }
-            if (empty($spec['output_path'])) {
-                self::addFinding($errors, "generator_templates entry has no output_path: $source");
-            }
-        }
-    }
-
-    /**
-     * Print one line per template, then only what is wrong with it.
-     *
-     * @param list<array{name: string, summary: string, errors: list<Finding>, warnings: list<Finding>}> $results
-     */
-    private function renderResults(array $results): void
-    {
-        $width = max(array_map(fn (array $r): int => strlen($r['name']), $results)) + 2;
-        $failed = 0;
-        $warned = 0;
-
-        foreach ($results as $result) {
-            $errors = $result['errors'];
-            $warnings = $result['warnings'];
-
-            if ($errors) {
-                $failed++;
-                $status = self::paint('bold_red', 'FAIL');
-            } elseif ($warnings) {
-                $warned++;
-                $status = self::paint('yellow', 'WARN');
-            } else {
-                $status = self::paint('bold_green', ' OK ');
-            }
-
-            $meta = array_filter([self::countsLabel($errors, $warnings), $result['summary']]);
-            echo str_pad($result['name'], $width) . $status . '  '
-                . self::paint('dark_gray', implode('  ·  ', $meta)) . PHP_EOL;
-
-            foreach ($errors as $finding) {
-                echo self::renderFinding('bold_red', 'E', $finding);
-            }
-            foreach ($warnings as $finding) {
-                echo self::renderFinding('yellow', 'W', $finding);
-            }
-        }
-
-        $total = count($results);
-        echo PHP_EOL . sprintf(
-            "%d template%s — %d ok, %d warning, %d failed" . PHP_EOL,
-            $total,
-            $total === 1 ? '' : 's',
-            $total - $failed - $warned,
-            $warned,
-            $failed
-        );
-
-        if ($failed > 0) {
-            exit(1);
-        }
-    }
-
-    /**
-     * @param Finding $finding
-     */
-    private static function renderFinding(string $color, string $mark, array $finding): string
-    {
-        $line = '  ' . self::paint($color, $mark) . '  ' . $finding['msg'] . PHP_EOL;
-
-        if ($finding['locs']) {
-            $shown = array_slice($finding['locs'], 0, 3);
-            $extra = count($finding['locs']) - count($shown);
-            $line .= '     ' . self::paint('dark_gray', implode(', ', $shown) . ($extra > 0 ? " (+$extra more)" : '')) . PHP_EOL;
-        }
-
-        return $line;
-    }
-
-    /**
-     * @param list<Finding> $errors
-     * @param list<Finding> $warnings
-     */
-    private static function countsLabel(array $errors, array $warnings): string
-    {
-        $parts = [];
-        if ($errors) {
-            $parts[] = count($errors) . ' error' . (count($errors) === 1 ? '' : 's');
-        }
-        if ($warnings) {
-            $parts[] = count($warnings) . ' warning' . (count($warnings) === 1 ? '' : 's');
-        }
-
-        return implode(', ', $parts);
-    }
-
-    /**
-     * Append a finding, grouping repeat occurrences of the same message under
-     * one entry so a template-wide problem prints once with its locations.
-     *
-     * @param list<Finding> $findings
-     */
-    private static function addFinding(array &$findings, string $msg, ?string $loc = null): void
-    {
-        foreach ($findings as &$existing) {
-            if ($existing['msg'] === $msg) {
-                if ($loc !== null && !in_array($loc, $existing['locs'], true)) {
-                    $existing['locs'][] = $loc;
-                }
-                return;
-            }
-        }
-        unset($existing);
-
-        $findings[] = ['msg' => $msg, 'locs' => $loc === null ? [] : [$loc]];
-    }
-
-    private static function paint(string $color, string $str): string
-    {
-        return "\033[" . self::$foreground[$color] . 'm' . $str . "\033[0m";
-    }
-
-    /**
-     * Replace every known token with a stand-in of the right shape, so that
-     * unquoted tokens ('eda_port' => {{EDA_PORT}}) stay syntactically valid.
-     */
-    private static function substitutePlaceholders(string $content): string
-    {
-        foreach (self::PLACEHOLDERS as $token => $value) {
-            $content = str_replace('{{' . $token . '}}', $value, $content);
-        }
-
-        return $content;
-    }
-
-    /**
-     * @return string|null the parse error, or null when the code is valid
-     */
-    private static function lintPhp(string $code): ?string
-    {
-        $tmp = tempnam(sys_get_temp_dir(), 'nimbus_lint_');
-        file_put_contents($tmp, $code);
-        $output = (string) shell_exec('php -l ' . escapeshellarg($tmp) . ' 2>&1');
-        @unlink($tmp);
-
-        if (str_contains($output, 'No syntax errors')) {
-            return null;
-        }
-
-        $first = strtok(trim($output), "\n");
-        return trim(preg_replace('/ in \/.*$/', '', (string) $first) ?? '');
-    }
-
-    /**
-     * @param string[] $assetSources
-     */
-    private static function isUnderAsset(string $rel, array $assetSources): bool
-    {
-        foreach ($assetSources as $source) {
-            if ($rel === $source || str_starts_with($rel, rtrim($source, '/') . '/')) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return string|null file contents, or null when binary or oversized
-     */
-    private static function readText(string $path): ?string
-    {
-        if (filesize($path) > 1048576) {
-            return null;
-        }
-
-        $content = (string) file_get_contents($path);
-
-        return str_contains($content, "\0") ? null : $content;
-    }
-
-    /**
-     * @return string[] every file in the template, as template-relative paths
-     */
-    private function templateFiles(string $templatePath): array
-    {
-        $files = [];
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($templatePath, \RecursiveDirectoryIterator::SKIP_DOTS)
-        );
-
-        foreach ($iterator as $file) {
-            if (!$file->isFile()) {
-                continue;
-            }
-            $rel = substr($file->getPathname(), strlen($templatePath) + 1);
-            if (str_starts_with($rel, '.git/') || str_contains($rel, '/node_modules/')) {
-                continue;
-            }
-            $files[] = $rel;
-        }
-
-        sort($files);
-
-        return $files;
-    }
-
-    /**
-     * Get available templates
-     *
-     * @return string[]
-     */
-    private function getAvailableTemplates(): array
-    {
-        if (!is_dir($this->templatesDir)) {
-            return [];
-        }
-        
-        $templates = [];
-        $dirs = scandir($this->templatesDir);
-        
-        foreach ($dirs as $dir) {
-            if ($dir !== '.' && $dir !== '..' && is_dir($this->templatesDir . '/' . $dir)) {
-                $templates[] = $dir;
-            }
-        }
-        
-        return $templates;
-    }
 }
