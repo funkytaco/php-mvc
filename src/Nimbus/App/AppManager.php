@@ -589,6 +589,7 @@ class AppManager
         ];
         
         // Keycloak container with auto-configuration
+        $keycloakHostPort = $config['containers']['keycloak']['port'] ?? $this->generateKeycloakPort($appName);
         $services[$appName . '-keycloak'] = [
             'image' => $config['containers']['keycloak']['image'] ?? 'quay.io/keycloak/keycloak:latest',
             'container_name' => $appName . '-keycloak',
@@ -600,13 +601,22 @@ class AppManager
                 'KC_DB_PASSWORD' => $passwords ? $passwords->keycloakDbPassword : ($config['containers']['keycloak-db']['password'] ?? 'keycloak'),
                 'KEYCLOAK_ADMIN' => $config['containers']['keycloak']['admin_user'] ?? 'admin',
                 'KEYCLOAK_ADMIN_PASSWORD' => $passwords ? $passwords->keycloakAdminPassword : ($config['containers']['keycloak']['admin_password'] ?? 'admin'),
-                'KC_HOSTNAME_STRICT' => '"false"',
+                // Pin the frontend issuer to the host-published URL so tokens
+                // authorized in the browser (localhost:<port>) validate on
+                // server-side calls too. Without this, Keycloak derives the
+                // issuer per-request: the app's userinfo call arriving via the
+                // container hostname rejects browser-issued tokens with 401
+                // ("Failed to get user information" at login).
+                'KC_HOSTNAME' => 'http://localhost:' . $keycloakHostPort,
+                // ...while still accepting server-side (backchannel) requests
+                // on the container-network hostname.
+                'KC_HOSTNAME_BACKCHANNEL_DYNAMIC' => '"true"',
                 'KC_HTTP_ENABLED' => '"true"'
             ],
             'volumes' => [
                 './.installer/apps/' . $appName . '/keycloak-init.sh:/opt/keycloak/keycloak-init.sh:Z'
             ],
-            'ports' => [($config['containers']['keycloak']['port'] ?? $this->generateKeycloakPort($appName)) . ':8080'],
+            'ports' => [$keycloakHostPort . ':8080'],
             'depends_on' => [
                 $appName . '-keycloak-db' => [
                     'condition' => 'service_healthy'
