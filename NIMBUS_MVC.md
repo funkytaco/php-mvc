@@ -235,6 +235,42 @@ class AppManager
 }
 ```
 
+## Dev Mode: Per-App Instance Isolation
+
+Beyond the containerized production stack, Nimbus supports a live-edit dev mode (`bin/nimbus dev <app>`) that bind-mounts an app's source into a running container so edits show up without a rebuild. Early versions of dev mode bind-mounted a single shared `app/` directory — installing or dev-running a *second* app overwrote the first app's served code/config out from under it, breaking the running container (e.g. `PDOException: could not translate host name "kcauto-db"` when app B's Postgres hostname leaked into app A's live config). This has since been fixed: **each app is served from its own `.installer/apps/<name>/` instance directory**, so multiple apps can run in dev mode simultaneously without colliding.
+
+```mermaid
+flowchart TB
+    subgraph before["BEFORE — shared app/ (the bug)"]
+        direction TB
+        instA1["/.installer/apps/iso-a/"] -->|"nimbus:install iso-a"| shared["app/ (single shared dir)"]
+        instB1["/.installer/apps/iso-b/"] -->|"nimbus:install iso-b<br/>OVERWRITES"| shared
+        shared -->|"bind mount<br/>./app:/var/www/app"| contA1["iso-a container<br/>(dev mode)"]
+        contA1 -.->|"app B's config now live<br/>PDOException: kcauto-db"| broken["💥 iso-a broken"]
+    end
+```
+
+```mermaid
+flowchart TB
+    subgraph after["AFTER — per-app instance dirs (current)"]
+        direction TB
+        instA2["/.installer/apps/iso-a/"] -->|"bind mount<br/>./.installer/apps/iso-a:/var/www/app"| contA2["iso-a container<br/>(dev mode)"]
+        instB2["/.installer/apps/iso-b/"] -->|"bind mount<br/>./.installer/apps/iso-b:/var/www/app"| contB2["iso-b container<br/>(dev mode)"]
+        instB2 -.->|"nimbus:install iso-b<br/>touches only iso-b's dir"| instB2
+        contA2 --> okA["✅ iso-a unaffected"]
+        contB2 --> okB["✅ iso-b isolated"]
+    end
+```
+
+| Where | Old behavior | Current behavior |
+|---|---|---|
+| `AppManager::buildDevOverlay()` — `src/Nimbus/App/AppManager.php:1860` | `'./app:/var/www/app:Z'` | `'./.installer/apps/' . $appName . ':/var/www/app:Z'` |
+| `Application::setupRoutes()` — `src/Nimbus/Core/Application.php:195-201` | only checked `app/CustomRoutes.php` | tries that, falls back to `<instance>/routes/CustomRoutes.php` |
+| `bin/nimbus cmd_dev()` — `bin/nimbus:202-221` | installed into / guarded against the shared dir | no shared-dir logic left; `install` only fires to generate the compose file if missing |
+| `AppManager::commitAppToTemplate()` — `src/Nimbus/App/AppManager.php:1178` | copied from live `app/` | copies from `.installer/apps/<name>/<asset>` back into `.installer/_templates/<type>/` |
+
+Root `app/` and `<app>-compose.yml` still exist and are used by baked production images (materialized *inside* the image at build time) and the legacy `composer serve` path — but dev mode no longer reads or depends on the shared copy.
+
 ## App Configuration Structure
 
 ### App Definition (app.nimbus.json)
