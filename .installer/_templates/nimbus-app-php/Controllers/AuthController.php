@@ -22,7 +22,29 @@ class AuthController extends AbstractController
         $config = $this->getConfig();
         $this->keycloakConfig = $config['keycloak'] ?? [];
     }
-    
+
+    /**
+     * Base Keycloak URL for anything the BROWSER must reach.
+     *
+     * keycloak.auth_url is the container-network address
+     * (http://<app>-keycloak:8080) — correct for server-side curl from inside
+     * the app container, but it does not resolve on the developer's machine
+     * (no DNS is set up for container hostnames). Browser redirects (login,
+     * logout) and links (admin console) must use the published host port.
+     *
+     * Falls back to auth_url when host_port is absent, e.g. an app whose
+     * app.config.php predates the host_port key.
+     */
+    private function keycloakBrowserUrl(): string
+    {
+        $hostPort = $this->keycloakConfig['host_port'] ?? null;
+
+        return $hostPort
+            ? 'http://localhost:' . $hostPort
+            : ($this->keycloakConfig['auth_url'] ?? '');
+    }
+
+
     /**
      * Initiate login with Keycloak
      */
@@ -118,7 +140,8 @@ class AuthController extends AbstractController
         $fullRedirectUri = $this->getBaseUrl() . $redirectTo;
         
         // Build Keycloak logout URL with post_logout_redirect_uri and id_token_hint
-        $logoutUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
+        // Browser redirect — host-published URL (see keycloakBrowserUrl()).
+        $logoutUrl = $this->keycloakBrowserUrl() . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
         
         $params = [
             'post_logout_redirect_uri' => $fullRedirectUri,
@@ -148,19 +171,18 @@ class AuthController extends AbstractController
         $config = $this->getConfig();
         $appSlug = $config['installer-name'] ?? 'app';
 
-        // Host-published ports come from app.config.php. keycloak.auth_url is
-        // the *internal* container address — fine for container-to-container
-        // calls, useless in a browser — so the setup instructions below need
-        // these real published ports instead.
+        // The app's own host-published port, for the redirect-URI instruction.
         $appPort = $config['app_port'] ?? null;
-        $keycloakPort = $config['keycloak']['host_port'] ?? null;
 
         $data = [
             'title' => 'Keycloak Configuration',
             'keycloak_config' => $this->keycloakConfig,
-            'keycloak_admin_url' => $this->keycloakConfig['auth_url'] . '/admin',
+            // Browser-facing links use the host URL; keycloak_auth_url stays
+            // the internal address since the form saves it back to config for
+            // server-side (container-to-container) calls.
+            'keycloak_admin_url' => $this->keycloakBrowserUrl() . '/admin',
             'keycloak_auth_url' => $this->keycloakConfig['auth_url'] ?? '',
-            'keycloak_host_url' => $keycloakPort ? "http://localhost:$keycloakPort" : null,
+            'keycloak_host_url' => $this->keycloakBrowserUrl(),
             'app_url' => $appPort ? "http://localhost:$appPort" : null,
             'app_name' => $appSlug,
             'realm_name' => $this->keycloakConfig['realm'] ?? $appSlug . '-realm',
@@ -231,7 +253,9 @@ class AuthController extends AbstractController
         
         $_SESSION['oauth_state'] = $params['state'];
         
-        $authUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
+        // Browser redirect — must use the host-published URL, not the
+        // container-internal hostname (which won't resolve on the laptop).
+        $authUrl = $this->keycloakBrowserUrl() . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
         return $authUrl . '?' . http_build_query($params);
     }
     

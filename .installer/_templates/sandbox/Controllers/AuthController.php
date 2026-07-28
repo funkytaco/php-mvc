@@ -22,6 +22,24 @@ class AuthController extends AbstractController
         $config = $this->getConfig();
         $this->keycloakConfig = $config['keycloak'] ?? [];
     }
+
+    /**
+     * Base Keycloak URL for anything the BROWSER must reach.
+     *
+     * keycloak.auth_url is the container-network address
+     * (http://<app>-keycloak:8080) — correct for server-side curl from inside
+     * the app container, but it does not resolve on the developer's machine
+     * (no DNS is set up for container hostnames). Browser redirects (login,
+     * logout) and links (admin console) must use the published host port.
+     */
+    private function keycloakBrowserUrl(): string
+    {
+        $hostPort = $this->keycloakConfig['host_port'] ?? null;
+
+        return $hostPort
+            ? 'http://localhost:' . $hostPort
+            : ($this->keycloakConfig['auth_url'] ?? '');
+    }
     
     /**
      * Initiate login with Keycloak
@@ -118,7 +136,7 @@ class AuthController extends AbstractController
         $fullRedirectUri = $this->getBaseUrl() . $redirectTo;
         
         // Build Keycloak logout URL with post_logout_redirect_uri and id_token_hint
-        $logoutUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
+        $logoutUrl = $this->keycloakBrowserUrl() . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/logout';
         
         $params = [
             'post_logout_redirect_uri' => $fullRedirectUri,
@@ -148,15 +166,11 @@ class AuthController extends AbstractController
         $config = $this->getConfig();
         $appSlug = $config['installer-name'] ?? 'app';
 
-        // Host-published port comes from app.config.php — keycloak.auth_url is
-        // the internal container address and can't be opened from a browser.
-        $keycloakPort = $config['keycloak']['host_port'] ?? null;
-
         $data = [
             'title' => 'Keycloak Configuration',
             'keycloak_config' => $this->keycloakConfig,
-            'keycloak_admin_url' => $this->keycloakConfig['auth_url'] . '/admin',
-            'keycloak_host_url' => $keycloakPort ? "http://localhost:$keycloakPort" : null,
+            'keycloak_admin_url' => $this->keycloakBrowserUrl() . '/admin',
+            'keycloak_host_url' => $this->keycloakBrowserUrl(),
             'app_name' => $appSlug,
             'realm_name' => $this->keycloakConfig['realm'] ?? $appSlug . '-realm',
             'client_id' => $this->keycloakConfig['client_id'] ?? $appSlug . '-client',
@@ -226,7 +240,7 @@ class AuthController extends AbstractController
         
         $_SESSION['oauth_state'] = $params['state'];
         
-        $authUrl = $this->keycloakConfig['auth_url'] . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
+        $authUrl = $this->keycloakBrowserUrl() . '/realms/' . $this->keycloakConfig['realm'] . '/protocol/openid-connect/auth';
         return $authUrl . '?' . http_build_query($params);
     }
     
