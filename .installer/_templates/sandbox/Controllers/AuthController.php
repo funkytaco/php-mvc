@@ -145,17 +145,26 @@ class AuthController extends AbstractController
      */
     public function configure()
     {
+        $config = $this->getConfig();
+        $appSlug = $config['installer-name'] ?? 'app';
+
+        // Host-published port comes from app.config.php — keycloak.auth_url is
+        // the internal container address and can't be opened from a browser.
+        $keycloakPort = $config['keycloak']['host_port'] ?? null;
+
         $data = [
             'title' => 'Keycloak Configuration',
             'keycloak_config' => $this->keycloakConfig,
             'keycloak_admin_url' => $this->keycloakConfig['auth_url'] . '/admin',
-            'app_name' => '{{APP_NAME}}',
-            'realm_name' => $this->keycloakConfig['realm'] ?? '{{APP_NAME}}-realm',
-            'client_id' => $this->keycloakConfig['client_id'] ?? '{{APP_NAME}}-client',
+            'keycloak_host_url' => $keycloakPort ? "http://localhost:$keycloakPort" : null,
+            'app_name' => $appSlug,
+            'realm_name' => $this->keycloakConfig['realm'] ?? $appSlug . '-realm',
+            'client_id' => $this->keycloakConfig['client_id'] ?? $appSlug . '-client',
             'keycloak_enabled' => $this->isKeycloakEnabled(),
+            'has_eda' => filter_var($config['has_eda'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'setup_complete' => $this->isKeycloakSetupComplete()
         ];
-        
+
         $html = $this->render('auth/configure', $data);
         echo $html;
     }

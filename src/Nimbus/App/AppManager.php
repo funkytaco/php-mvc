@@ -14,6 +14,18 @@ use Nimbus\Generator\FileGenerator;
  */
 class AppManager
 {
+    /**
+     * Default Event-Driven Ansible image.
+     *
+     * Publicly pullable (no registry login). Red Hat's
+     * registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9
+     * requires Customer Portal credentials — apps that want it can set
+     * containers.eda.image in their app.nimbus.json to override this.
+     * Must provide both ansible-rulebook and ansible-galaxy, which
+     * init-entrypoint.sh invokes under `set -e`.
+     */
+    public const DEFAULT_EDA_IMAGE = 'quay.io/ansible/ansible-rulebook:latest';
+
     private string $baseDir;
     private string $installerDir;
     private string $templatesDir;
@@ -468,7 +480,7 @@ class AppManager
         
         // EDA container
         if ($config['features']['eda'] ?? false) {
-            $edaImage = $config['containers']['eda']['image'] ?? 'registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest';
+            $edaImage = $config['containers']['eda']['image'] ?? self::DEFAULT_EDA_IMAGE;
             $rulebooksDir = $config['containers']['eda']['rulebooks_dir'] ?? 'rulebooks';
             $edaPort = $this->generateEdaPort($appName);
             
@@ -1041,7 +1053,7 @@ class AppManager
         // Add EDA container configuration if not present
         if (!isset($config['containers']['eda'])) {
             $config['containers']['eda'] = [
-                'image' => 'quay.io/ansible/eda-server:latest',
+                'image' => self::DEFAULT_EDA_IMAGE,
                 'rulebooks_dir' => 'rulebooks'
             ];
         }
@@ -1324,14 +1336,20 @@ class AppManager
     private function createEdaDirectories(string $appPath, string $appName): void
     {
         $templatePath = $this->templatesDir . '/' . $this->templateConfig->getDefaultTemplate();
+
+        // template-relative source => app-relative target. These differ for
+        // playbooks: templates keep them at playbooks/, but the EDA container
+        // mounts <app>/eda/playbooks at /playbooks (see buildComposeConfig),
+        // so they must be copied into eda/ or the rulebook's run_playbook
+        // action fails at runtime with "Could not find a playbook".
         $edaFiles = [
-            'init-entrypoint.sh',
-            'inventory/inventory.yml',
-            'eda/playbooks/api-notification.yml'
+            'init-entrypoint.sh' => 'init-entrypoint.sh',
+            'inventory/inventory.yml' => 'inventory/inventory.yml',
+            'playbooks/api-notification.yml' => 'eda/playbooks/api-notification.yml',
         ];
-        
+
         $edaDirs = ['eda/rulebooks', 'eda/playbooks', 'inventory', 'logs'];
-        
+
         // Create directories
         foreach ($edaDirs as $dir) {
             $dirPath = $appPath . '/' . $dir;
@@ -1339,12 +1357,13 @@ class AppManager
                 mkdir($dirPath, 0755, true);
             }
         }
-        
+
         // Copy template files with app name substitution
-        foreach ($edaFiles as $file) {
-            $sourcePath = $templatePath . '/' . $file;
-            $targetPath = $appPath . '/' . $file;
-            
+        foreach ($edaFiles as $sourceRel => $targetRel) {
+            $sourcePath = $templatePath . '/' . $sourceRel;
+            $targetPath = $appPath . '/' . $targetRel;
+            $file = $targetRel;
+
             if (file_exists($sourcePath)) {
                 $content = file_get_contents($sourcePath);
                 $content = str_replace('{{APP_NAME}}', $appName, $content);

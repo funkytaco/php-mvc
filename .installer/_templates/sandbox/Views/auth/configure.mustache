@@ -167,7 +167,7 @@
             <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #ddd;">
                 <h3>📚 Setup Instructions</h3>
                 <ol>
-                    <li>Access the Keycloak admin console at <a href="http://localhost:8080" target="_blank">http://localhost:8080</a></li>
+                    <li>Access the Keycloak admin console at <a href="{{keycloak_host_url}}" target="_blank">{{keycloak_host_url}}</a></li>
                     <li>Login with username: <code>admin</code> and the password you set</li>
                     <li>Create a new realm with the name specified above</li>
                     <li>Create a new client with the Client ID specified above</li>
@@ -177,6 +177,7 @@
                     <li>Submit this form to save the configuration</li>
                 </ol>
                 
+                {{#has_eda}}
                 <div class="info-box" style="margin-top: 1rem;">
                     <strong>🤖 Automated Configuration</strong>
                     <p>When you submit this form, the configuration will be sent to the EDA container, which will automatically:</p>
@@ -187,6 +188,7 @@
                         <li>Update the application configuration</li>
                     </ul>
                 </div>
+                {{/has_eda}}
             </div>
             {{/keycloak_enabled}}
 

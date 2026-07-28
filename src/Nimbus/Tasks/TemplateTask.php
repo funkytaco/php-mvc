@@ -177,7 +177,7 @@ class TemplateTask extends BaseTask
                     'version' => '14'
                 ],
                 'eda' => [
-                    'image' => 'registry.redhat.io/ansible-automation-platform-24/de-minimal-rhel9:latest',
+                    'image' => \Nimbus\App\AppManager::DEFAULT_EDA_IMAGE,
                     'rulebooks_dir' => 'rulebooks'
                 ],
                 'keycloak' => [

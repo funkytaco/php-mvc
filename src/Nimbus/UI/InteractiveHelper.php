@@ -512,6 +512,73 @@ class InteractiveHelper extends BaseTask
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
             echo $statusOutput;
         }
+
+        $this->warnAboutMissingContainers($appName, $composeFile, $devOverlayFile);
+    }
+
+    /**
+     * Warn about containers the compose file declares but that aren't running.
+     *
+     * podman-compose prints per-service failures mid-build (e.g. an image that
+     * needs a registry login) and still exits 0, so a stack can come up
+     * half-broken while reporting success. Compare declared vs. actual and say
+     * so plainly, with the container's own error as evidence.
+     */
+    private function warnAboutMissingContainers(string $appName, string $composeFile, ?string $devOverlayFile = null): void
+    {
+        $expected = array_merge(
+            $this->readComposeContainerNames($composeFile),
+            $devOverlayFile !== null ? $this->readComposeContainerNames($devOverlayFile) : []
+        );
+        if (empty($expected)) {
+            return;
+        }
+
+        $runningRaw = shell_exec("podman ps --format '{{.Names}}' 2>/dev/null") ?: '';
+        $running = array_filter(array_map('trim', explode("\n", $runningRaw)));
+
+        $missing = array_values(array_diff(array_unique($expected), $running));
+        if (empty($missing)) {
+            return;
+        }
+
+        echo PHP_EOL;
+        echo self::ansiFormat('WARNING', '⚠️  Some containers are NOT running:');
+        foreach ($missing as $container) {
+            echo "  • $container" . PHP_EOL;
+            $logs = trim(shell_exec("podman logs --tail 3 " . escapeshellarg($container) . " 2>&1") ?: '');
+            if ($logs !== '' && stripos($logs, 'no such container') === false) {
+                foreach (explode("\n", $logs) as $line) {
+                    echo "      " . trim($line) . PHP_EOL;
+                }
+            } else {
+                echo "      (container was never created — image pull or config error; scroll up for details)" . PHP_EOL;
+            }
+        }
+        echo self::ansiFormat('INFO', "  Retry after fixing: composer nimbus:up $appName");
+    }
+
+    /**
+     * Extract container_name values from a compose file.
+     *
+     * Deliberately reads the generated compose rather than app.nimbus.json:
+     * the compose file is what `up` actually acted on, so it covers the dev
+     * overlay's code-server too.
+     *
+     * @return string[]
+     */
+    private function readComposeContainerNames(string $composeFile): array
+    {
+        if (!is_file($composeFile)) {
+            return [];
+        }
+        $names = [];
+        foreach (explode("\n", file_get_contents($composeFile)) as $line) {
+            if (preg_match('/^\s*container_name:\s*"?([^"\s]+)"?\s*$/', $line, $m)) {
+                $names[] = $m[1];
+            }
+        }
+        return $names;
     }
     
     private function showAppStatus(array $app): void

@@ -86,25 +86,12 @@ class IndexController extends AbstractController
             ]
         ];
         
-        // Get Keycloak details from app config if available
+        // Keycloak details from app.config.php. (app.nimbus.json is NOT
+        // installed into app/ — only the assets map is — so read the config
+        // array, which carries the host-published ports.)
         $keycloakAdminPassword = '';
-        $keycloakRealm = $appSlug . '-realm';
-        $keycloakPort = 8080;
-        
-        // Try to read from app.nimbus.json for runtime values
-        $appConfigFile = dirname(__DIR__) . '/app.nimbus.json';
-        if (file_exists($appConfigFile)) {
-            $appConfig = json_decode(file_get_contents($appConfigFile), true);
-            if (isset($appConfig['containers']['keycloak']['admin_password'])) {
-                $keycloakAdminPassword = $appConfig['containers']['keycloak']['admin_password'];
-            }
-            if (isset($appConfig['containers']['keycloak']['port'])) {
-                $keycloakPort = $appConfig['containers']['keycloak']['port'];
-            }
-            if (isset($appConfig['keycloak']['realm'])) {
-                $keycloakRealm = $appConfig['keycloak']['realm'];
-            }
-        }
+        $keycloakRealm = $config['keycloak']['realm'] ?: $appSlug . '-realm';
+        $keycloakPort = $config['keycloak']['host_port'] ?? 8080;
         
         $data = [
             'title' => $config['app_name'] ?? 'Nimbus Demo',
