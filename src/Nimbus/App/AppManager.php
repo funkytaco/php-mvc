@@ -80,7 +80,16 @@ class AppManager
             if ($passwords->strategy === \Nimbus\Password\PasswordStrategy::GENERATE_NEW) {
                 $passwordManager->backupToVault($appName, $passwords);
             }
-            
+
+            // 5. Populate EDA runtime dirs when EDA is enabled at create time.
+            // The compose file mounts eda/rulebooks and eda/playbooks; without
+            // this the create-with-eda path mounted EMPTY dirs and the EDA
+            // container crash-looped behind an "Up" status (only addEda()
+            // used to do this).
+            if (!empty($config['features']['eda'])) {
+                $this->createEdaDirectories($targetPath, $appName);
+            }
+
             // Register app in apps.json
             $this->registerApp($appName, $template);
             
@@ -500,6 +509,17 @@ class AppManager
                 'restart' => 'unless-stopped',
                 'networks' => [$appName . '-net']
             ];
+
+            // The configure-keycloak playbook authenticates against the
+            // Keycloak admin API using KEYCLOAK_ADMIN_PASSWORD from the EDA
+            // container's environment (lookup('env', ...)).
+            if ($config['features']['keycloak'] ?? false) {
+                $compose['services'][$appName . '-eda']['environment'] = [
+                    'KEYCLOAK_ADMIN_PASSWORD' => $passwords
+                        ? $passwords->keycloakAdminPassword
+                        : ($config['containers']['keycloak']['admin_password'] ?? 'admin')
+                ];
+            }
 
             // EDA waits for the database only when the app actually has one
             if ($hasDatabase) {
@@ -1142,26 +1162,20 @@ class AppManager
     private const TEMPLATE_UNSAFE_ASSET_KEYS = ['config'];
 
     /**
-     * Copy live app/ edits back to their source of truth.
+     * Copy this app's edits from its instance dir back to the shared template.
      *
-     * Dev mode (bin/nimbus dev) bind-mounts app/ into the running container
-     * so edits there are live immediately — but app/ itself is gitignored
-     * and gets silently overwritten by the next nimbus:install. This walks
-     * the app's asset map (app.nimbus.json 'assets': source => target,
-     * the same map install() uses to populate app/ in the first place) in
-     * reverse, target => source, so edits flow back out.
+     * Dev mode serves .installer/apps/<name>/ directly (each app isolated),
+     * so edits already persist per-app. This copies the app-agnostic assets
+     * (Controllers/Models/Views/routes) to .installer/_templates/<type>/ so
+     * future nimbus:create runs include them. Instance and template share the
+     * same layout, so the asset map's 'source' paths apply verbatim.
      *
-     * @param string $appName
-     * @param bool $toTemplate  true (default): write to .installer/_templates/<type>/,
-     *                          the shared source every future nimbus:create scaffolds
-     *                          from. Resolved assets (app.config.php) are skipped in
-     *                          this mode — see TEMPLATE_UNSAFE_ASSET_KEYS.
-     *                          false: write everything, including resolved assets,
-     *                          to .installer/apps/<appName>/ only, leaving the shared
-     *                          template untouched.
-     * @return string[] Target-relative paths that were committed (e.g. 'app/Controllers')
+     * app.config.php is always skipped (TEMPLATE_UNSAFE_ASSET_KEYS): it holds
+     * this app's resolved name/ports/passwords, never template material.
+     *
+     * @return array{committed: string[], skipped: string[]} asset source paths
      */
-    public function commitAppToTemplate(string $appName, bool $toTemplate = true): array
+    public function commitAppToTemplate(string $appName): array
     {
         if (!$this->appExists($appName)) {
             throw new \RuntimeException("App '$appName' not found");
@@ -1173,25 +1187,21 @@ class AppManager
             throw new \RuntimeException("App '$appName' has no asset map in app.nimbus.json — nothing to commit");
         }
 
-        $destRoot = $toTemplate
-            ? $this->templatesDir . '/' . ($config['type'] ?? $appName)
-            : $this->installerDir . '/' . $appName;
+        $instanceRoot = $this->installerDir . '/' . $appName;
+        $destRoot = $this->templatesDir . '/' . ($config['type'] ?? $appName);
 
         if (!is_dir($destRoot)) {
             throw new \RuntimeException(
-                $toTemplate
-                    ? "Template directory not found: $destRoot (app.nimbus.json 'type' must match a directory under .installer/_templates/)"
-                    : "App directory not found: $destRoot"
+                "Template directory not found: $destRoot (app.nimbus.json 'type' must match a directory under .installer/_templates/)"
             );
         }
 
-        // This app's identity strings, to scan for AFTER copying. app/ (the
-        // resolved instance) is EXPECTED to contain these — e.g. a template
-        // fallback `?? '{{APP_NAME}}'` legitimately resolves to `?? 'demo-dev'`
-        // in the installed copy, which is correct and not contamination. What
-        // must never happen is one of these strings surviving in the file that
-        // ends up in the TEMPLATE, since replacePlaceholders() only runs at
-        // create time — a clean template file can only contain the app's name
+        // This app's identity strings, to scan for AFTER copying. The instance
+        // is EXPECTED to contain these — e.g. a template fallback
+        // `?? '{{APP_NAME}}'` legitimately resolves to `?? 'demo-dev'` at
+        // create time, which is correct and not contamination. What must never
+        // happen is one of these strings surviving in the file that ends up in
+        // the TEMPLATE — a clean template file can only contain the app's name
         // if someone hardcoded it as a literal (the exact bug this guards
         // against). So we scan the destination, not the source.
         $identityStrings = array_unique(array_filter([
@@ -1205,36 +1215,26 @@ class AppManager
         $skipped = [];
         foreach ($assets as $assetKey => $asset) {
             $source = $asset['source'] ?? null;
-            $target = $asset['target'] ?? null;
-            if ($source === null || $target === null) {
+            if ($source === null) {
                 continue;
             }
 
-            if ($toTemplate && in_array($assetKey, self::TEMPLATE_UNSAFE_ASSET_KEYS, true)) {
-                $skipped[] = $target;
+            if (in_array($assetKey, self::TEMPLATE_UNSAFE_ASSET_KEYS, true)) {
+                $skipped[] = $source;
                 continue;
             }
 
-            // target is always 'app/...' — strip that prefix to read from the live app/ dir
-            $liveSource = $this->baseDir . '/' . $target;
+            // Instance and template share the same layout — same relative path
+            // on both sides.
+            $liveSource = $instanceRoot . '/' . $source;
             $dest = $destRoot . '/' . $source;
             $isFile = !empty($asset['isFile']);
 
             if ($isFile ? !is_file($liveSource) : !is_dir($liveSource)) {
-                continue; // nothing live to commit for this asset
+                continue; // nothing to commit for this asset
             }
 
-            $toCopy[] = ['source' => $liveSource, 'dest' => $dest, 'target' => $target, 'isFile' => $isFile];
-        }
-
-        if (!$toTemplate) {
-            // --app-only: no leak risk (writing to this app's own instance dir), copy directly.
-            $committed = [];
-            foreach ($toCopy as $item) {
-                $item['isFile'] ? $this->copyFile($item['source'], $item['dest']) : $this->copyDirectory($item['source'], $item['dest']);
-                $committed[] = $item['target'];
-            }
-            return ['committed' => $committed, 'skipped' => $skipped];
+            $toCopy[] = ['source' => $liveSource, 'dest' => $dest, 'target' => $source, 'isFile' => $isFile];
         }
 
         // Committing to the SHARED template: back up any destination we're about
@@ -1356,6 +1356,11 @@ class AppManager
             'init-entrypoint.sh' => 'init-entrypoint.sh',
             'inventory/inventory.yml' => 'inventory/inventory.yml',
             'playbooks/api-notification.yml' => 'eda/playbooks/api-notification.yml',
+            // Keycloak auto-configuration: run_playbook by the
+            // keycloak-config.yml rulebook, so they must live in the
+            // mounted eda/playbooks dir or the rules fail at runtime.
+            'playbooks/configure-keycloak.yml' => 'eda/playbooks/configure-keycloak.yml',
+            'playbooks/keycloak-health.yml' => 'eda/playbooks/keycloak-health.yml',
         ];
 
         $edaDirs = ['eda/rulebooks', 'eda/playbooks', 'inventory', 'logs'];
@@ -1825,12 +1830,21 @@ class AppManager
      * Build the dev-mode compose overlay for an app.
      *
      * The overlay is applied as a second -f file on top of <app>-compose.yml:
-     *  - bind-mounts the served code (app/, src/, index.php, html/assets) from
-     *    the host so edits are live without an image rebuild
+     *  - bind-mounts THIS APP'S OWN instance dir (.installer/apps/<name>) as
+     *    the served app code, so every dev-mode app is isolated: installing
+     *    or editing another app can never swap this one's config/code out
+     *    from under it (the old shared ./app mount did exactly that —
+     *    "could not translate host name <other-app>-db")
+     *  - bind-mounts framework src/ + index.php (correctly shared: identical
+     *    for all apps)
      *  - mounts a dev php.ini enabling opcache timestamp revalidation
      *  - overrides the entrypoint to re-dump a non-optimized autoloader so
      *    classes added mid-session resolve via PSR-4
      *  - adds a code-server sidecar editing the same host tree in the browser
+     *
+     * The instance dir keeps routes at routes/CustomRoutes.php (not the baked
+     * layout's app/CustomRoutes.php) — Application::setupRoutes() falls back
+     * to that path.
      */
     private function buildDevOverlay(string $appName, array $config): array
     {
@@ -1843,7 +1857,7 @@ class AppManager
             'services' => [
                 $appName . '-app' => [
                     'volumes' => [
-                        './app:/var/www/app:Z',
+                        './.installer/apps/' . $appName . ':/var/www/app:Z',
                         './src:/var/www/src:Z',
                         './public/index.php:/var/www/html/index.php:Z',
                         './html/assets:/var/www/html/assets:Z',

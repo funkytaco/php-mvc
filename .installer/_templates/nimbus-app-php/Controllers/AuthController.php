@@ -215,27 +215,92 @@ class AuthController extends AbstractController
         try {
             // Update configuration file
             $configFile = dirname(__DIR__, 2) . '/app/app.config.php';
-            if (file_exists($configFile)) {
-                $config = include $configFile;
-                $config['keycloak']['realm'] = $data['realm'];
-                $config['keycloak']['client_id'] = $data['client_id'];
-                $config['keycloak']['client_secret'] = $data['client_secret'];
-                $config['keycloak']['enabled'] = 'true';
-                
-                // Write back to file (this is a simplified approach)
-                $configContent = "<?php\n\nreturn " . var_export($config, true) . ";\n";
-                file_put_contents($configFile, $configContent);
-                
-                $this->json([
-                    'success' => true,
-                    'message' => 'Configuration saved successfully'
-                ]);
-            } else {
+            if (!file_exists($configFile)) {
                 $this->error('Configuration file not found', 500);
+                return;
             }
+
+            $config = include $configFile;
+            $config['keycloak']['realm'] = $data['realm'];
+            $config['keycloak']['client_id'] = $data['client_id'];
+            $config['keycloak']['client_secret'] = $data['client_secret'];
+            $config['keycloak']['enabled'] = true;
+
+            // Write back to file (this is a simplified approach)
+            $configContent = "<?php\n\nreturn " . var_export($config, true) . ";\n";
+            file_put_contents($configFile, $configContent);
+
+            // Forward to the EDA container, whose keycloak-config rulebook
+            // (webhook :5001) runs the configure-keycloak playbook: creates
+            // the realm and client, sets redirect URIs, then calls back to
+            // /api/keycloak/configured.
+            $edaResult = $this->notifyEdaKeycloakConfig($config, $data);
+
+            $this->json([
+                'success' => true,
+                'message' => $edaResult
+                    ? 'Configuration saved. EDA is now creating the realm and client automatically — this takes a few seconds.'
+                    : 'Configuration saved locally, but the EDA container could not be reached — create the realm and client manually in the admin console (or check that EDA is running).',
+                'eda_triggered' => $edaResult
+            ]);
         } catch (\Exception $e) {
             $this->error('Failed to save configuration: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Send the Keycloak settings to the EDA rulebook's webhook.
+     *
+     * Returns true when EDA accepted the event. Uses the container-internal
+     * EDA hostname on port 5001 (the keycloak-config rulebook's listener;
+     * 5000 belongs to the demo rulebook).
+     */
+    private function notifyEdaKeycloakConfig(array $config, array $data): bool
+    {
+        $hasEda = filter_var($config['has_eda'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if (!$hasEda) {
+            return false;
+        }
+
+        $appSlug = $config['installer-name'] ?? 'app';
+
+        $payload = [
+            'realm' => $data['realm'],
+            'client_id' => $data['client_id'],
+            'client_secret' => $data['client_secret'],
+            // Internal address: EDA reaches Keycloak over the container network
+            'auth_url' => $config['keycloak']['auth_url'] ?? '',
+            'app_name' => $appSlug,
+            'app_port' => (string) ($config['app_port'] ?? '8080'),
+        ];
+
+        $ch = curl_init("http://{$appSlug}-eda:5001/keycloak-config");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return $httpCode >= 200 && $httpCode < 300;
+    }
+
+    /**
+     * Callback target for the configure-keycloak playbook: EDA POSTs here
+     * after creating the realm/client so the app can record the outcome.
+     */
+    public function keycloakConfigured()
+    {
+        $data = $this->getRequestData();
+
+        error_log('Keycloak auto-configuration callback: ' . json_encode($data));
+
+        $this->json([
+            'success' => true,
+            'message' => 'Callback received'
+        ]);
     }
     
     /**

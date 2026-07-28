@@ -24,14 +24,14 @@ use App\Models\DemoModel;
  */
 class IndexController extends AbstractController
 {
-    /** @var DemoModel Database model for demo operations */
-    private DemoModel $demoModel;
-    
+    /** @var DemoModel|null Database model; null when the app has no database */
+    private ?DemoModel $demoModel = null;
+
     /**
      * Initialize controller dependencies
-     * 
+     *
      * Sets up session management and initializes the demo model
-     * 
+     *
      * @return void
      */
     protected function initialize(): void
@@ -40,8 +40,27 @@ class IndexController extends AbstractController
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        
-        $this->demoModel = new DemoModel($this->getDb());
+
+        // Apps created with --no-db (or with the database down) must still
+        // render: PDO connects lazily and throws here if unreachable.
+        try {
+            $this->demoModel = new DemoModel($this->getDb());
+        } catch (\Throwable $e) {
+            $this->demoModel = null;
+        }
+    }
+
+    /**
+     * Guard for API endpoints that need the database.
+     * Responds 503 and returns false when the app has no (reachable) database.
+     */
+    private function requireDb(): bool
+    {
+        if ($this->demoModel === null) {
+            $this->error('Database not available for this app', 503);
+            return false;
+        }
+        return true;
     }
     
     /**
@@ -64,7 +83,7 @@ class IndexController extends AbstractController
         $hasKeycloak = filter_var($config['keycloak']['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         // Live probe, not config: true only if the database actually answers.
-        $hasDatabase = $this->demoModel->isConnected();
+        $hasDatabase = $this->demoModel !== null && $this->demoModel->isConnected();
 
         $features = [
             ['name' => 'MVC Architecture', 'enabled' => true],
@@ -97,7 +116,9 @@ class IndexController extends AbstractController
             'title' => $config['app_name'] ?? 'Nimbus Demo',
             'message' => 'Welcome to your Nimbus application!',
             'features' => $features,
-            'stats' => $this->demoModel->getStats(),
+            'stats' => $this->demoModel !== null
+                ? $this->demoModel->getStats()
+                : ['total_items' => 0, 'last_updated' => 'Never'],
             'has_eda' => $hasEda,
             'eda_port' => $config['eda_port'] ?? 5000,
             'has_keycloak' => $hasKeycloak,
@@ -123,6 +144,9 @@ class IndexController extends AbstractController
      */
     public function apiList(): void
     {
+        if (!$this->requireDb()) {
+            return;
+        }
         try {
             $items = $this->demoModel->getAllItems();
             $this->json([
@@ -145,6 +169,9 @@ class IndexController extends AbstractController
      */
     public function apiGet($id): void
     {
+        if (!$this->requireDb()) {
+            return;
+        }
         try {
             $item = $this->demoModel->getItem($id);
             if (!$item) {
@@ -167,6 +194,9 @@ class IndexController extends AbstractController
      */
     public function apiCreate(): void
     {
+        if (!$this->requireDb()) {
+            return;
+        }
         $data = $this->getRequestData();
         
         if (!$this->validate($data, ['name', 'description'])) {
@@ -196,6 +226,9 @@ class IndexController extends AbstractController
      */
     public function apiUpdate($id): void
     {
+        if (!$this->requireDb()) {
+            return;
+        }
         $data = $this->getRequestData();
         
         try {
@@ -220,6 +253,9 @@ class IndexController extends AbstractController
      */
     public function apiDelete($id): void
     {
+        if (!$this->requireDb()) {
+            return;
+        }
         try {
             $deleted = $this->demoModel->deleteItem($id);
             if (!$deleted) {

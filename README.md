@@ -11,9 +11,10 @@ inside the `nimbus-tools` container (RHEL UBI9), built automatically on first us
 # One-shot: create + install + start
 bin/nimbus init my-app
 
-# Live-edit dev mode: bind-mounts app/ + src/ into the container and starts
-# code-server (VS Code in your browser). Edit locally OR in the browser —
-# same files, changes are live, no rebuild.
+# Live-edit dev mode: serves the app's own .installer/apps/my-app/ dir
+# live-mounted, and starts code-server (VS Code in your browser). Edit
+# locally OR in the browser — changes are live, no rebuild, and every dev
+# app is isolated (installing another app can't affect this one).
 bin/nimbus dev my-app
 
 # Everyday lifecycle (honest exit codes)
@@ -124,8 +125,9 @@ composer nimbus:status
 
 ### Dev Mode & Live Editing
 ```bash
-# Generate <app>-compose.dev.yml: bind-mounts app/ + src/ into the running
-# container (edits are live, no rebuild) and adds a code-server sidecar.
+# Generate <app>-compose.dev.yml: bind-mounts the app's own
+# .installer/apps/my-app/ dir into the running container (edits are live,
+# no rebuild, apps isolated from each other) and adds a code-server sidecar.
 composer nimbus:dev my-app
 
 # Apply it (bin/nimbus does this in one step via `bin/nimbus dev my-app`):

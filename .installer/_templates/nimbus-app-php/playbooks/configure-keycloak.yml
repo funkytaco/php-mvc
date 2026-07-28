@@ -11,14 +11,17 @@
   
   tasks:
     - name: Wait for Keycloak to be ready
+      # /realms/master instead of /health/ready: Keycloak 25+ serves health
+      # endpoints on the management port (9000), not the main HTTP port this
+      # playbook talks to — /realms/master answers 200 on :8080 once ready.
       uri:
-        url: "{{ keycloak_url }}/health/ready"
+        url: "{{ keycloak_url }}/realms/master"
         method: GET
         status_code: 200
       register: result
       until: result.status == 200
       retries: 30
-      delay: 10
+      delay: 5
 
     - name: Get admin token
       uri:

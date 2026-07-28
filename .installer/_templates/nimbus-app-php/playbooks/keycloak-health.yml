@@ -5,12 +5,15 @@
   
   tasks:
     - name: Check Keycloak health endpoint
+      # /realms/master instead of /health: Keycloak 25+ serves health on the
+      # management port (9000), not the main HTTP port this playbook reaches.
       uri:
-        url: "{{ keycloak_url }}/health"
+        url: "{{ keycloak_url }}/realms/master"
         method: GET
         status_code: [200, 503]
         validate_certs: no
       register: health_check
+      ignore_errors: yes
 
     - name: Send health status to app
       uri:
@@ -20,8 +23,9 @@
           Content-Type: application/json
         body_format: json
         body:
-          status: "{{ 'healthy' if health_check.status == 200 else 'unhealthy' }}"
+          status: "{{ 'healthy' if (health_check.status | default(0)) == 200 else 'unhealthy' }}"
           details: "{{ health_check.json | default({}) }}"
-          timestamp: "{{ ansible_date_time.iso8601 }}"
+          # now() works without gather_facts; ansible_date_time does not
+          timestamp: "{{ now(utc=True).isoformat() }}"
         validate_certs: no
       ignore_errors: yes

@@ -226,7 +226,7 @@ class InteractiveHelper extends BaseTask
      */
     private function askDevMode(string $appName, IOInterface $io, AppManager $manager): ?array
     {
-        echo "     Dev mode live-mounts app/ + src/ and adds code-server (VS Code in browser)." . PHP_EOL;
+        echo "     Dev mode serves this app's own .installer/apps/ dir live-mounted (isolated per app) and adds code-server (VS Code in browser)." . PHP_EOL;
         if (!$io->askConfirmation("     Start in live-edit dev mode? [y/N]: ", false)) {
             return null;
         }
@@ -298,7 +298,7 @@ class InteractiveHelper extends BaseTask
             echo "  URL: http://localhost:{$devInfo['port']}" . PHP_EOL;
             echo "  Password: {$devInfo['password']}" . PHP_EOL;
             echo "  Stop: bin/nimbus down $appName" . PHP_EOL;
-            echo self::ansiFormat('INFO', "💡 app/ and src/ are live-mounted — edits apply without a rebuild.");
+            echo self::ansiFormat('INFO', "💡 Edit this app in .installer/apps/ (locally or via code-server) — changes apply live, isolated from other apps.");
         } else {
             $this->displayDevModeInfo($appName);
         }
@@ -336,7 +336,7 @@ class InteractiveHelper extends BaseTask
 
             echo "  Start: bin/nimbus dev $appName" . PHP_EOL;
             echo "  Stop:  bin/nimbus down $appName" . PHP_EOL;
-            echo self::ansiFormat('INFO', "💡 Dev mode live-mounts app/ and src/ — edits apply without a rebuild.");
+            echo self::ansiFormat('INFO', "💡 Dev mode serves the app's own .installer/apps/ dir — edits apply live, isolated per app.");
         } catch (\Exception $e) {
             // Non-fatal: dev mode info is advisory
         }

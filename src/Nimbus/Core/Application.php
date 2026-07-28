@@ -192,9 +192,16 @@ class Application
                 }
             }
             
-            // Load custom routes
-            if (is_file(CUSTOM_ROUTES_FILE)) {
-                $customRouteFactory = include CUSTOM_ROUTES_FILE;
+            // Load custom routes. Baked images keep them at app/CustomRoutes.php
+            // (the nimbus:install layout); app instance dirs — served directly
+            // in dev mode — keep them at routes/CustomRoutes.php. Try both so
+            // either layout works without a copy step.
+            $customRoutesFile = is_file(CUSTOM_ROUTES_FILE)
+                ? CUSTOM_ROUTES_FILE
+                : $this->settings['app_dir'] . '/routes/CustomRoutes.php';
+
+            if (is_file($customRoutesFile)) {
+                $customRouteFactory = include $customRoutesFile;
                 if (is_callable($customRouteFactory)) {
                     $routes = $customRouteFactory($this->injector, $this->renderer, $this->conn);
                     if (is_array($routes)) {

@@ -210,13 +210,10 @@ cmd_dev() {
    If mounts fail: podman machine init -v $REPO_ROOT:$REPO_ROOT" ;;
     esac
 
-    # Ensure app/ is installed (populates app/ and <app>-compose.yml).
-    # Re-install only when app/ is missing or belongs to a different app —
-    # never clobber live dev edits for the same app.
-    if [ ! -f "$REPO_ROOT/app/app.config.php" ]; then
-        lane1 install "$app" || die "install failed"
-    elif ! grep -q "'installer-name' => '$app'" "$REPO_ROOT/app/app.config.php"; then
-        c_warn "app/ currently holds a different app — reinstalling '$app' over it."
+    # Dev mode serves the app's OWN instance dir (.installer/apps/<app>) —
+    # apps are isolated from each other, so no shared app/ juggling needed.
+    # install is only required for its compose-file generation side effect.
+    if [ ! -f "$(compose_file "$app")" ]; then
         lane1 install "$app" || die "install failed"
     fi
     # Generate/refresh the dev overlay, then bring the stack up with it
@@ -263,19 +260,16 @@ App lifecycle (runs on host, honest exit codes):
   nimbus logs <app> [service]    Follow container logs
 
 Dev workflow:
-  nimbus dev <app>               Install + generate dev overlay + up.
-                                 Live-edits app/, src/ from your laptop; also
-                                 starts code-server (VS Code in the browser).
-  nimbus commit <app> [--app-only]
-                                 Save live app/ edits back out. Default target
-                                 is the shared template (.installer/_templates/
-                                 <type>/) so future `create` runs include them;
-                                 --app-only writes to .installer/apps/<app>/
-                                 instead, leaving the template untouched.
-                                 app/ is gitignored and gets silently
-                                 overwritten by the next install — run this
-                                 before deleting/reinstalling an app you've
-                                 been editing live.
+  nimbus dev <app>               Generate dev overlay + up. Serves the app's
+                                 own .installer/apps/<app>/ dir live-mounted —
+                                 edit it locally or via code-server (VS Code in
+                                 the browser); apps are isolated from each
+                                 other, and edits survive installs/rebuilds.
+  nimbus commit <app>            Copy this app's edits (Controllers/Models/
+                                 Views/routes) from .installer/apps/<app>/ back
+                                 to the shared template so future `create`
+                                 runs include them. app.config.php is never
+                                 committed (per-app resolved values).
   nimbus init <app> [template] [--no-db] [--dev]
                                  One-shot: create + install + up.
 

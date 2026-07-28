@@ -155,11 +155,15 @@ class AppManagerTest extends TestCase
     }
     
     /**
-     * Test listing apps with registered apps
+     * Test listing apps with registered apps.
+     *
+     * listApps() is self-healing: a registry entry only counts when its
+     * .installer/apps/<name>/ directory exists on disk, so the fixture must
+     * create both.
      */
     public function testListAppsWithApps(): void
     {
-        // Create apps.json
+        // Create apps.json AND the backing app directories
         $appsData = [
             'apps' => [
                 'app1' => ['name' => 'app1', 'template' => $this->getDefaultTemplate()],
@@ -167,26 +171,57 @@ class AppManagerTest extends TestCase
             ]
         ];
         file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
-        
+        mkdir($this->installerDir . '/app1', 0777, true);
+        mkdir($this->installerDir . '/app2', 0777, true);
+
         $apps = $this->appManager->listApps();
         $this->assertCount(2, $apps);
         $this->assertArrayHasKey('app1', $apps);
         $this->assertArrayHasKey('app2', $apps);
     }
-    
+
+    /**
+     * Test that listApps() prunes "ghost" registry entries — apps whose
+     * directory disappeared (manual rm -rf, interrupted delete) — and
+     * persists the cleaned registry back to apps.json.
+     */
+    public function testListAppsPrunesGhostEntries(): void
+    {
+        $appsData = [
+            'apps' => [
+                'real-app' => ['name' => 'real-app', 'template' => $this->getDefaultTemplate()],
+                'ghost-app' => ['name' => 'ghost-app', 'template' => $this->getDefaultTemplate()]
+            ]
+        ];
+        file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
+        mkdir($this->installerDir . '/real-app', 0777, true);
+        // ghost-app deliberately gets no directory
+
+        $apps = $this->appManager->listApps();
+        $this->assertCount(1, $apps);
+        $this->assertArrayHasKey('real-app', $apps);
+        $this->assertArrayNotHasKey('ghost-app', $apps);
+
+        // The prune must be persisted, not just filtered from this call
+        $registry = json_decode(file_get_contents($this->baseDir . '/.installer/apps.json'), true);
+        $this->assertArrayNotHasKey('ghost-app', $registry['apps']);
+        $this->assertArrayHasKey('real-app', $registry['apps']);
+    }
+
     /**
      * Test checking if app exists
      */
     public function testAppExists(): void
     {
-        // Create apps.json
+        // Create apps.json AND the backing app directory (see testListAppsWithApps)
         $appsData = [
             'apps' => [
                 'existing-app' => ['name' => 'existing-app', 'template' => $this->getDefaultTemplate()]
             ]
         ];
         file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
-        
+        mkdir($this->installerDir . '/existing-app', 0777, true);
+
         $this->assertTrue($this->appManager->appExists('existing-app'));
         $this->assertFalse($this->appManager->appExists('non-existing-app'));
     }
@@ -326,10 +361,22 @@ class AppManagerTest extends TestCase
      */
     public function testDeleteAppNonExistent(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("App 'non-existent' not found");
-        
-        $this->appManager->deleteApp('non-existent');
+        // Deleting an app whose directory is already gone is a SUCCESS, not
+        // an error: the end state the caller wants (app gone) is already
+        // true. deleteApp() cleans up stragglers — here, a stale "ghost"
+        // registry entry — instead of throwing.
+        $appsData = [
+            'apps' => [
+                'non-existent' => ['name' => 'non-existent', 'template' => $this->getDefaultTemplate()]
+            ]
+        ];
+        file_put_contents($this->baseDir . '/.installer/apps.json', json_encode($appsData));
+
+        $result = $this->appManager->deleteApp('non-existent');
+
+        $this->assertTrue($result);
+        $registry = json_decode(file_get_contents($this->baseDir . '/.installer/apps.json'), true);
+        $this->assertArrayNotHasKey('non-existent', $registry['apps'], 'stale registry entry must be cleaned up');
     }
     
     /**

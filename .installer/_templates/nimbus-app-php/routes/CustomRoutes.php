@@ -21,5 +21,7 @@ return function ($injector, $renderer, $conn) {
         ['GET', '/auth/logout', ['App\Controllers\AuthController', 'logout']],
         ['GET', '/auth/configure', ['App\Controllers\AuthController', 'configure']],
         ['POST', '/auth/save-config', ['App\Controllers\AuthController', 'saveConfiguration']],
+        // Callback target for EDA's configure-keycloak playbook
+        ['POST', '/api/keycloak/configured', ['App\Controllers\AuthController', 'keycloakConfigured']],
     ];
 };
