@@ -63,18 +63,17 @@ class InteractiveHelper extends BaseTask
         }
         
         $allFeatures = array_unique(array_merge($features, $addedFeatures));
-        
+
         echo PHP_EOL;
-        $this->showConfigurationPreview($appName, $manager);
-        
         echo "  2. Generate container configuration" . PHP_EOL;
-        
-        $installChoice = $io->ask("     Run 'composer nimbus:install $appName' now? [Y/n/edit]: ", 'y');
+
+        $installChoice = $io->ask("     Run 'composer nimbus:install $appName' now? [Y/n/edit] ('edit' reviews config first): ", 'y');
         $installChoice = strtolower(trim($installChoice));
-        
+
         if ($installChoice === 'edit' || $installChoice === 'e') {
             echo PHP_EOL;
-            
+            $this->showConfigurationPreview($appName, $manager);
+
             echo self::ansiFormat('INFO', "📝 To edit configuration:");
             echo "  1. Edit: .installer/apps/$appName/app.nimbus.json" . PHP_EOL;
             echo "  2. Run: composer nimbus:install $appName" . PHP_EOL;
@@ -128,20 +127,23 @@ class InteractiveHelper extends BaseTask
         if ($wasRunning && !empty($addedFeatures)) {
             echo self::ansiFormat('INFO', "     App needs restart to activate new features");
             if ($io->askConfirmation("     Restart app now? [Y/n]: ", true)) {
+                // Decide dev mode BEFORE touching containers, so we restart once.
+                $devInfo = $this->askDevMode($appName, $io, $manager);
+
                 echo PHP_EOL;
                 echo self::ansiFormat('INFO', "Stopping app...");
-                
+
                 try {
                     $manager->stopApp($appName, ['remove_volumes' => false, 'remove_containers' => false]);
                     echo self::ansiFormat('SUCCESS', "✓ App stopped");
-                    
+
                     echo self::ansiFormat('INFO', "Starting app with new configuration...");
                     $apps = $manager->getStartableApps();
                     $app = array_filter($apps, fn($a) => $a['name'] === $appName);
-                    
+
                     if (!empty($app)) {
-                        $this->startApp(array_values($app)[0]);
-                        $this->showFeatureInfo($appName, $allFeatures);
+                        $this->startApp(array_values($app)[0], $devInfo['file'] ?? null);
+                        $this->showStartupSummary($appName, $allFeatures, $devInfo);
                     }
                 } catch (\Exception $e) {
                     echo self::ansiFormat('ERROR', '✗ Failed to restart app: ' . $e->getMessage());
@@ -152,14 +154,17 @@ class InteractiveHelper extends BaseTask
             }
         } else {
             if ($io->askConfirmation("     Run 'composer nimbus:up $appName' now? [Y/n]: ", true)) {
+                // Decide dev mode BEFORE the (single) build.
+                $devInfo = $this->askDevMode($appName, $io, $manager);
+
                 echo PHP_EOL;
-                
+
                 $apps = $manager->getStartableApps();
                 $app = array_filter($apps, fn($a) => $a['name'] === $appName);
-                
+
                 if (!empty($app)) {
-                    $this->startApp(array_values($app)[0]);
-                    $this->showFeatureInfo($appName, $allFeatures);
+                    $this->startApp(array_values($app)[0], $devInfo['file'] ?? null);
+                    $this->showStartupSummary($appName, $allFeatures, $devInfo);
                 } else {
                     echo self::ansiFormat('ERROR', '✗ Failed to find app details');
                 }
@@ -169,7 +174,7 @@ class InteractiveHelper extends BaseTask
                 return;
             }
         }
-        
+
         echo PHP_EOL;
         $this->showUsefulCommands($appName);
     }
@@ -210,18 +215,130 @@ class InteractiveHelper extends BaseTask
         }
     }
     
-    private function showFeatureInfo(string $appName, array $features): void
+    /**
+     * Ask whether to start in live-edit dev mode — BEFORE any containers run,
+     * so the stack is built exactly once (with or without the dev overlay).
+     *
+     * Returns generateDevCompose()'s ['file', 'port', 'password'] when dev
+     * mode was chosen and the overlay is ready, or null (declined, or
+     * podman-compose unavailable — e.g. inside the nimbus-tools container,
+     * where we print the host command instead of failing).
+     */
+    private function askDevMode(string $appName, IOInterface $io, AppManager $manager): ?array
     {
+        echo "     Dev mode live-mounts app/ + src/ and adds code-server (VS Code in browser)." . PHP_EOL;
+        if (!$io->askConfirmation("     Start in live-edit dev mode? [y/N]: ", false)) {
+            return null;
+        }
+
+        $composeCheck = AppManager::checkPodmanCompose();
+        if (!($composeCheck['installed'] ?? false)) {
+            echo self::ansiFormat('WARNING', 'podman-compose is not available here — starting without dev mode.');
+            echo self::ansiFormat('INFO', "  Run this on your host later: bin/nimbus dev $appName");
+            return null;
+        }
+
+        try {
+            return $manager->generateDevCompose($appName);
+        } catch (\Exception $e) {
+            echo self::ansiFormat('ERROR', '✗ Could not prepare dev overlay: ' . $e->getMessage());
+            echo self::ansiFormat('INFO', "  Starting without dev mode. Try later: bin/nimbus dev $appName");
+            return null;
+        }
+    }
+
+    /**
+     * One consolidated "everything about your running app" block, printed
+     * AFTER the single podman-compose up — URLs and credentials are the last
+     * thing on screen instead of scrolling away under build output.
+     *
+     * @param ?array $devInfo generateDevCompose() result when dev mode was
+     *                        started with this up; null otherwise.
+     */
+    private function showStartupSummary(string $appName, array $features, ?array $devInfo): void
+    {
+        try {
+            $manager = new AppManager();
+            $config = $manager->loadAppConfig($appName);
+        } catch (\Exception $e) {
+            $config = [];
+        }
+
+        $appPort = $config['containers']['app']['port'] ?? '8080';
+
         echo PHP_EOL;
+        echo self::ansiFormat('SUCCESS', "🎉 App '$appName' is running!");
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', "🌐 Application: http://localhost:$appPort");
+
         if (in_array('keycloak', $features)) {
             $this->displayKeycloakCredentials($appName);
         }
-        
+
         if (in_array('eda', $features)) {
+            $edaPort = $config['containers']['eda']['port'] ?? '5000';
             echo PHP_EOL;
-            echo self::ansiFormat('INFO', "📡 EDA is running:");
-            echo "  • Webhook endpoint: http://localhost:<app-port>/eda/webhook" . PHP_EOL;
-            echo "  • Rulebooks: .installer/apps/$appName/rulebooks/" . PHP_EOL;
+            echo self::ansiFormat('INFO', "📡 EDA:");
+            echo "  Webhook: http://localhost:$edaPort/webhook" . PHP_EOL;
+            echo "  Rulebooks: .installer/apps/$appName/rulebooks/" . PHP_EOL;
+        }
+
+        if ($config['features']['database'] ?? false) {
+            $dbConfig = $config['database'] ?? [];
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🗄️  Database:");
+            echo "  Name: " . ($dbConfig['name'] ?? "{$appName}_db") . PHP_EOL;
+            echo "  User: " . ($dbConfig['user'] ?? "{$appName}_user") . PHP_EOL;
+            echo "  Password: " . (isset($dbConfig['password']) ? substr($dbConfig['password'], 0, 8) . '...' : '[generated]') . PHP_EOL;
+        }
+
+        if ($devInfo !== null) {
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🖥️  VS Code in browser (code-server):");
+            echo "  URL: http://localhost:{$devInfo['port']}" . PHP_EOL;
+            echo "  Password: {$devInfo['password']}" . PHP_EOL;
+            echo "  Stop: bin/nimbus down $appName" . PHP_EOL;
+            echo self::ansiFormat('INFO', "💡 app/ and src/ are live-mounted — edits apply without a rebuild.");
+        } else {
+            $this->displayDevModeInfo($appName);
+        }
+    }
+
+    /**
+     * Show live-edit dev mode (code-server) info.
+     *
+     * Unlike Keycloak/EDA this isn't a per-app feature flag — dev mode is
+     * available for every app. code-server only runs under the dev overlay
+     * (bin/nimbus dev), so this reports how to start/stop it. The password
+     * is generated and persisted into app.nimbus.json the first time the
+     * overlay is built, so it's only shown once it actually exists rather
+     * than printing a value that isn't real yet.
+     */
+    public function displayDevModeInfo(string $appName): void
+    {
+        try {
+            $manager = new AppManager();
+            $config = $manager->loadAppConfig($appName);
+
+            $port = $config['containers']['codeserver']['port'] ?? null;
+            $password = $config['containers']['codeserver']['password'] ?? null;
+
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "🖥️  VS Code in browser (code-server):");
+
+            if (!empty($port) && !empty($password)) {
+                echo "  URL: http://localhost:$port" . PHP_EOL;
+                echo "  Password: $password" . PHP_EOL;
+            } else {
+                echo "  URL: assigned when dev mode first starts" . PHP_EOL;
+                echo "  Password: generated when dev mode first starts" . PHP_EOL;
+            }
+
+            echo "  Start: bin/nimbus dev $appName" . PHP_EOL;
+            echo "  Stop:  bin/nimbus down $appName" . PHP_EOL;
+            echo self::ansiFormat('INFO', "💡 Dev mode live-mounts app/ and src/ — edits apply without a rebuild.");
+        } catch (\Exception $e) {
+            // Non-fatal: dev mode info is advisory
         }
     }
     
@@ -251,15 +368,11 @@ class InteractiveHelper extends BaseTask
                 echo "  Password: (use command below to retrieve)" . PHP_EOL;
             }
             
+            echo "  Config UI: http://localhost:" . ($config['containers']['app']['port'] ?? '8080') . "/auth/configure" . PHP_EOL;
             echo PHP_EOL;
             echo self::ansiFormat('INFO', "💡 To retrieve admin password later, run:");
             echo "  podman inspect $containerName --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2" . PHP_EOL;
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🚀 Next steps:");
-            echo "  1. Access Keycloak admin console (URL above)" . PHP_EOL;
-            echo "  2. Configure realm and client at http://localhost:" . ($config['containers']['app']['port'] ?? '8080') . "/auth/configure" . PHP_EOL;
-            echo "  3. Test SSO integration in your app" . PHP_EOL;
-            
+
         } catch (\Exception $e) {
             // Silently fail
         }
@@ -362,33 +475,42 @@ class InteractiveHelper extends BaseTask
         }
     }
     
-    private function startApp(array $app): void
+    /**
+     * Bring the app up with a single podman-compose invocation.
+     *
+     * @param ?string $devOverlayFile When set, appended as a second -f so the
+     *                                dev overlay (live mounts + code-server)
+     *                                is part of the same single build.
+     */
+    private function startApp(array $app, ?string $devOverlayFile = null): void
     {
         $appName = $app['name'];
         $composeFile = $app['compose_file'];
-        
-        if ($app['is_running'] && $app['health_status'] === 'healthy') {
+
+        // Already-running short-circuit only applies when we're not changing
+        // the stack shape — applying a dev overlay requires the up to run.
+        if ($app['is_running'] && $app['health_status'] === 'healthy' && $devOverlayFile === null) {
             echo self::ansiFormat('INFO', "App '$appName' is already running and healthy!");
             $this->showAppStatus($app);
             return;
         }
-        
+
+        $composeArgs = "-f $composeFile" . ($devOverlayFile !== null ? " -f $devOverlayFile" : '');
+
         echo self::ansiFormat('INFO', "Building app '$appName' image...");
-        $buildCommand = "podman-compose -f $composeFile up --build -d";
-        
+        $buildCommand = "podman-compose $composeArgs up --build -d";
+
         echo self::ansiFormat('INFO', "Running: $buildCommand");
         $output = shell_exec($buildCommand . ' 2>&1');
-        
+
         if ($output) {
             echo $output;
         }
-        
-        $statusOutput = shell_exec("podman-compose -f $composeFile ps --format table 2>/dev/null");
+
+        $statusOutput = shell_exec("podman-compose $composeArgs ps --format table 2>/dev/null");
         if ($statusOutput) {
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
             echo $statusOutput;
-            
-            $this->displayKeycloakCredentials($appName);
         }
     }
     
