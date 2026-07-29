@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nimbus · Git App Installer</title>
+<style>
+:root {
+  --ground:   #f6f8f9;
+  --surface:  #ffffff;
+  --raised:   #eef2f4;
+  --ink:      #121a1e;
+  --muted:    #5c6e75;
+  --faint:    #8798a0;
+  --line:     #d8e0e3;
+  --accent:   #0b7285;
+  --accent-soft: #d9edf1;
+  --ok:       #2f7a4f;
+  --warn:     #a76a00;
+  --warn-soft:#f7ecd8;
+  --stop:     #9e3b4e;
+  --stop-soft:#f7e2e6;
+  --code-bg:  #10191d;
+  --code-ink: #dbe6e9;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --step: clamp(1rem, 0.9rem + 0.4vw, 1.0625rem);
+  --gap:  clamp(1.5rem, 1rem + 2vw, 3rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:   #0e1417;
+    --surface:  #161e22;
+    --raised:   #1d272c;
+    --ink:      #e6edef;
+    --muted:    #93a5ac;
+    --faint:    #6d818a;
+    --line:     #2a373d;
+    --accent:   #38b6c9;
+    --accent-soft: #10333b;
+    --ok:       #5fcf8e;
+    --warn:     #e0a93b;
+    --warn-soft:#33280f;
+    --stop:     #ef7d8e;
+    --stop-soft:#361a20;
+    --code-bg:  #0a1013;
+    --code-ink: #cfdde1;
+  }
+}
+
+/* The viewer's explicit toggle must win over the OS preference, both ways. */
+:root[data-theme="light"] {
+  --ground:#f6f8f9; --surface:#ffffff; --raised:#eef2f4; --ink:#121a1e;
+  --muted:#5c6e75; --faint:#8798a0; --line:#d8e0e3; --accent:#0b7285;
+  --accent-soft:#d9edf1; --ok:#2f7a4f; --warn:#a76a00; --warn-soft:#f7ecd8;
+  --stop:#9e3b4e; --stop-soft:#f7e2e6; --code-bg:#10191d; --code-ink:#dbe6e9;
+}
+:root[data-theme="dark"] {
+  --ground:#0e1417; --surface:#161e22; --raised:#1d272c; --ink:#e6edef;
+  --muted:#93a5ac; --faint:#6d818a; --line:#2a373d; --accent:#38b6c9;
+  --accent-soft:#10333b; --ok:#5fcf8e; --warn:#e0a93b; --warn-soft:#33280f;
+  --stop:#ef7d8e; --stop-soft:#361a20; --code-bg:#0a1013; --code-ink:#cfdde1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 1rem + 3vw, 4rem) clamp(1rem, 0.5rem + 3vw, 3rem) 6rem;
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 62rem) {
+  .shell { grid-template-columns: 13rem 1fr; align-items: start; }
+  .masthead { grid-column: 1 / -1; }
+}
+
+/* ---------------------------------------------------------- masthead --- */
+
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.75rem; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.9rem;
+}
+
+h1 {
+  font-family: var(--mono);
+  font-size: clamp(1.75rem, 1.2rem + 2.6vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  text-wrap: balance;
+  margin: 0 0 0.75rem;
+}
+
+.standfirst {
+  max-width: 60ch;
+  color: var(--muted);
+  margin: 0 0 1.75rem;
+  font-size: 1.05em;
+}
+
+.headline-cmd {
+  display: block;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  padding: 1rem 1.15rem;
+  border-radius: 3px;
+  border-left: 3px solid var(--accent);
+  white-space: pre;
+}
+.headline-cmd .prompt { color: var(--faint); user-select: none; }
+.headline-cmd .flag { color: var(--accent); }
+
+/* ---------------------------------------------------------------- nav --- */
+
+.rail { position: sticky; top: 2rem; font-family: var(--mono); font-size: 0.78rem; }
+.rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.rail a {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  color: var(--muted);
+  text-decoration: none;
+  border-left: 2px solid var(--line);
+}
+.rail a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 61.99rem) { .rail { display: none; } }
+
+/* ------------------------------------------------------------ content --- */
+
+.content { display: grid; gap: var(--gap); min-width: 0; }
+
+section { scroll-margin-top: 2rem; min-width: 0; }
+
+h2 {
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.4rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  text-wrap: balance;
+}
+h2 .num {
+  font-size: 0.72rem;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+  flex: none;
+}
+
+h3 {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+.lede { color: var(--muted); max-width: 68ch; margin: 0 0 1.4rem; }
+
+p { max-width: 68ch; }
+
+code:not(pre code) {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.08em 0.34em;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  margin: 0;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  padding: 1.1rem 1.25rem;
+  border-radius: 4px;
+  tab-size: 2;
+}
+pre code { font: inherit; background: none; border: 0; padding: 0; }
+
+.c-key { color: #7fd4e4; }
+.c-str { color: #a8d8a0; }
+.c-num { color: #e8c07d; }
+.c-com { color: #6b8189; font-style: italic; }
+.c-prompt { color: #6b8189; user-select: none; }
+.c-flag { color: #7fd4e4; }
+
+/* ------------------------------------------------------------ pipeline --- */
+
+.pipeline {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+  counter-reset: stage;
+}
+@media (min-width: 46rem) { .pipeline { grid-template-columns: repeat(4, 1fr); gap: 0.5rem; } }
+
+.stage {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 3px;
+  padding: 0.95rem 1rem 1.05rem;
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+  min-width: 0;
+}
+.stage .where {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.stage .what { font-weight: 600; font-size: 0.95rem; }
+.stage .note { color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+.stage .path {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- steps --- */
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.5rem; counter-reset: step; }
+.steps > li { display: grid; grid-template-columns: 2rem 1fr; gap: 0 1rem; min-width: 0; }
+.steps > li::before {
+  counter-increment: step;
+  content: counter(step);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  width: 1.75rem; height: 1.75rem;
+  display: grid; place-items: center;
+  margin-top: 0.1rem;
+}
+.steps h3 { margin: 0.1rem 0 0.35rem; }
+.steps .body { min-width: 0; display: grid; gap: 0.7rem; }
+.steps p { margin: 0; }
+
+/* --------------------------------------------------------------- table --- */
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 40rem; }
+caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding: 0 0 0.6rem; }
+th, td { text-align: left; padding: 0.7rem 0.95rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--raised);
+  white-space: nowrap;
+}
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+tbody th { font-family: var(--mono); font-weight: 600; white-space: nowrap; font-size: 0.85rem; }
+td.default { font-family: var(--mono); color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+
+/* --------------------------------------------------------------- ladder --- */
+
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.ladder li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  align-items: baseline;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 3px;
+  padding: 0.75rem 1rem;
+  min-width: 0;
+}
+.ladder .tier {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.ladder .desc { min-width: 0; }
+.ladder .desc strong { font-family: var(--mono); font-weight: 600; font-size: 0.9rem; }
+.ladder .desc span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+/* Each rung is weaker than the one above it. */
+.ladder li:nth-child(1) { margin-right: 0; }
+.ladder li:nth-child(2) { margin-right: clamp(0rem, 2vw, 1.5rem); opacity: 0.94; }
+.ladder li:nth-child(3) { margin-right: clamp(0rem, 4vw, 3rem); opacity: 0.88; }
+.ladder li:nth-child(4) { margin-right: clamp(0rem, 6vw, 4.5rem); opacity: 0.82; }
+
+/* --------------------------------------------------------------- notes --- */
+
+.note-card {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  border-radius: 3px;
+  padding: 0.9rem 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.note-card.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+.note-card.stop { border-left-color: var(--stop); background: var(--stop-soft); }
+.note-card .tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.note-card.warn .tag { color: var(--warn); }
+.note-card.stop .tag { color: var(--stop); }
+.note-card p { margin: 0; max-width: 70ch; font-size: 0.92rem; }
+
+.stack { display: grid; gap: 1rem; }
+
+.split { display: grid; gap: 1.25rem; align-items: start; }
+@media (min-width: 60rem) { .split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+.pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  padding: 0.15em 0.5em;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.pill.ok { color: var(--ok); }
+.pill.warn { color: var(--warn); }
+.pill.stop { color: var(--stop); }
+
+.kv { display: grid; gap: 0.15rem; font-size: 0.9rem; }
+.kv dt { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.kv dd { margin: 0 0 0.6rem; }
+
+footer {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+  color: var(--faint);
+  font-size: 0.82rem;
+  font-family: var(--mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Nimbus · containerize a git repository</p>
+    <h1>Git App Installer</h1>
+    <p class="standfirst">
+      Point Nimbus at a PHP repository and it clones, containerizes and runs it under
+      podman — reusing the same compose, port, registry and dev-mode machinery that
+      template-scaffolded apps use. This page covers the install flow and the
+      <code>.nimbus.json</code> contract a repository can ship to control it.
+    </p>
+    <code class="headline-cmd"><span class="prompt">$ </span>bin/nimbus create-from-git blog https://github.com/roots/bedrock.git</code>
+  </header>
+
+  <nav class="rail" aria-label="Sections">
+    <ol>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#layout">File layout</a></li>
+      <li><a href="#manifest">.nimbus.json</a></li>
+      <li><a href="#precedence">Resolution order</a></li>
+      <li><a href="#detection">Auto-detection</a></li>
+      <li><a href="#limits">Current limits</a></li>
+      <li><a href="#verify">Verify</a></li>
+    </ol>
+  </nav>
+
+  <main class="content">
+
+    <!-- ------------------------------------------------------ pipeline -->
+    <section id="pipeline">
+      <h2>What happens, end to end</h2>
+      <p class="lede">
+        The clone and the app instance are deliberately kept apart: your working tree
+        stays clean, and one clone can back several app instances.
+      </p>
+      <div class="pipeline">
+        <div class="stage">
+          <span class="where">Source</span>
+          <span class="what">Your repository</span>
+          <span class="note">A clone URL, or a repo already sitting in <code>repos/</code>.</span>
+          <span class="path">github.com/you/app.git</span>
+        </div>
+        <div class="stage">
+          <span class="where">Clone</span>
+          <span class="what">Shared checkout</span>
+          <span class="note">Cloned once, shallow. Gitignored. Never written to by Nimbus except a generated Containerfile.</span>
+          <span class="path">.installer/repos/&lt;repo&gt;/</span>
+        </div>
+        <div class="stage">
+          <span class="where">Instance</span>
+          <span class="what">Nimbus-owned config</span>
+          <span class="note">Holds <code>app.nimbus.json</code> — ports, resolved settings, feature flags.</span>
+          <span class="path">.installer/apps/&lt;app&gt;/</span>
+        </div>
+        <div class="stage">
+          <span class="where">Run</span>
+          <span class="what">Compose stack</span>
+          <span class="note">Built from the clone, served by podman on a port derived from the app name.</span>
+          <span class="path">&lt;app&gt;-compose.yml</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- install -->
+    <section id="install">
+      <h2><span class="num">01</span> Install an app</h2>
+      <p class="lede">
+        Three commands take you from a URL to a running container. Each is idempotent
+        enough to re-run; a failed create rolls back its instance directory and registry
+        entry, leaving the clone in place.
+      </p>
+
+      <ol class="steps">
+        <li>
+          <div class="body">
+            <h3>Create</h3>
+            <p>
+              Clones the repository and writes the app's config. If the repo already
+              exists under <code>.installer/repos/</code>, it is adopted as-is rather
+              than re-fetched — so a clone you made by hand works fine.
+            </p>
+<pre><code><span class="c-prompt">$ </span>bin/nimbus create-from-git blog https://github.com/roots/bedrock.git
+
+<span class="c-com"># adopt an existing clone by name instead of a URL</span>
+<span class="c-prompt">$ </span>bin/nimbus create-from-git blog bedrock
+
+<span class="c-com"># pin a branch or tag, and override what was detected</span>
+<span class="c-prompt">$ </span>bin/nimbus create-from-git blog https://example.com/app.git \
+    <span class="c-flag">--ref</span>=v2.1.0 <span class="c-flag">--docroot</span>=web</code></pre>
+            <p>
+              Read the notices it prints. They tell you the document root it chose, which
+              Containerfile it used, and whether it generated one for you.
+            </p>
+          </div>
+        </li>
+
+        <li>
+          <div class="body">
+            <h3>Install</h3>
+            <p>
+              Generates <code>&lt;app&gt;-compose.yml</code>. For a git app this is
+              compose-only — there is no asset map to copy, because the code stays in the
+              clone and is built from there.
+            </p>
+<pre><code><span class="c-prompt">$ </span>bin/nimbus install blog</code></pre>
+          </div>
+        </li>
+
+        <li>
+          <div class="body">
+            <h3>Run</h3>
+            <p>
+              Builds the image from the clone and starts it. Use <code>dev</code> instead
+              to bind-mount the clone over the container's web root — edits on the host
+              are live, and a code-server sidecar gives you VS Code in the browser on the
+              same tree.
+            </p>
+<pre><code><span class="c-prompt">$ </span>bin/nimbus up blog          <span class="c-com"># built image, no mounts</span>
+<span class="c-prompt">$ </span>bin/nimbus dev blog         <span class="c-com"># live-edit + code-server</span>
+<span class="c-prompt">$ </span>bin/nimbus status</code></pre>
+          </div>
+        </li>
+      </ol>
+
+      <div class="note-card" style="margin-top:1.5rem">
+        <span class="tag">Either interface works</span>
+        <p>
+          <code>bin/nimbus &lt;cmd&gt;</code> runs the file-generating commands inside the
+          nimbus-tools container. If you have PHP and Composer locally,
+          <code>composer nimbus:create-from-git blog &lt;repo&gt;</code> and friends do the
+          same thing directly.
+        </p>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- layout -->
+    <section id="layout">
+      <h2><span class="num">02</span> Where everything lives</h2>
+      <p class="lede">
+        <code>.installer/repos/</code> is the git analogue of
+        <code>.installer/_templates/</code> — it holds source, not instances.
+      </p>
+<pre><code>php-mvc/
+├── .installer/
+│   ├── repos/                  <span class="c-com">← clones live here (gitignored)</span>
+│   │   └── bedrock/
+│   │       ├── .git/
+│   │       ├── <span class="c-key">.nimbus.json</span>         <span class="c-com">← YOUR manifest goes here (repo root)</span>
+│   │       ├── Containerfile        <span class="c-com">  yours, or generated by Nimbus</span>
+│   │       ├── composer.json
+│   │       └── web/                 <span class="c-com">  detected as the document root</span>
+│   │           └── index.php
+│   └── apps/
+│       └── blog/
+│           └── app.nimbus.json <span class="c-com">← Nimbus-owned; resolved settings + ports</span>
+└── blog-compose.yml            <span class="c-com">← generated stack</span></code></pre>
+
+      <div class="stack" style="margin-top:1.25rem">
+        <div class="note-card">
+          <span class="tag">Why they're separate</span>
+          <p>
+            Nothing generated and no resolved password ever lands inside your working
+            tree, so <code>git status</code> in the clone stays clean and there is nothing
+            to accidentally push upstream. The one exception is a Containerfile Nimbus
+            generates for you — which you are meant to review and commit.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------ manifest -->
+    <section id="manifest">
+      <h2><span class="num">03</span> Writing a <code>.nimbus.json</code> by hand</h2>
+      <p class="lede">
+        Optional. Without one, Nimbus detects what it can and assumes the rest. Add one
+        when detection gets it wrong, or when you want the repository itself to declare
+        how it should be containerized — so anyone installing it gets the same result.
+      </p>
+
+      <div class="note-card">
+        <span class="tag">Location</span>
+        <p>
+          At the <strong>root of the repository</strong>, committed alongside
+          <code>composer.json</code> — not in the app instance directory. On disk that is
+          <code>.installer/repos/&lt;repo&gt;/.nimbus.json</code>; in your project it is
+          simply <code>.nimbus.json</code> at the top level.
+        </p>
+      </div>
+
+      <div class="split" style="margin-top:1.25rem">
+        <div>
+          <h3>A complete example</h3>
+<pre><code>{
+  <span class="c-key">"runtime"</span>: <span class="c-str">"php"</span>,
+  <span class="c-key">"docroot"</span>: <span class="c-str">"web"</span>,
+  <span class="c-key">"containerfile"</span>: <span class="c-str">"Containerfile"</span>,
+  <span class="c-key">"container_port"</span>: <span class="c-num">80</span>,
+  <span class="c-key">"webroot"</span>: <span class="c-str">"/var/www/html"</span>
+}</code></pre>
+          <h3>The minimum worth writing</h3>
+          <p style="font-size:0.92rem">
+            Most repositories only need to correct the one thing detection cannot infer:
+          </p>
+<pre><code>{
+  <span class="c-key">"docroot"</span>: <span class="c-str">"httpdocs"</span>
+}</code></pre>
+        </div>
+
+        <div>
+          <h3>Every accepted key</h3>
+          <div class="table-wrap">
+            <table>
+              <caption>Unknown keys are ignored with a notice, not an error.</caption>
+              <thead>
+                <tr><th scope="col">Key</th><th scope="col">Meaning</th><th scope="col">Default</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">runtime</th>
+                  <td>Which stack of defaults to use. <code>php</code> is the only one today.</td>
+                  <td class="default">"php"</td>
+                </tr>
+                <tr>
+                  <th scope="row">docroot</th>
+                  <td>Directory <em>inside your repo</em> that the web server serves. Empty means the repo root. Must exist, or create fails.</td>
+                  <td class="default">detected</td>
+                </tr>
+                <tr>
+                  <th scope="row">containerfile</th>
+                  <td>Path to your image definition, relative to the repo root.</td>
+                  <td class="default">"Containerfile"</td>
+                </tr>
+                <tr>
+                  <th scope="row">container_port</th>
+                  <td>Port your image listens on inside the container.</td>
+                  <td class="default">80</td>
+                </tr>
+                <tr>
+                  <th scope="row">webroot</th>
+                  <td>Path <em>inside the container</em> the code is served from. Also where dev mode bind-mounts the clone.</td>
+                  <td class="default">"/var/www/html"</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="note-card warn" style="margin-top:1rem">
+            <span class="tag">Watch the two roots</span>
+            <p>
+              <code>docroot</code> is relative to your repo (<code>web</code>).
+              <code>webroot</code> is absolute inside the container
+              (<code>/var/www/html</code>). Apache ends up serving the two joined:
+              <code>/var/www/html/web</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <h3>What Nimbus writes for you</h3>
+      <p>
+        Your manifest is an input. The resolved result is recorded in the app's own
+        <code>app.nimbus.json</code>, which is where the compose builder reads from:
+      </p>
+<pre><code>{
+  <span class="c-key">"name"</span>: <span class="c-str">"blog"</span>,
+  <span class="c-key">"source"</span>: {
+    <span class="c-key">"kind"</span>: <span class="c-str">"git"</span>,              <span class="c-com">← selects GitAppManager on every later command</span>
+    <span class="c-key">"repo"</span>: <span class="c-str">"bedrock"</span>,
+    <span class="c-key">"url"</span>:  <span class="c-str">"https://github.com/roots/bedrock.git"</span>,
+    <span class="c-key">"ref"</span>:  <span class="c-str">null</span>,
+    <span class="c-key">"runtime"</span>: <span class="c-str">"php"</span>,
+    <span class="c-key">"docroot"</span>: <span class="c-str">"web"</span>,
+    <span class="c-key">"webroot"</span>: <span class="c-str">"/var/www/html"</span>,
+    <span class="c-key">"container_port"</span>: <span class="c-num">80</span>,
+    <span class="c-key">"containerfile"</span>: <span class="c-str">"Containerfile"</span>
+  },
+  <span class="c-key">"features"</span>: { <span class="c-key">"database"</span>: <span class="c-num">false</span>, <span class="c-key">"eda"</span>: <span class="c-num">false</span>, <span class="c-key">"certbot"</span>: <span class="c-num">false</span>, <span class="c-key">"keycloak"</span>: <span class="c-num">false</span> },
+  <span class="c-key">"containers"</span>: { <span class="c-key">"app"</span>: { <span class="c-key">"port"</span>: <span class="c-str">"8531"</span> } }
+}</code></pre>
+      <div class="note-card" style="margin-top:1rem">
+        <span class="tag">Note the missing key</span>
+        <p>
+          A git app has no <code>type</code>. That key means "template directory name"
+          everywhere else in Nimbus, so it is deliberately left off —
+          <code>source.kind</code> is what identifies a git app. An app with no
+          <code>source</code> block at all is treated as template-scaffolded, which is why
+          every app created before git support keeps working untouched.
+        </p>
+      </div>
+    </section>
+
+    <!-- ---------------------------------------------------- precedence -->
+    <section id="precedence">
+      <h2><span class="num">04</span> Resolution order</h2>
+      <p class="lede">
+        Four sources can decide any setting. The highest one that has an opinion wins.
+      </p>
+      <ol class="ladder">
+        <li>
+          <span class="tier">Strongest</span>
+          <span class="desc">
+            <strong>Command-line flag</strong>
+            <span>A one-off override for this install: <code>--docroot=public</code>. Accepted flags are <code>--ref</code>, <code>--repo</code>, <code>--runtime</code>, <code>--docroot</code>, <code>--webroot</code> and <code>--containerfile</code>.</span>
+          </span>
+        </li>
+        <li>
+          <span class="tier">Then</span>
+          <span class="desc">
+            <strong>.nimbus.json</strong>
+            <span>The repository's own declaration. The only place <code>container_port</code> can be set — there is no flag for it.</span>
+          </span>
+        </li>
+        <li>
+          <span class="tier">Then</span>
+          <span class="desc">
+            <strong>Detection</strong>
+            <span>What Nimbus can infer from the tree: the document root, an existing Containerfile, the PHP version in <code>composer.json</code>.</span>
+          </span>
+        </li>
+        <li>
+          <span class="tier">Fallback</span>
+          <span class="desc">
+            <strong>Runtime default</strong>
+            <span>For <code>php</code>: image <code>php:8.3-apache</code>, web root <code>/var/www/html</code>, port <code>80</code>.</span>
+          </span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ----------------------------------------------------- detection -->
+    <section id="detection">
+      <h2><span class="num">05</span> What Nimbus works out on its own</h2>
+
+      <h3>Document root</h3>
+      <p>
+        Checked in order for an <code>index.php</code>; the first hit wins, otherwise the
+        repository root is served.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Looks for</th><th scope="col">Typical of</th><th scope="col">Result</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">web/index.php</th><td>Roots Bedrock (WordPress)</td><td><code>docroot: "web"</code></td></tr>
+            <tr><th scope="row">public/index.php</th><td>Laravel, Symfony, Slim apps</td><td><code>docroot: "public"</code></td></tr>
+            <tr><th scope="row">html/index.php</th><td>Older PHP layouts</td><td><code>docroot: "html"</code></td></tr>
+            <tr><th scope="row">— none —</th><td>Libraries, flat projects</td><td><code>docroot: ""</code> (repo root)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Image definition</h3>
+      <p>
+        Nimbus looks for <code>Containerfile</code> then <code>Dockerfile</code>, at the
+        repository root only. If neither exists it writes one and tells you.
+      </p>
+
+      <div class="stack">
+        <div class="note-card warn">
+          <span class="tag">A .devcontainer image is not adopted automatically</span>
+          <p>
+            A <code>.devcontainer/</code> definition describes an IDE environment, not
+            necessarily a servable one — Bedrock's is php-fpm with no web server, paired
+            with a separate nginx service in its own compose file. Building that as your
+            app container gives you something that starts and serves nothing. Nimbus
+            points out that it exists and generates a real image instead; pass
+            <code>--containerfile=.devcontainer/Dockerfile</code> to use it anyway.
+          </p>
+        </div>
+
+        <div class="note-card">
+          <span class="tag">The generated Containerfile</span>
+          <p>
+            Derived from what your repository actually declares — the PHP version and any
+            <code>ext-*</code> from <code>composer.json</code>, plus the detected document
+            root. It is written into the clone as a starting point for you to review,
+            adapt and commit; it is not a production image.
+          </p>
+        </div>
+      </div>
+
+<pre><code><span class="c-com"># generated for Bedrock: php >=8.3, docroot web/</span>
+FROM php:8.3-apache
+
+RUN apt-get update &amp;&amp; apt-get install -y --no-install-recommends \
+        git unzip zip libzip-dev libicu-dev \
+    &amp;&amp; docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli zip intl \
+    &amp;&amp; apt-get clean &amp;&amp; rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/web
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
+    &amp;&amp; sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+RUN a2enmod rewrite
+
+WORKDIR /var/www/html
+COPY . /var/www/html
+
+RUN composer install --no-interaction --prefer-dist --no-progress --no-scripts
+
+RUN chown -R www-data:www-data /var/www/html</code></pre>
+    </section>
+
+    <!-- -------------------------------------------------------- limits -->
+    <section id="limits">
+      <h2><span class="num">06</span> What git apps can and cannot do yet</h2>
+      <p class="lede">
+        Git apps inherit the whole generic lifecycle. What they do not inherit is anything
+        that needs template scaffolding a bare repository does not have.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Capability</th><th scope="col">Status</th><th scope="col">Detail</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">up / down / status</th>
+              <td><span class="pill ok">Works</span></td>
+              <td>Identical to template apps — same compose, ports and container naming.</td>
+            </tr>
+            <tr>
+              <th scope="row">dev mode</th>
+              <td><span class="pill ok">Works</span></td>
+              <td>Bind-mounts the clone at <code>webroot</code>, plus a code-server sidecar on the same tree.</td>
+            </tr>
+            <tr>
+              <th scope="row">delete</th>
+              <td><span class="pill ok">Works</span></td>
+              <td>Removes the instance, compose file and registry entry. The clone in <code>repos/</code> is left alone.</td>
+            </tr>
+            <tr>
+              <th scope="row">commit</th>
+              <td><span class="pill warn">No-op</span></td>
+              <td>There is no template to copy edits back to. Safe to run; it tells you to use <code>git commit</code> in the clone.</td>
+            </tr>
+            <tr>
+              <th scope="row">database</th>
+              <td><span class="pill warn">Off by default</span></td>
+              <td>The compose builder only emits Postgres, and these apps generally want MySQL/MariaDB. Bring your own for now.</td>
+            </tr>
+            <tr>
+              <th scope="row">EDA / Keycloak</th>
+              <td><span class="pill stop">Refused</span></td>
+              <td>Both mount files that come from a Nimbus template. You get a clear error rather than a crash-looping container.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- verify -->
+    <section id="verify">
+      <h2><span class="num">07</span> Verify and troubleshoot</h2>
+
+      <div class="split">
+        <div class="stack">
+          <div>
+            <h3 style="margin-top:0">Confirm what was resolved</h3>
+<pre><code><span class="c-prompt">$ </span>cat .installer/apps/blog/app.nimbus.json
+<span class="c-prompt">$ </span>cat blog-compose.yml</code></pre>
+            <p style="font-size:0.92rem">
+              The compose file's <code>build.context</code> should point at
+              <code>./.installer/repos/&lt;repo&gt;</code>, and its port mapping should end
+              in your <code>container_port</code>.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="margin-top:0">Common outcomes</h3>
+          <dl class="kv">
+            <dt>Document root '…' does not exist</dt>
+            <dd>A <code>docroot</code> you declared or passed is not a directory in the repo. Check spelling and that it is committed.</dd>
+
+            <dt>Container starts but serves nothing</dt>
+            <dd>Usually a php-fpm image with no web server. Use the generated Containerfile, or add a web server to your own.</dd>
+
+            <dt>Feature '…' is not supported for git-sourced apps</dt>
+            <dd>EDA and Keycloak need template scaffolding. Expected — see the table above.</dd>
+
+            <dt>Changes not showing up</dt>
+            <dd><code>up</code> serves a built image. Use <code>bin/nimbus dev &lt;app&gt;</code> for live edits, or rebuild.</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    Nimbus · GitAppManager · src/Nimbus/App/GitAppManager.php
+  </footer>
+
+</div>
+
+</body>
+</html>
