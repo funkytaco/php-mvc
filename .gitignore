@@ -26,6 +26,10 @@ eda/certbot
 .installer/apps/*
 .installer/app-*
 .installer/apps.json
+
+# Git repos cloned by nimbus:create-from-git — external source trees, often
+# large, each with its own .git. Nimbus recreates this dir on demand.
+.installer/repos/*
 .installer/lkui/certbot
 .installer/lkui/letsencrypt
 .installer/vault/.vault_*
