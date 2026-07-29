@@ -1474,9 +1474,10 @@ class AppManager
      */
     private function regenerateComposeFile(string $appName, array $config): void
     {
-        // Resolve passwords for compose regeneration using NO_MODIFICATIONS strategy
-        $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
-        $passwords = $passwordManager->resolvePasswordsForAddOperation($appName);
+        // Keep the installed app config as the source of truth. Resolving from
+        // an existing compose file can preserve stale credentials and leave the
+        // mounted app.config.php unable to connect to its own database.
+        $passwords = $this->extractPasswordsFromConfig($appName);
         
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);

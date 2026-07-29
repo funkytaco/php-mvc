@@ -3,210 +3,619 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title>
+    <title>{{title}} — Nimbus</title>
     <style>
+        :root {
+            --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Roboto Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+            --bg: #e8eaed;
+            --surface: #fafbfc;
+            --surface-2: #f0f2f5;
+            --line: #d2d7de;
+            --line-soft: #e2e6ec;
+            --ink: #1b2027;
+            --ink-2: #5a626d;
+            --ink-3: #838b96;
+
+            --accent: #97671a;
+            --accent-soft: #f4e9d6;
+
+            --ok: #1f6b4a;
+            --ok-soft: #e0efe7;
+            --fault: #a32c22;
+            --fault-soft: #f7e3e1;
+            --warn: #8a6100;
+
+            --radius: 4px;
+            --shadow: 0 1px 2px rgba(27, 32, 39, .06), 0 8px 24px -16px rgba(27, 32, 39, .3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #14171c;
+                --surface: #1b1f26;
+                --surface-2: #232830;
+                --line: #2e353f;
+                --line-soft: #262c34;
+                --ink: #e6e9ee;
+                --ink-2: #98a1ae;
+                --ink-3: #79828f;
+
+                --accent: #e0a84c;
+                --accent-soft: rgba(224, 168, 76, .14);
+
+                --ok: #57b98a;
+                --ok-soft: rgba(87, 185, 138, .14);
+                --fault: #e4796a;
+                --fault-soft: rgba(228, 121, 106, .14);
+                --warn: #d9a441;
+
+                --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+            }
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: var(--sans);
+            font-size: 15px;
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--accent); text-underline-offset: 3px; }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+
+        h1, h2, h3, h4, h5 { text-wrap: balance; margin: 0; }
+
+        /* ---- Rack unit -------------------------------------------------- */
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line);
+        }
+        .topbar-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: .7rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            font-family: var(--mono);
+            font-size: .78rem;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: var(--ink);
+        }
+        .brand svg { display: block; color: var(--accent); }
+        .topbar-nav {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            font-family: var(--mono);
+            font-size: .76rem;
+            color: var(--ink-2);
+        }
+
+        /* ---- Page ------------------------------------------------------- */
+
+        main {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem 4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .eyebrow {
+            font-family: var(--mono);
+            font-size: .72rem;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+
+        .masthead { display: flex; flex-direction: column; gap: .5rem; }
+        .masthead h1 {
+            font-family: var(--mono);
+            font-size: clamp(1.9rem, 5vw, 2.7rem);
+            font-weight: 600;
+            letter-spacing: -.01em;
+            text-transform: uppercase;
+            line-height: 1.05;
+        }
+        .masthead p {
+            margin: 0;
+            max-width: 62ch;
+            color: var(--ink-2);
+            font-size: 1.02rem;
+        }
+
+        /* ---- Readout strip ---------------------------------------------- */
+
+        .readout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1px;
+            background: var(--line);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        .tile {
+            background: var(--surface);
+            padding: 1.15rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+        }
+        .tile-label {
+            font-family: var(--mono);
+            font-size: .68rem;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+        .tile-value {
+            font-family: var(--mono);
+            font-size: 1.1rem;
+            font-weight: 600;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+        .tile-value .status-indicator { vertical-align: 1px; }
+        .tile-value.is-ok { color: var(--ok); }
+        .tile-value.is-pending { color: var(--warn); }
+
+        /* ---- Panels ----------------------------------------------------- */
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .panel-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: .85rem 1.5rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--line);
+        }
+        .panel-title {
+            font-family: var(--mono);
+            font-size: .82rem;
+            font-weight: 600;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+        .panel-note {
+            font-family: var(--mono);
+            font-size: .72rem;
+            color: var(--ink-3);
+        }
+        .panel-body { padding: 1.5rem; }
+
+        /* ---- Status lamps ----------------------------------------------- */
+
+        .status-indicator {
+            display: inline-block;
+            flex: none;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--ink-3);
+            margin-right: 8px;
+        }
+        .status-success { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+        .status-error { background: var(--fault); box-shadow: 0 0 0 3px var(--fault-soft); }
+        .status-warning { background: var(--warn); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .status-dormant { background: transparent; border: 1.5px solid var(--ink-3); }
+
+        /* ---- Fault banner ----------------------------------------------- */
+
+        .banner {
+            display: flex;
+            flex-direction: column;
+            gap: .75rem;
+            padding: 1.1rem 1.5rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+        .banner-head {
+            display: flex;
+            align-items: center;
+            font-family: var(--mono);
+            font-size: .78rem;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--fault);
+        }
+        .banner p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+
+        /* ---- Command chips ---------------------------------------------- */
+
+        .cmd {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: .5rem .65rem;
+            text-align: left;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font: inherit;
+            cursor: pointer;
+            transition: border-color .15s ease, background-color .15s ease;
+        }
+        .cmd:hover { border-color: var(--accent); background: var(--accent-soft); }
+        .cmd code {
+            flex: 1;
+            min-width: 0;
+            overflow-x: auto;
+            white-space: pre;
+            background: none;
+            padding: 0;
+            color: var(--accent);
+            font-size: .82rem;
+        }
+        .cmd-hint {
+            flex: none;
+            font-family: var(--mono);
+            font-size: .64rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+        .cmd[data-state="copied"] { border-color: var(--ok); }
+        .cmd[data-state="copied"] .cmd-hint { color: var(--ok); }
+
+        code {
+            font-family: var(--mono);
+            font-size: .86em;
+            background: var(--surface-2);
+            border-radius: 3px;
+            padding: .1em .35em;
+        }
+
+        /* ---- Form ------------------------------------------------------- */
+
+        form { display: flex; flex-direction: column; gap: 1.25rem; }
+
+        .field { display: flex; flex-direction: column; gap: .4rem; }
+        .field label {
+            font-family: var(--mono);
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-2);
+        }
+        .field input {
+            width: 100%;
+            padding: .6rem .75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font-family: var(--mono);
+            font-size: .9rem;
+        }
+        .field input:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: -1px;
+        }
+        .field-hint { font-size: .82rem; color: var(--ink-3); }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            flex-wrap: wrap;
+            margin-top: .25rem;
+        }
+
+        /* ---- Buttons ---------------------------------------------------- */
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .45rem .9rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface-2);
+            color: var(--ink);
+            font-family: var(--mono);
+            font-size: .74rem;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            text-decoration: none;
+            cursor: pointer;
+            transition: border-color .15s ease, background-color .15s ease;
+        }
+        .btn:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .btn-accent { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+        .btn-accent:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+        /* ---- Notes / status --------------------------------------------- */
+
+        .note {
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: .9rem 1.1rem;
+            margin: 0;
+        }
+        .note-ok { border-color: var(--ok); background: var(--ok-soft); }
+        .note-warn { border-color: var(--warn); background: var(--accent-soft); }
+        .note-fault { border-color: var(--fault); background: var(--fault-soft); }
+        .note strong { font-family: var(--mono); font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+        .note p, .note ul { margin: .5rem 0 0; }
+        .note ul { padding-left: 1.1rem; }
+        .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+
+        #status-message { display: none; }
+
+        /* ---- Setup steps ------------------------------------------------ */
+
+        .steps {
             margin: 0;
             padding: 0;
-            background: #f5f5f5;
+            list-style: none;
+            counter-reset: step;
         }
-        .container {
-            max-width: 600px;
-            margin: 2rem auto;
-            padding: 20px;
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding: .65rem 0 .65rem 2.6rem;
+            border-bottom: 1px solid var(--line-soft);
         }
-        .header {
-            background: #1976d2;
-            color: white;
-            padding: 2rem;
-            text-align: center;
-            margin-bottom: 2rem;
-            border-radius: 8px 8px 0 0;
-        }
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 0 0 8px 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
+        .steps li:last-child { border-bottom: 0; }
+        .steps li::before {
+            content: counter(step, decimal-leading-zero);
+            position: absolute;
+            left: 0;
+            top: .78rem;
+            font-family: var(--mono);
+            font-size: .72rem;
             font-weight: 600;
-            color: #333;
+            letter-spacing: .08em;
+            color: var(--accent);
         }
-        input[type="text"],
-        input[type="password"],
-        input[type="url"] {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-            box-sizing: border-box;
+
+        footer {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 1.5rem 3rem;
+            font-family: var(--mono);
+            font-size: .7rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-3);
         }
-        input:focus {
-            outline: none;
-            border-color: #1976d2;
-            box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
         }
-        .btn {
-            background: #1976d2;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            display: inline-block;
-            text-decoration: none;
-        }
-        .btn:hover {
-            background: #1565c0;
-        }
-        .btn-secondary {
-            background: #6c757d;
-            margin-left: 1rem;
-        }
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-        .info-box {
-            background: #e3f2fd;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 2rem;
-            border-left: 4px solid #1976d2;
-        }
-        .warning-box {
-            background: #fff3cd;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 2rem;
-            border-left: 4px solid #ffc107;
-        }
-        .status-message {
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1rem;
-            display: none;
-        }
-        .status-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+
+        @media (max-width: 560px) {
+            main { padding-top: 2rem; gap: 1.5rem; }
+            .panel-body { padding: 1.15rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🔐 Keycloak Configuration</h1>
-            <p>Configure Keycloak SSO for your Nimbus application</p>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <span class="brand">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <rect x="0.5" y="0.5" width="13" height="3" stroke="currentColor"></rect>
+                    <rect x="0.5" y="5.5" width="13" height="3" stroke="currentColor"></rect>
+                    <rect x="0.5" y="10.5" width="9" height="3" stroke="currentColor"></rect>
+                </svg>
+                Nimbus
+            </span>
+            <nav class="topbar-nav">
+                <a href="/" class="btn">Console</a>
+            </nav>
         </div>
-        
-        <div class="card">
-            {{#keycloak_enabled}}
-            <div class="info-box">
-                <strong>✅ Keycloak is enabled</strong>
-                <p>The Keycloak containers are running. Configure the connection details below.</p>
+    </header>
+
+    <main>
+        <section class="masthead">
+            <p class="eyebrow">Identity provider · {{app_name}}</p>
+            <h1>{{title}}</h1>
+            <p>Connect this application to its Keycloak realm. Values saved here are written back to the app config and used for server-side OAuth2 calls.</p>
+        </section>
+
+        {{^keycloak_enabled}}
+        <section class="banner">
+            <span class="banner-head"><span class="status-indicator status-dormant"></span>Keycloak not installed</span>
+            <p>This app was created without SSO. Add the Keycloak containers, then restart the stack:</p>
+            <button type="button" class="cmd" data-copy="composer nimbus:add-keycloak {{app_name}}" title="Copy command">
+                <code>composer nimbus:add-keycloak {{app_name}}</code>
+                <span class="cmd-hint">Copy</span>
+            </button>
+        </section>
+        {{/keycloak_enabled}}
+
+        {{#keycloak_enabled}}
+        <section class="readout" aria-label="SSO readout">
+            <div class="tile">
+                <span class="tile-label">Realm</span>
+                <span class="tile-value">{{realm_name}}</span>
             </div>
-            {{/keycloak_enabled}}
-            
-            {{^keycloak_enabled}}
-            <div class="warning-box">
-                <strong>⚠️ Keycloak is not enabled</strong>
-                <p>Run <code>composer nimbus:add-keycloak {{app_name}}</code> to add Keycloak support.</p>
+            <div class="tile">
+                <span class="tile-label">Client ID</span>
+                <span class="tile-value">{{client_id}}</span>
             </div>
-            {{/keycloak_enabled}}
-            
-            {{#keycloak_enabled}}
-            <div id="status-message" class="status-message"></div>
-            
-            <form id="keycloak-config-form">
-                <div class="form-group">
-                    <label for="realm">Realm Name</label>
-                    <input type="text" id="realm" name="realm" value="{{realm_name}}" required>
-                    <small style="color: #666;">The Keycloak realm for this application</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="client_id">Client ID</label>
-                    <input type="text" id="client_id" name="client_id" value="{{client_id}}" required>
-                    <small style="color: #666;">The OAuth2 client identifier</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="client_secret">Client Secret</label>
-                    <input type="password" id="client_secret" name="client_secret" placeholder="Generate in Keycloak admin console" required>
-                    <small style="color: #666;">The OAuth2 client secret (keep this secure!)</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="auth_url">Keycloak URL</label>
-                    <input type="url" id="auth_url" name="auth_url" value="{{keycloak_auth_url}}" required>
-                    <small style="color: #666;">The base URL of your Keycloak server</small>
-                </div>
-                
-                <div style="margin-top: 2rem;">
-                    <button type="submit" class="btn">Save Configuration</button>
-                    <a href="/" class="btn btn-secondary">Cancel</a>
-                </div>
-            </form>
-            
-            <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #ddd;">
-                <h3>📚 Setup Instructions</h3>
-                <ol>
-                    <li>Access the Keycloak admin console at <a href="{{keycloak_host_url}}" target="_blank">{{keycloak_host_url}}</a></li>
-                    <li>Login with username: <code>admin</code> and the password you set</li>
-                    <li>Create a new realm with the name specified above</li>
-                    <li>Create a new client with the Client ID specified above</li>
-                    <li>Set the client access type to "confidential"</li>
+            <div class="tile">
+                <span class="tile-label">Status</span>
+                {{#setup_complete}}
+                <span class="tile-value is-ok"><span class="status-indicator status-success"></span>Configured</span>
+                {{/setup_complete}}
+                {{^setup_complete}}
+                <span class="tile-value is-pending"><span class="status-indicator status-warning"></span>Awaiting secret</span>
+                {{/setup_complete}}
+            </div>
+        </section>
+
+        <div id="status-message" class="note" role="status" aria-live="polite"></div>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">Connection</h2>
+                <span class="panel-note">Saved to app config</span>
+            </div>
+            <div class="panel-body">
+                <form id="keycloak-config-form">
+                    <div class="field">
+                        <label for="realm">Realm name</label>
+                        <input type="text" id="realm" name="realm" value="{{realm_name}}" required>
+                        <span class="field-hint">The Keycloak realm for this application</span>
+                    </div>
+
+                    <div class="field">
+                        <label for="client_id">Client ID</label>
+                        <input type="text" id="client_id" name="client_id" value="{{client_id}}" required>
+                        <span class="field-hint">The OAuth2 client identifier</span>
+                    </div>
+
+                    <div class="field">
+                        <label for="client_secret">Client secret</label>
+                        <input type="password" id="client_secret" name="client_secret" placeholder="Generate in Keycloak admin console" required>
+                        <span class="field-hint">The OAuth2 client secret — keep this secure</span>
+                    </div>
+
+                    <div class="field">
+                        <label for="auth_url">Keycloak URL</label>
+                        <input type="url" id="auth_url" name="auth_url" value="{{keycloak_auth_url}}" required>
+                        <span class="field-hint">Internal (container-to-container) base URL of the Keycloak server</span>
+                    </div>
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-accent">Save configuration</button>
+                        <a href="/" class="btn">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">Setup instructions</h2>
+                <span class="panel-note">Keycloak admin console</span>
+            </div>
+            <div class="panel-body">
+                <ol class="steps">
+                    <li>Open the admin console at <a href="{{keycloak_host_url}}" target="_blank" rel="noopener">{{keycloak_host_url}}</a> — username <code>admin</code>, password from your vault</li>
+                    <li>Create a realm named <code>{{realm_name}}</code></li>
+                    <li>Create a client with ID <code>{{client_id}}</code></li>
+                    <li>Set the client access type to <code>confidential</code></li>
                     <li>Add valid redirect URIs: <code>{{app_url}}/*</code></li>
                     <li>Copy the client secret from the Credentials tab</li>
-                    <li>Submit this form to save the configuration</li>
+                    <li>Save this form with the secret filled in</li>
                 </ol>
-                
+
                 {{#has_eda}}
-                <div class="info-box" style="margin-top: 1rem;">
-                    <strong>🤖 Automated Configuration</strong>
-                    <p>When you submit this form, the configuration will be sent to the EDA container, which will automatically:</p>
+                <div class="note note-ok" style="margin-top: 1.25rem;">
+                    <strong>Automated by EDA</strong>
+                    <p>On save, the configuration is sent to the EDA container, which will:</p>
                     <ul>
                         <li>Create the realm if it doesn't exist</li>
-                        <li>Create and configure the client</li>
-                        <li>Set up the redirect URIs</li>
+                        <li>Create and configure the client, including redirect URIs</li>
                         <li>Update the application configuration</li>
                     </ul>
                 </div>
                 {{/has_eda}}
             </div>
-            {{/keycloak_enabled}}
+        </section>
+        {{/keycloak_enabled}}
+    </main>
 
-        </div>
-    </div>
-    
+    <footer>Nimbus framework · {{app_name}}</footer>
+
     <script>
-        document.getElementById('keycloak-config-form').addEventListener('submit', async (e) => {
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-copy]');
+            if (!button) return;
+
+            var text = button.getAttribute('data-copy');
+            var hint = button.querySelector('.cmd-hint');
+
+            var confirmCopy = function () {
+                button.setAttribute('data-state', 'copied');
+                if (hint) hint.textContent = 'Copied';
+                setTimeout(function () {
+                    button.removeAttribute('data-state');
+                    if (hint) hint.textContent = 'Copy';
+                }, 1600);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(confirmCopy, function () {
+                    fallbackCopy(text, confirmCopy);
+                });
+            } else {
+                fallbackCopy(text, confirmCopy);
+            }
+        });
+
+        function fallbackCopy(text, done) {
+            var field = document.createElement('textarea');
+            field.value = text;
+            field.setAttribute('readonly', '');
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            document.body.appendChild(field);
+            field.select();
+            try { document.execCommand('copy'); done(); } catch (error) { /* clipboard unavailable */ }
+            document.body.removeChild(field);
+        }
+
+        var configForm = document.getElementById('keycloak-config-form');
+        if (configForm) configForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const statusDiv = document.getElementById('status-message');
             statusDiv.style.display = 'block';
-            statusDiv.className = 'status-message';
-            statusDiv.innerHTML = '⏳ Saving configuration...';
-            
+            statusDiv.className = 'note';
+            statusDiv.textContent = 'Saving configuration…';
+
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData.entries());
-            
+
             try {
                 const response = await fetch('/auth/save-config', {
                     method: 'POST',
@@ -215,23 +624,23 @@
                     },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    statusDiv.className = 'status-message status-success';
-                    statusDiv.innerHTML = '✅ ' + result.message;
-                    
+                    statusDiv.className = 'note note-ok';
+                    statusDiv.textContent = result.message;
+
                     setTimeout(() => {
                         window.location.href = '/';
                     }, 2000);
                 } else {
-                    statusDiv.className = 'status-message status-error';
-                    statusDiv.innerHTML = '❌ Error: ' + (result.message || 'Failed to save configuration');
+                    statusDiv.className = 'note note-fault';
+                    statusDiv.textContent = 'Error: ' + (result.message || 'Failed to save configuration');
                 }
             } catch (error) {
-                statusDiv.className = 'status-message status-error';
-                statusDiv.innerHTML = '❌ Error: ' + error.message;
+                statusDiv.className = 'note note-fault';
+                statusDiv.textContent = 'Error: ' + error.message;
             }
         });
     </script>
