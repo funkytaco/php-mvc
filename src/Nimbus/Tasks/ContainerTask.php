@@ -392,7 +392,7 @@ class ContainerTask extends BaseTask
             
             // Show EDA info if enabled
             if ($appConfig['features']['eda'] ?? false) {
-                $edaPort = $this->generateEdaPort($appName);
+                $edaPort = $this->appManager->getServicePort($appName, 'eda');
                 echo "  🔄 EDA endpoint: http://localhost:$edaPort" . PHP_EOL;
                 echo "  📂 EDA container: $appName-eda" . PHP_EOL;
             }
@@ -442,15 +442,6 @@ class ContainerTask extends BaseTask
         return include $configFile;
     }
     
-    /**
-     * Generate unique EDA port based on app name (duplicated from AppManager)
-     */
-    private function generateEdaPort(string $appName): int
-    {
-        $hash = crc32($appName . '_eda');
-        return 5000 + ($hash % 1000);
-    }
-
     private function stopApp($manager, array $app, $io): void
     {
         $appName = $app['name'];

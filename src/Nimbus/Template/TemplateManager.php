@@ -8,9 +8,15 @@ class TemplateManager
     private array $availableTemplates = [];
     private TemplateConfig $templateConfig;
     
-    public function __construct()
+    /**
+     * @param string|null $templatesPath overrides the default
+     *        <cwd>/.installer/_templates, so callers holding their own
+     *        base dir (and tests using a temp dir) resolve templates there
+     *        instead of against the process working directory
+     */
+    public function __construct(?string $templatesPath = null)
     {
-        $this->templatesPath = getcwd() . '/.installer/_templates';
+        $this->templatesPath = $templatesPath ?? getcwd() . '/.installer/_templates';
         $this->templateConfig = TemplateConfig::getInstance();
         $this->scanTemplates();
     }

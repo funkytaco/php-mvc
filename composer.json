@@ -47,6 +47,7 @@
         "install-nagios": "Tasks\\ApplicationTasks::InstallNagios",
         "nimbus:create": "Tasks\\ApplicationTasks::nimbusCreate",
         "nimbus:create-with-eda": "Tasks\\ApplicationTasks::nimbusCreateWithEda",
+        "nimbus:create-from-git": "Tasks\\ApplicationTasks::nimbusCreateFromGit",
         "nimbus:install": "Tasks\\ApplicationTasks::nimbusInstall",
         "nimbus:list": "Tasks\\ApplicationTasks::nimbusList",
         "nimbus:up": "Tasks\\ApplicationTasks::nimbusUp",

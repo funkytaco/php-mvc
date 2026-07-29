@@ -4,6 +4,7 @@ namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\App\AppManagerFactory;
 use Nimbus\UI\InteractiveHelper;
 use Composer\Script\Event;
 
@@ -69,7 +70,7 @@ class FeatureTask extends BaseTask
         }
         
         try {
-            $this->appManager->addEda($appName);
+            AppManagerFactory::forApp($appName)->addEda($appName);
             
             echo self::ansiFormat('SUCCESS', "EDA functionality added to '$appName' successfully!");
             echo self::ansiFormat('INFO', "Changes made:");
@@ -121,7 +122,7 @@ class FeatureTask extends BaseTask
                 return;
             }
             
-            $this->appManager->addKeycloak($appName, $force);
+            AppManagerFactory::forApp($appName)->addKeycloak($appName, $force);
             
             $action = $force ? 'updated' : 'added';
             echo self::ansiFormat('SUCCESS', "Keycloak $action to app '$appName' successfully!");
@@ -188,7 +189,7 @@ class FeatureTask extends BaseTask
         }
 
         try {
-            $this->appManager->setFeature($appName, $feature, false);
+            AppManagerFactory::forApp($appName)->setFeature($appName, $feature, false);
 
             echo self::ansiFormat('SUCCESS', "$label removed from '$appName' successfully!");
             echo self::ansiFormat('INFO', 'Changes made:');
@@ -230,7 +231,7 @@ class FeatureTask extends BaseTask
             echo self::ansiFormat('INFO', "Adding EDA and Keycloak to app '$appName'...");
             
             try {
-                $this->appManager->addEda($appName);
+                AppManagerFactory::forApp($appName)->addEda($appName);
                 echo self::ansiFormat('SUCCESS', "✓ EDA added successfully!");
             } catch (\Exception $e) {
                 if (strpos($e->getMessage(), 'already enabled') === false) {
@@ -240,7 +241,7 @@ class FeatureTask extends BaseTask
             }
             
             try {
-                $this->appManager->addKeycloak($appName);
+                AppManagerFactory::forApp($appName)->addKeycloak($appName);
                 echo self::ansiFormat('SUCCESS', "✓ Keycloak added successfully!");
             } catch (\Exception $e) {
                 if (strpos($e->getMessage(), 'already enabled') === false) {

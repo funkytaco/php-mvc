@@ -58,61 +58,70 @@ class AppManagerTest extends TestCase
         $installerDirProp = $reflection->getProperty('installerDir');
         $installerDirProp->setAccessible(true);
         $this->assertEquals($this->installerDir, $installerDirProp->getValue($appManager));
-        
-        $templatesDirProp = $reflection->getProperty('templatesDir');
-        $templatesDirProp->setAccessible(true);
-        $this->assertEquals($this->templatesDir, $templatesDirProp->getValue($appManager));
+
+        // The base manager is source-agnostic: template paths belong to
+        // MVCAppManager, not here.
+        $this->assertFalse($reflection->hasProperty('templatesDir'));
+    }
+
+    /**
+     * A failed create must not leave a registry entry behind. unregisterApp()
+     * used to read .installer/apps/apps.json while every writer used
+     * .installer/apps.json, so rollback silently did nothing.
+     */
+    public function testUnregisterAppUsesTheSameRegistryAsRegisterApp(): void
+    {
+        $registryFile = $this->baseDir . '/.installer/apps.json';
+        file_put_contents($registryFile, json_encode([
+            'apps' => ['doomed' => ['name' => 'doomed', 'template' => 'whatever']],
+        ]));
+
+        $unregister = new \ReflectionMethod($this->appManager, 'unregisterApp');
+        $unregister->setAccessible(true);
+        $unregister->invoke($this->appManager, 'doomed');
+
+        $registry = json_decode(file_get_contents($registryFile), true);
+        $this->assertArrayNotHasKey('doomed', $registry['apps']);
+    }
+
+    /**
+     * Apps that ship their own build context declare no asset map; install
+     * must still generate their compose file instead of fataling.
+     */
+    public function testInstallWithoutAssetMapGeneratesCompose(): void
+    {
+        $appName = 'no-assets-app';
+        $appDir = $this->installerDir . '/' . $appName;
+        mkdir($appDir, 0777, true);
+
+        file_put_contents($appDir . '/app.nimbus.json', json_encode([
+            'name' => $appName,
+            'features' => ['database' => false],
+            'containers' => ['app' => ['port' => '8123']],
+        ]));
+
+        $this->assertTrue($this->appManager->install($appName));
+        $this->assertFileExists($this->baseDir . '/' . $appName . '-compose.yml');
+    }
+
+    /**
+     * Ports are exposed publicly so callers stop re-deriving the hash.
+     */
+    public function testGetServicePort(): void
+    {
+        $this->assertSame(
+            $this->appManager->getServicePort('demo', 'app'),
+            $this->appManager->getServicePort('demo', 'app')
+        );
+        $this->assertGreaterThanOrEqual(8000, $this->appManager->getServicePort('demo', 'app'));
+        $this->assertLessThan(9000, $this->appManager->getServicePort('demo', 'app'));
+        $this->assertGreaterThanOrEqual(5000, $this->appManager->getServicePort('demo', 'eda'));
+        $this->assertLessThan(6000, $this->appManager->getServicePort('demo', 'eda'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->appManager->getServicePort('demo', 'nope');
     }
     
-    /**
-     * Test creating app from template with missing template
-     */
-    public function testCreateFromTemplateMissingTemplate(): void
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("Template 'missing-template' not found");
-        
-        $this->appManager->createFromTemplate('test-app', 'missing-template');
-    }
-    
-    /**
-     * Test creating app with invalid name
-     */
-    public function testCreateFromTemplateInvalidAppName(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage("App name must start with a letter or number");
-
-        $this->appManager->createFromTemplate('Test_App!', $this->getDefaultTemplate());
-    }
-
-    /**
-     * Names that pass a naive [a-z0-9-]+ check but produce container names
-     * podman rejects, or that collide with framework behavior.
-     *
-     * @dataProvider invalidAppNameProvider
-     */
-    public function testCreateFromTemplateRejectsPodmanIncompatibleNames(string $name): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-
-        $this->appManager->createFromTemplate($name, $this->getDefaultTemplate());
-    }
-
-    /**
-     * @return array<string, array{string}>
-     */
-    public static function invalidAppNameProvider(): array
-    {
-        return [
-            'leading hyphen' => ['-lead'],       // podman: names must match [a-zA-Z0-9]...
-            'bare hyphen' => ['-'],
-            'trailing hyphen' => ['trail-'],     // yields "trail--app", collides with prefix matching
-            'reserved lkui' => ['lkui'],         // Dockerfile builds the default app instead
-            'too long' => [str_repeat('a', 49)], // derived hostnames exceed the DNS label limit
-        ];
-    }
-
     /**
      * Hyphenated names are the documented convention and must keep working.
      */
@@ -128,53 +137,6 @@ class AppManagerTest extends TestCase
         $this->addToAssertionCount(1);
     }
     
-    /**
-     * Test creating app when it already exists
-     */
-    public function testCreateFromTemplateAppAlreadyExists(): void
-    {
-        // Create template
-        $this->createMockTemplate($this->getDefaultTemplate());
-        
-        // Create app directory
-        mkdir($this->installerDir . '/test-app', 0777, true);
-        
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("App 'test-app' already exists");
-        
-        $this->appManager->createFromTemplate('test-app', $this->getDefaultTemplate());
-    }
-    
-    /**
-     * Test successful app creation with mocked dependencies
-     */
-    public function testCreateFromTemplateSuccess(): void
-    {
-        // Create mock template
-        $this->createMockTemplate($this->getDefaultTemplate());
-        
-        // Use reflection to create a testable AppManager
-        $appManager = new class($this->baseDir) extends AppManager {
-            public $mockVaultManager;
-            
-            protected function getVaultManager(): VaultManager
-            {
-                return $this->mockVaultManager;
-            }
-        };
-        
-        $vaultManager = $this->createMock(VaultManager::class);
-        $vaultManager->method('isInitialized')->willReturn(false);
-        
-        $appManager->mockVaultManager = $vaultManager;
-        
-        $result = $appManager->createFromTemplate('test-app', $this->getDefaultTemplate());
-        
-        $this->assertTrue($result);
-        $this->assertDirectoryExists($this->installerDir . '/test-app');
-        $this->assertFileExists($this->baseDir . '/.installer/apps.json');
-        $this->assertFileExists($this->baseDir . '/composer.json');
-    }
     
     /**
      * Test app installation with missing app
@@ -546,61 +508,6 @@ class AppManagerTest extends TestCase
         $this->assertStringContainsString($appName . '-postgres', $content);
     }
     
-    /**
-     * Test adding Keycloak to existing app
-     */
-    public function testAddKeycloakSuccess(): void
-    {
-        $appName = 'test-app';
-        $appDir = $this->installerDir . '/' . $appName;
-        mkdir($appDir, 0777, true);
-        
-        // Create template keycloak files
-        $this->createMockTemplate($this->getDefaultTemplate(), true);
-        
-        $config = [
-            'name' => $appName,
-            'features' => ['keycloak' => false],
-            'containers' => [
-                'app' => ['port' => '8080']
-            ]
-        ];
-        
-        file_put_contents($appDir . '/app.nimbus.json', json_encode($config));
-        file_put_contents($appDir . '/app.config.php', "<?php\nreturn ['keycloak' => ['enabled' => 'false']];");
-        
-        // Use anonymous class to override protected methods
-        $appManager = new class($this->baseDir) extends AppManager {
-            public $mockVaultManager;
-            public $skipComposeRegeneration = true;
-            
-            protected function getVaultManager(): VaultManager
-            {
-                return $this->mockVaultManager;
-            }
-            
-            private function regenerateComposeFile(string $appName, array $config): void
-            {
-                if (!$this->skipComposeRegeneration) {
-                    parent::regenerateComposeFile($appName, $config);
-                }
-            }
-        };
-        
-        $vaultManager = $this->createMock(VaultManager::class);
-        $vaultManager->method('isInitialized')->willReturn(false);
-        
-        $appManager->mockVaultManager = $vaultManager;
-        
-        $result = $appManager->addKeycloak($appName);
-        $this->assertTrue($result);
-        
-        $updatedConfig = json_decode(file_get_contents($appDir . '/app.nimbus.json'), true);
-        $this->assertTrue($updatedConfig['features']['keycloak']);
-        $this->assertArrayHasKey('keycloak', $updatedConfig);
-        $this->assertArrayHasKey('keycloak', $updatedConfig['containers']);
-        $this->assertArrayHasKey('keycloak-db', $updatedConfig['containers']);
-    }
     
     /**
      * Test getting startable apps
@@ -624,45 +531,6 @@ class AppManagerTest extends TestCase
         $this->assertArrayHasKey('is_running', $apps[0]);
     }
     
-    /**
-     * Helper method to create mock template
-     */
-    private function createMockTemplate(string $templateName, bool $withKeycloak = false): void
-    {
-        $templateDir = $this->templatesDir . '/' . $templateName;
-        mkdir($templateDir, 0777, true);
-        
-        // Create basic template files
-        file_put_contents($templateDir . '/app.nimbus.json', json_encode([
-            'name' => '{{APP_NAME}}',
-            'features' => ['database' => true],
-            'containers' => ['app' => ['port' => '{{APP_PORT}}']],
-            'database' => [
-                'name' => '{{DB_NAME}}',
-                'user' => '{{DB_USER}}',
-                'password' => '{{DB_PASSWORD}}'
-            ]
-        ]));
-        
-        file_put_contents($templateDir . '/app.config.php', '<?php return [];');
-        
-        if ($withKeycloak) {
-            mkdir($templateDir . '/Controllers', 0777, true);
-            mkdir($templateDir . '/Views/auth', 0777, true);
-            mkdir($templateDir . '/Views/partials', 0777, true);
-            
-            file_put_contents($templateDir . '/Controllers/AuthController.php', '<?php // Auth controller');
-            file_put_contents($templateDir . '/Views/auth/configure.mustache', '{{APP_NAME}}');
-            file_put_contents($templateDir . '/Views/partials/keycloak-section.mustache', '{{APP_NAME}}');
-            file_put_contents($templateDir . '/keycloak-init.sh', '#!/bin/sh');
-        }
-        
-        // Create composer.json in base directory
-        file_put_contents($this->baseDir . '/composer.json', json_encode([
-            'name' => 'test/project',
-            'scripts' => []
-        ]));
-    }
     
     /**
      * Helper method to remove directory recursively

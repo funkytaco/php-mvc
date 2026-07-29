@@ -3,7 +3,8 @@
 namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
-use Nimbus\App\AppManager;
+use Nimbus\App\MVCAppManager;
+use Nimbus\App\GitAppManager;
 use Nimbus\Template\TemplateManager;
 use Nimbus\Template\TemplateConfig;
 use Nimbus\Vault\VaultManager;
@@ -12,7 +13,7 @@ use Composer\Script\Event;
 
 class CreateTask extends BaseTask
 {
-    private AppManager $appManager;
+    private MVCAppManager $appManager;
     private TemplateManager $templateManager;
     private TemplateConfig $templateConfig;
     private VaultManager $vaultManager;
@@ -20,7 +21,7 @@ class CreateTask extends BaseTask
 
     public function __construct()
     {
-        $this->appManager = new AppManager();
+        $this->appManager = new MVCAppManager();
         $this->templateManager = new TemplateManager();
         $this->templateConfig = TemplateConfig::getInstance();
         $this->vaultManager = new VaultManager();
@@ -111,6 +112,64 @@ class CreateTask extends BaseTask
             
             $this->interactiveHelper->interactiveNextSteps($appName, $io, $this->appManager, $enabledFeatures);
             
+        } catch (\Throwable $e) {
+            echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create an app from a git repository instead of a template.
+     *
+     * Usage: composer nimbus:create-from-git <app> <repo-url|repo-name>
+     *          [--ref=<branch|tag>] [--docroot=<dir>] [--containerfile=<path>]
+     *
+     * The second argument may be a clone URL, or the name of a repository
+     * already present in .installer/repos/ (so a hand-made clone is adopted
+     * rather than re-fetched).
+     */
+    public function createFromGit(Event $event): void
+    {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+
+        $options = [];
+        foreach ($args as $arg) {
+            if (preg_match('/^--(ref|docroot|containerfile|runtime|webroot|repo)=(.*)$/', $arg, $m)) {
+                $options[$m[1]] = $m[2];
+            }
+        }
+        $positional = array_values(array_filter($args, fn ($a) => !str_starts_with($a, '--')));
+
+        $appName = $positional[0] ?? $io->ask('App name: ');
+        $repoUrl = $positional[1] ?? $io->ask('Git repository URL (or a name under .installer/repos/): ');
+
+        if (!$appName || !$repoUrl) {
+            echo self::ansiFormat('ERROR', 'Both an app name and a repository are required.');
+            return;
+        }
+
+        try {
+            $manager = new GitAppManager();
+            $manager->createFromRepo($appName, $repoUrl, $options);
+
+            echo self::ansiFormat('SUCCESS', "App '$appName' created from repository '$repoUrl'!");
+            echo self::ansiFormat('INFO', "📁 App config: .installer/apps/$appName/app.nimbus.json");
+
+            foreach ($manager->getNotices() as $notice) {
+                echo self::ansiFormat('INFO', $notice);
+            }
+
+            $config = $manager->loadAppConfig($appName);
+            $source = $config['source'] ?? [];
+            echo self::ansiFormat('INFO', "📦 Repository: .installer/repos/" . ($source['repo'] ?? '?'));
+            if (!empty($source['docroot'])) {
+                echo self::ansiFormat('INFO', "🌐 Document root: " . $source['docroot'] . '/');
+            }
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', "Next steps:");
+            echo "  composer nimbus:install $appName" . PHP_EOL;
+            echo "  composer nimbus:up $appName" . PHP_EOL;
+            echo "  bin/nimbus dev $appName   # live-edit the repo in a container" . PHP_EOL;
         } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }

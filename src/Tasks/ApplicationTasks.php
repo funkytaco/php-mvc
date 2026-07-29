@@ -313,6 +313,11 @@ class ApplicationTasks {
         $task->createWithEda($event);
     }
 
+    public static function nimbusCreateFromGit(Event $event) {
+        $task = new \Nimbus\Tasks\CreateTask();
+        $task->createFromGit($event);
+    }
+
     public static function nimbusInstall(Event $event) {
         $task = new \Nimbus\Tasks\InstallTask();
         $task->install($event);
@@ -873,7 +878,7 @@ class ApplicationTasks {
             if (!in_array('eda', $features)) {
                 if ($io->askConfirmation("     Add Event-Driven Ansible (EDA)? [y/N]: ", false)) {
                     try {
-                        $manager->addEda($appName);
+                        \Nimbus\App\AppManagerFactory::forApp($appName)->addEda($appName);
                         echo self::ansiFormat('SUCCESS', "     ✓ EDA added successfully!");
                         $addedFeatures[] = 'eda';
                     } catch (\Exception $e) {
@@ -885,7 +890,7 @@ class ApplicationTasks {
             if (!in_array('keycloak', $features)) {
                 if ($io->askConfirmation("     Add Keycloak SSO? [y/N]: ", false)) {
                     try {
-                        $manager->addKeycloak($appName);
+                        \Nimbus\App\AppManagerFactory::forApp($appName)->addKeycloak($appName);
                         echo self::ansiFormat('SUCCESS', "     ✓ Keycloak added successfully!");
                         $addedFeatures[] = 'keycloak';
                     } catch (\Exception $e) {

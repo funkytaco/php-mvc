@@ -276,6 +276,11 @@ Dev workflow:
 App management (runs in the nimbus-tools container):
   nimbus create <app> [template] [--no-db]
   nimbus create-with-eda <app> | create-eda-keycloak <app>
+  nimbus create-from-git <app> <repo-url|repo-name> [--ref=<ref>]
+                                 [--docroot=<dir>] [--containerfile=<path>]
+                                 Containerize an app from a git repository
+                                 (cloned into .installer/repos/). A repo can
+                                 declare its own settings in .nimbus.json.
   nimbus install <app> | list | delete <app>
   nimbus add-eda | add-keycloak | add-eda-keycloak <app>
   nimbus remove-eda | remove-keycloak <app>
@@ -318,7 +323,7 @@ main() {
         init)     cmd_init "$@" ;;
         playbook) cmd_playbook "$@" ;;
         # Lane 1 — file-generating, via tools container
-        create|create-with-eda|create-eda-keycloak|install|list|delete|\
+        create|create-with-eda|create-eda-keycloak|create-from-git|install|list|delete|\
         add-eda|add-keycloak|add-eda-keycloak|remove-eda|remove-keycloak|\
         commit|\
         template-scaffold|template-check|alias-template|alias-remove|alias-list|\

@@ -4,6 +4,7 @@ namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\App\AppManagerFactory;
 use Composer\Script\Event;
 
 /**
@@ -52,7 +53,7 @@ class DevTask extends BaseTask
         }
 
         try {
-            $result = $this->appManager->generateDevCompose($appName);
+            $result = AppManagerFactory::forApp($appName)->generateDevCompose($appName);
 
             echo self::ansiFormat('SUCCESS', "Dev overlay written: " . basename($result['file']));
             echo self::ansiFormat('INFO', "Dev mode serves this app's own directory: .installer/apps/$appName/ — edit it locally or in code-server; changes are live, apps stay isolated, and edits survive installs.");
@@ -90,8 +91,16 @@ class DevTask extends BaseTask
             $appName = $appNames[$choice];
         }
 
+        $manager = AppManagerFactory::forApp($appName);
+
+        if (!$manager->supportsCommit()) {
+            echo self::ansiFormat('INFO', "'$appName' has no template to commit back to — its code comes from a git repository.");
+            echo self::ansiFormat('INFO', "Commit your changes with git inside .installer/repos/ instead.");
+            return;
+        }
+
         try {
-            $result = $this->appManager->commitAppToTemplate($appName);
+            $result = $manager->commitAppToTemplate($appName);
             $committed = $result['committed'];
             $skipped = $result['skipped'];
 
