@@ -20,3 +20,13 @@ coverage/
 .phpunit.cache/
 Containerfile.tools
 bin/
+# Secrets / templates the build never needs. .installer/apps/ and
+# .installer/lkui/ must STAY included — nimbus:install / install-lkui
+# read them in the builder stage (which is never shipped).
+.installer/vault/
+.installer/_templates/
+*.md
+debug-passwords.sh
+# Host-side install marker. Shipping it makes the in-image installer
+# refuse to run ("app.lock file exists").
+src/.lock/

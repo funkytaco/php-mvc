@@ -41,6 +41,7 @@ class Application
         $this->setupConstants();
         $this->setupAutoload();
         $this->setupErrorHandling();
+        $this->setupSession();
         $this->setupDependencies();
         $this->setupDatabase();
         $this->setupRenderer();
@@ -100,7 +101,40 @@ class Application
         
         $whoops->register();
     }
-    
+
+    /**
+     * Harden session cookie settings (must run before session_start)
+     */
+    private function setupSession(): void
+    {
+        if (session_status() !== PHP_SESSION_NONE) {
+            return;
+        }
+
+        ini_set('session.use_strict_mode', '1');
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => '/',
+            'httponly' => true,
+            // Lax, not Strict: the Keycloak callback is a cross-site
+            // top-level redirect — Strict would drop the session cookie
+            'samesite' => 'Lax',
+            // Stack is HTTP today; an unconditional Secure flag would break login
+            'secure' => $this->isHttps(),
+        ]);
+    }
+
+    /**
+     * Detect HTTPS directly or via a reverse proxy's X-Forwarded-Proto
+     */
+    private function isHttps(): bool
+    {
+        if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+            return true;
+        }
+        return ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    }
+
     /**
      * Setup dependency injection
      */
@@ -225,7 +259,10 @@ class Application
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
-        
+
+        // Baseline security headers on every response path
+        $this->emitSecurityHeaders();
+
         // Handle CORS if needed
         $this->handleCors();
         
@@ -276,7 +313,24 @@ class Application
             exit();
         }
     }
-    
+
+    /**
+     * Emit baseline security headers. CSP tolerates inline style/script
+     * because app views inline everything today; HSTS only over HTTPS.
+     */
+    private function emitSecurityHeaders(): void
+    {
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: SAMEORIGIN');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+        header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'");
+
+        if ($this->isHttps()) {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
+    }
+
     /**
      * Handle a found route
      */

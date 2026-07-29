@@ -52,8 +52,12 @@ class AuthController extends AbstractController
         }
         
         $redirectUri = $_GET['redirect'] ?? '/';
+        // Only allow same-site paths — blocks "//evil.com" and absolute URLs
+        if (!str_starts_with($redirectUri, '/') || str_starts_with($redirectUri, '//') || str_starts_with($redirectUri, '/\\')) {
+            $redirectUri = '/';
+        }
         $_SESSION['login_redirect'] = $redirectUri;
-        
+
         $authUrl = $this->buildAuthUrl();
         header('Location: ' . $authUrl);
         exit;
@@ -76,7 +80,15 @@ class AuthController extends AbstractController
             $this->error('Authorization code not provided', 400);
             return;
         }
-        
+
+        // Verify OAuth state to prevent login CSRF (set in buildAuthUrl)
+        $expectedState = $_SESSION['oauth_state'] ?? '';
+        unset($_SESSION['oauth_state']);
+        if ($expectedState === '' || !hash_equals($expectedState, (string) $state)) {
+            $this->error('Invalid OAuth state', 400);
+            return;
+        }
+
         try {
             // Exchange code for tokens
             $tokenData = $this->exchangeCodeForToken($code);
@@ -94,6 +106,9 @@ class AuthController extends AbstractController
                 return;
             }
             
+            // New session ID on login (session fixation defense)
+            session_regenerate_id(true);
+
             // Store in session
             $_SESSION['keycloak_token'] = $tokenData['access_token'];
             $_SESSION['refresh_token'] = $tokenData['refresh_token'] ?? null;
@@ -116,7 +131,7 @@ class AuthController extends AbstractController
             
         } catch (\Exception $e) {
             error_log('Keycloak callback error: ' . $e->getMessage());
-            $this->error('Authentication failed: ' . $e->getMessage(), 500);
+            $this->error('Authentication failed', 500);
         }
     }
     
@@ -126,13 +141,17 @@ class AuthController extends AbstractController
     public function logout()
     {
         if (!$this->isKeycloakEnabled()) {
-            session_destroy();
+            $this->destroySession();
             header('Location: /');
             exit;
         }
-        
+
         // Get the redirect URI from query parameter or default to home
         $redirectTo = $_GET['redirect'] ?? '/';
+        // Only allow same-site paths — blocks "//evil.com" and absolute URLs
+        if (!str_starts_with($redirectTo, '/') || str_starts_with($redirectTo, '//') || str_starts_with($redirectTo, '/\\')) {
+            $redirectTo = '/';
+        }
         $fullRedirectUri = $this->getBaseUrl() . $redirectTo;
         
         // Build Keycloak logout URL with post_logout_redirect_uri and id_token_hint
@@ -151,13 +170,33 @@ class AuthController extends AbstractController
         $logoutUrl .= '?' . http_build_query($params);
         
         // Clear session
-        session_destroy();
-        
+        $this->destroySession();
+
         // Redirect to Keycloak logout
         header('Location: ' . $logoutUrl);
         exit;
     }
-    
+
+    /**
+     * Clear session data, expire the session cookie, and destroy the session
+     */
+    private function destroySession(): void
+    {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => $params['path'],
+                'domain' => $params['domain'],
+                'secure' => $params['secure'],
+                'httponly' => $params['httponly'],
+                'samesite' => $params['samesite'] ?: 'Lax',
+            ]);
+        }
+        session_destroy();
+    }
+
     /**
      * Show Keycloak configuration page
      */
@@ -188,6 +227,13 @@ class AuthController extends AbstractController
      */
     public function saveConfiguration()
     {
+        // First-time setup is open (no secret exists yet); after that,
+        // only an authenticated session may rewrite the auth config.
+        if (!empty($this->keycloakConfig['client_secret']) && empty($_SESSION['user'])) {
+            $this->error('Keycloak is already configured — sign in to change it', 403);
+            return;
+        }
+
         $data = $this->getRequestData();
         
         // Validate required fields

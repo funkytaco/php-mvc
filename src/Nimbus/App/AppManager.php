@@ -474,9 +474,10 @@ class AppManager
             ],
             'container_name' => $appName . '-app',
             'ports' => [$config['containers']['app']['port'] . ':8080'],
-            'volumes' => [
-                './.installer/apps/' . $appName . ':/var/www/.installer/' . $appName . ':Z'
-            ],
+            // No volumes: nothing reads /var/www/.installer at runtime, and
+            // mounting the instance dir exposed app.nimbus.json (plaintext
+            // passwords) inside the container. Dev mode adds its own mounts
+            // via the compose.dev.yml overlay.
             'networks' => [$appName . '-net']
         ];
 
