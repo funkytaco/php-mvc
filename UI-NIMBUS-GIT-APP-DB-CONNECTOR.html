@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nimbus · Git App Database Connector</title>
+<style>
+:root {
+  --ground:#f6f8f9; --surface:#ffffff; --raised:#eef2f4; --ink:#121a1e;
+  --muted:#5c6e75; --faint:#8798a0; --line:#d8e0e3; --accent:#0b7285;
+  --accent-soft:#d9edf1; --ok:#2f7a4f; --ok-soft:#dcefe3; --warn:#a76a00;
+  --warn-soft:#f7ecd8; --stop:#9e3b4e; --stop-soft:#f7e2e6;
+  --code-bg:#10191d; --code-ink:#dbe6e9;
+
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Code", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+
+  --step: clamp(1rem, 0.9rem + 0.4vw, 1.0625rem);
+  --gap:  clamp(1.5rem, 1rem + 2vw, 3rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:#0e1417; --surface:#161e22; --raised:#1d272c; --ink:#e6edef;
+    --muted:#93a5ac; --faint:#6d818a; --line:#2a373d; --accent:#38b6c9;
+    --accent-soft:#10333b; --ok:#5fcf8e; --ok-soft:#122c1f; --warn:#e0a93b;
+    --warn-soft:#33280f; --stop:#ef7d8e; --stop-soft:#361a20;
+    --code-bg:#0a1013; --code-ink:#cfdde1;
+  }
+}
+
+:root[data-theme="light"] {
+  --ground:#f6f8f9; --surface:#ffffff; --raised:#eef2f4; --ink:#121a1e;
+  --muted:#5c6e75; --faint:#8798a0; --line:#d8e0e3; --accent:#0b7285;
+  --accent-soft:#d9edf1; --ok:#2f7a4f; --ok-soft:#dcefe3; --warn:#a76a00;
+  --warn-soft:#f7ecd8; --stop:#9e3b4e; --stop-soft:#f7e2e6;
+  --code-bg:#10191d; --code-ink:#dbe6e9;
+}
+:root[data-theme="dark"] {
+  --ground:#0e1417; --surface:#161e22; --raised:#1d272c; --ink:#e6edef;
+  --muted:#93a5ac; --faint:#6d818a; --line:#2a373d; --accent:#38b6c9;
+  --accent-soft:#10333b; --ok:#5fcf8e; --ok-soft:#122c1f; --warn:#e0a93b;
+  --warn-soft:#33280f; --stop:#ef7d8e; --stop-soft:#361a20;
+  --code-bg:#0a1013; --code-ink:#cfdde1;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0; background: var(--ground); color: var(--ink);
+  font-family: var(--sans); font-size: var(--step); line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  max-width: 78rem; margin: 0 auto;
+  padding: clamp(1.5rem,1rem + 3vw,4rem) clamp(1rem,0.5rem + 3vw,3rem) 6rem;
+  display: grid; gap: var(--gap); grid-template-columns: 1fr;
+}
+@media (min-width: 62rem) {
+  .shell { grid-template-columns: 13rem 1fr; align-items: start; }
+  .masthead { grid-column: 1 / -1; }
+}
+
+/* --------------------------------------------------------- masthead --- */
+.masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.75rem; }
+.eyebrow {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--accent); margin: 0 0 0.9rem;
+}
+h1 {
+  font-family: var(--mono); font-size: clamp(1.75rem,1.2rem + 2.6vw,3rem);
+  font-weight: 600; letter-spacing: -0.03em; line-height: 1.05;
+  text-wrap: balance; margin: 0 0 0.75rem;
+}
+.standfirst { max-width: 62ch; color: var(--muted); margin: 0 0 1.5rem; font-size: 1.05em; }
+
+.status-strip {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; align-items: center;
+  background: var(--warn-soft); border: 1px solid var(--warn);
+  border-radius: 3px; padding: 0.8rem 1rem;
+}
+.status-strip .tag {
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--warn); white-space: nowrap;
+}
+.status-strip p { margin: 0; font-size: 0.92rem; max-width: 72ch; }
+
+/* -------------------------------------------------------------- nav --- */
+.rail { position: sticky; top: 2rem; font-family: var(--mono); font-size: 0.78rem; }
+.rail ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.rail a {
+  display: block; padding: 0.35rem 0.6rem; color: var(--muted);
+  text-decoration: none; border-left: 2px solid var(--line);
+}
+.rail a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 61.99rem) { .rail { display: none; } }
+
+/* ---------------------------------------------------------- content --- */
+.content { display: grid; gap: var(--gap); min-width: 0; }
+section { scroll-margin-top: 2rem; min-width: 0; }
+
+h2 {
+  font-family: var(--mono); font-size: 1.3rem; font-weight: 600;
+  letter-spacing: -0.02em; margin: 0 0 0.4rem; display: flex;
+  align-items: baseline; gap: 0.7rem; text-wrap: balance;
+}
+h2 .num { font-size: 0.72rem; color: var(--accent); letter-spacing: 0.1em; flex: none; }
+h3 {
+  font-family: var(--mono); font-size: 0.95rem; font-weight: 600;
+  margin: 1.75rem 0 0.5rem; letter-spacing: -0.01em;
+}
+.lede { color: var(--muted); max-width: 68ch; margin: 0 0 1.4rem; }
+p { max-width: 68ch; }
+
+code:not(pre code) {
+  font-family: var(--mono); font-size: 0.86em; background: var(--raised);
+  border: 1px solid var(--line); border-radius: 3px; padding: 0.08em 0.34em;
+  overflow-wrap: anywhere;
+}
+pre {
+  margin: 0; overflow-x: auto; background: var(--code-bg); color: var(--code-ink);
+  font-family: var(--mono); font-size: 0.82rem; line-height: 1.7;
+  padding: 1.1rem 1.25rem; border-radius: 4px; tab-size: 2;
+}
+pre code { font: inherit; background: none; border: 0; padding: 0; }
+.c-key { color: #7fd4e4; } .c-str { color: #a8d8a0; } .c-num { color: #e8c07d; }
+.c-com { color: #6b8189; font-style: italic; }
+.c-prompt { color: #6b8189; user-select: none; }
+
+/* ----------------------------------------------------------- shapes --- */
+.shapes { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+@media (min-width: 52rem) { .shapes { grid-template-columns: repeat(2, 1fr); } }
+.shape {
+  background: var(--surface); border: 1px solid var(--line);
+  border-top: 3px solid var(--accent); border-radius: 3px;
+  padding: 1rem 1.1rem; display: grid; gap: 0.35rem; align-content: start; min-width: 0;
+}
+.shape.file { border-top-color: var(--ok); }
+.shape .mode {
+  font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--accent);
+}
+.shape.file .mode { color: var(--ok); }
+.shape .what { font-weight: 600; font-size: 0.98rem; }
+.shape .note { color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+.shape .for { font-family: var(--mono); font-size: 0.75rem; color: var(--faint); }
+
+/* ------------------------------------------------------------ table --- */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 42rem; }
+caption { text-align: left; color: var(--muted); font-size: 0.85rem; padding: 0 0 0.6rem; }
+th, td { text-align: left; padding: 0.7rem 0.95rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th {
+  font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted); background: var(--raised); white-space: nowrap;
+}
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+tbody th { font-family: var(--mono); font-weight: 600; white-space: nowrap; font-size: 0.85rem; }
+td.default { font-family: var(--mono); color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+td.mono, th.mono { font-family: var(--mono); font-size: 0.82rem; }
+
+/* ------------------------------------------------------------- note --- */
+.note-card {
+  border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  background: var(--surface); border-radius: 3px; padding: 0.9rem 1.1rem;
+  display: grid; gap: 0.35rem;
+}
+.note-card.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+.note-card.stop { border-left-color: var(--stop); background: var(--stop-soft); }
+.note-card.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+.note-card .tag {
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--accent);
+}
+.note-card.warn .tag { color: var(--warn); }
+.note-card.stop .tag { color: var(--stop); }
+.note-card.ok .tag { color: var(--ok); }
+.note-card p { margin: 0; max-width: 70ch; font-size: 0.92rem; }
+
+.stack { display: grid; gap: 1rem; }
+.split { display: grid; gap: 1.25rem; align-items: start; }
+@media (min-width: 60rem) { .split { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+
+.pill {
+  display: inline-block; font-family: var(--mono); font-size: 0.7rem;
+  letter-spacing: 0.06em; padding: 0.15em 0.5em; border-radius: 2px;
+  border: 1px solid currentColor; white-space: nowrap;
+}
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.stop { color: var(--stop); }
+
+.chain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.chain li {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.9rem; align-items: baseline;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent); border-radius: 3px; padding: 0.7rem 1rem; min-width: 0;
+}
+.chain .tier {
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+}
+.chain .desc { min-width: 0; }
+.chain .desc strong { font-family: var(--mono); font-weight: 600; font-size: 0.88rem; }
+.chain .desc span { display: block; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+
+footer {
+  grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 1.25rem;
+  color: var(--faint); font-size: 0.82rem; font-family: var(--mono);
+}
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Nimbus · git apps · database connector</p>
+    <h1>Database Connector</h1>
+    <p class="standfirst">
+      How a git-sourced app gets a database: which engine Nimbus provisions, how it
+      seeds from a SQL file already in your repository, how to use a file-backed
+      database instead of a container, and how the credentials actually reach the app.
+    </p>
+    <div class="status-strip">
+      <span class="tag">Design spec · not yet built</span>
+      <p>
+        Everything on this page is the proposed contract, written against the real
+        behaviour of the repositories in <code>.installer/repos/</code>. Today
+        <code>features.database</code> is <code>false</code> for every git app and the
+        compose builder emits Postgres only — which is why
+        <code>blog</code> reports no database connection.
+      </p>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Sections">
+    <ol>
+      <li><a href="#why">Why blog fails</a></li>
+      <li><a href="#shapes">Four shapes</a></li>
+      <li><a href="#schema">The database block</a></li>
+      <li><a href="#credentials">Credentials</a></li>
+      <li><a href="#existing">Existing DB files</a></li>
+      <li><a href="#examples">Worked examples</a></li>
+      <li><a href="#generated">What's generated</a></li>
+      <li><a href="#build">Implementation</a></li>
+    </ol>
+  </nav>
+
+  <main class="content">
+
+    <!-- ----------------------------------------------------------- why -->
+    <section id="why">
+      <h2>Why <code>blog</code> reports no connection</h2>
+      <p class="lede">
+        Two independent causes, and the second one bites even after you add a database
+        container.
+      </p>
+
+      <div class="stack">
+        <div class="note-card stop">
+          <span class="tag">Cause 1 · no database exists</span>
+          <p>
+            Git apps are created with <code>features.database: false</code>, so no
+            database service is emitted at all. Even if it were flipped on,
+            <code>buildDatabaseService()</code> only knows how to write a
+            <code>postgres:14</code> block — and WordPress speaks MySQL.
+          </p>
+        </div>
+
+        <div class="note-card stop">
+          <span class="tag">Cause 2 · Bedrock never reads the credentials</span>
+          <p>
+            Bedrock wraps its entire dotenv block in
+            <code>if (file_exists($root_dir . '/.env'))</code>
+            (<code>config/application.php:43</code>). With no <code>.env</code> file in the
+            repository, <code>DB_NAME</code>, <code>DB_USER</code> and
+            <code>DB_PASSWORD</code> are never defined and WordPress falls back to
+            nothing. Setting container environment variables alone does not fix this —
+            <strong>the file has to exist</strong>.
+          </p>
+        </div>
+
+        <div class="note-card">
+          <span class="tag">Consequence for the design</span>
+          <p>
+            Provisioning an engine is the easy half. The connector is only useful if it
+            also delivers credentials in the shape the framework expects — which differs
+            per framework, and for Bedrock means writing a real <code>.env</code> file.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- shapes -->
+    <section id="shapes">
+      <h2><span class="num">01</span> Four shapes a database can take</h2>
+      <p class="lede">
+        One <code>engine</code> value selects between them. The first two provision a
+        container; the second two never do.
+      </p>
+      <div class="shapes">
+        <div class="shape">
+          <span class="mode">Server · provisioned</span>
+          <span class="what">Engine container, empty</span>
+          <span class="note">
+            Nimbus runs <code>mariadb</code>, <code>mysql</code> or <code>postgres</code>
+            from an official image, generates a password, and waits for its healthcheck
+            before starting the app. The app migrates or installs into it.
+          </span>
+          <span class="for">engine: "mariadb" · Laravel with migrations</span>
+        </div>
+        <div class="shape">
+          <span class="mode">Server · seeded</span>
+          <span class="what">Engine container + your SQL</span>
+          <span class="note">
+            The same, plus a <code>.sql</code> file already in your repository mounted
+            into the image's init directory so it runs on first boot. This is how you
+            point at an existing schema or dump.
+          </span>
+          <span class="for">engine + init: "database/seed.sql"</span>
+        </div>
+        <div class="shape file">
+          <span class="mode">File · in-repo</span>
+          <span class="what">SQLite file</span>
+          <span class="note">
+            No container at all. Nimbus points the app at a file inside the repository,
+            creates it if missing, and makes sure it stays writable and survives
+            rebuilds. Laravel ships configured for exactly this.
+          </span>
+          <span class="for">engine: "sqlite" · file: "database/database.sqlite"</span>
+        </div>
+        <div class="shape file">
+          <span class="mode">External</span>
+          <span class="what">Somebody else's database</span>
+          <span class="note">
+            Nimbus provisions nothing and only injects the connection details you give
+            it — a database on your host, in another compose stack, or a managed one.
+          </span>
+          <span class="for">engine: "none" + explicit env</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- schema -->
+    <section id="schema">
+      <h2><span class="num">02</span> The <code>database</code> block</h2>
+      <p class="lede">
+        Declared in the repository's <code>.nimbus.json</code>, alongside
+        <code>docroot</code> and the rest — same file, same precedence rules
+        (command line beats manifest beats detection beats default).
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <caption>All keys optional. Omitting the whole block keeps today's behaviour: no database.</caption>
+          <thead>
+            <tr><th scope="col">Key</th><th scope="col">Meaning</th><th scope="col">Default</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">engine</th>
+              <td><code>mariadb</code>, <code>mysql</code>, <code>postgres</code>, <code>sqlite</code>, or <code>none</code>.</td>
+              <td class="default">"none"</td>
+            </tr>
+            <tr>
+              <th scope="row">version</th>
+              <td>Image tag for the engine. Ignored for <code>sqlite</code>/<code>none</code>.</td>
+              <td class="default">per engine</td>
+            </tr>
+            <tr>
+              <th scope="row">name</th>
+              <td>Database name to create.</td>
+              <td class="default">&lt;app&gt;_db</td>
+            </tr>
+            <tr>
+              <th scope="row">user</th>
+              <td>User to create. The password is always generated and vaulted — never written here.</td>
+              <td class="default">&lt;app&gt;_user</td>
+            </tr>
+            <tr>
+              <th scope="row">init</th>
+              <td>Repo-relative <code>.sql</code> (or <code>.sh</code>) run on first boot of an empty database. Your existing schema or dump.</td>
+              <td class="default">detected</td>
+            </tr>
+            <tr>
+              <th scope="row">file</th>
+              <td>Repo-relative SQLite file. Only meaningful when <code>engine</code> is <code>sqlite</code>.</td>
+              <td class="default">detected</td>
+            </tr>
+            <tr>
+              <th scope="row">containerfile</th>
+              <td>Build the database image from your own definition instead of pulling an official one. Rarely needed — see below.</td>
+              <td class="default">null</td>
+            </tr>
+            <tr>
+              <th scope="row">env</th>
+              <td>How credentials reach the app: a preset name (<code>bedrock</code>, <code>laravel</code>) or an explicit variable map.</td>
+              <td class="default">detected</td>
+            </tr>
+            <tr>
+              <th scope="row">env_file</th>
+              <td>Repo-relative file Nimbus writes the resolved variables into. Required by Bedrock.</td>
+              <td class="default">".env" if the repo has <code>.env.example</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note-card warn" style="margin-top:1.25rem">
+        <span class="tag">On building a Containerfile for the database</span>
+        <p>
+          Official engine images already accept a database name, user, password and an
+          init directory — everything a fresh instance needs — so
+          <code>containerfile</code> is the escape hatch, not the path of least
+          resistance. Reach for it when you need an extension, a locale, a tuned
+          <code>my.cnf</code>, or seed data baked into the image rather than replayed on
+          boot. Everything else is better expressed as <code>init</code>.
+        </p>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------- credentials -->
+    <section id="credentials">
+      <h2><span class="num">03</span> Getting credentials into the app</h2>
+      <p class="lede">
+        The part that actually fixes <code>blog</code>. Nimbus generates one password and
+        then has to express it in whatever dialect the framework reads.
+      </p>
+
+      <h3>Presets</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>Left column is what Nimbus resolves; the rest is what each framework expects to see.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Nimbus value</th>
+              <th scope="col">bedrock</th>
+              <th scope="col">laravel</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">host</th><td class="mono">DB_HOST</td><td class="mono">DB_HOST</td></tr>
+            <tr><th scope="row">port</th><td class="mono">—</td><td class="mono">DB_PORT</td></tr>
+            <tr><th scope="row">name</th><td class="mono">DB_NAME</td><td class="mono">DB_DATABASE</td></tr>
+            <tr><th scope="row">user</th><td class="mono">DB_USER</td><td class="mono">DB_USERNAME</td></tr>
+            <tr><th scope="row">password</th><td class="mono">DB_PASSWORD</td><td class="mono">DB_PASSWORD</td></tr>
+            <tr><th scope="row">driver</th><td class="mono">—</td><td class="mono">DB_CONNECTION</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note-card" style="margin-top:1.25rem">
+        <span class="tag">Why a map and not a fixed set</span>
+        <p>
+          Bedrock reads <code>DB_NAME</code> and <code>DB_USER</code>; Laravel reads
+          <code>DB_DATABASE</code> and <code>DB_USERNAME</code> and additionally needs
+          <code>DB_CONNECTION</code> switched away from its <code>sqlite</code> default.
+          Same database, different vocabulary — so the mapping is the contract, and a
+          preset is just a named one.
+        </p>
+      </div>
+
+      <h3>Delivery: file and container, not either/or</h3>
+      <p>
+        Nimbus writes the resolved variables to <code>env_file</code> inside the repo
+        <em>and</em> sets them as container environment variables. The file is what
+        Bedrock requires; the environment is what a twelve-factor app expects. Doing both
+        costs nothing and removes a whole class of "works in one framework" bugs.
+      </p>
+
+      <div class="note-card warn">
+        <span class="tag">This writes into your working tree</span>
+        <p>
+          <code>.env</code> holds a real generated password, so it lands in the clone —
+          the one place Nimbus otherwise keeps clean. Every framework that wants a
+          <code>.env</code> already gitignores it, and Nimbus should refuse to write the
+          file if the repository does not, rather than risk it being committed.
+        </p>
+      </div>
+
+      <h3>Where the password comes from</h3>
+      <p>
+        Nothing new. <code>PasswordManager</code> and <code>VaultManager</code> are
+        already source-agnostic — the resolution order (vault, then a running container,
+        then an existing data volume, then generate) and the automatic vault backup work
+        unchanged for git apps.
+      </p>
+      <ol class="chain">
+        <li>
+          <span class="tier">First</span>
+          <span class="desc"><strong>Vault</strong><span>Restore the credentials this app was created with, so a recreate reconnects to its existing data.</span></span>
+        </li>
+        <li>
+          <span class="tier">Then</span>
+          <span class="desc"><strong>Running container</strong><span>Read them back off the live database container via <code>podman inspect</code>.</span></span>
+        </li>
+        <li>
+          <span class="tier">Then</span>
+          <span class="desc"><strong>Existing volume or compose file</strong><span>Adopt what the on-disk data was initialised with, rather than orphaning it.</span></span>
+        </li>
+        <li>
+          <span class="tier">Last</span>
+          <span class="desc"><strong>Generate</strong><span>A new password, backed up to the vault automatically.</span></span>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ------------------------------------------------------ existing -->
+    <section id="existing">
+      <h2><span class="num">04</span> Pointing at a database file already in the repo</h2>
+      <p class="lede">
+        "A database file in the repository" means two genuinely different things, and the
+        connector supports both.
+      </p>
+
+      <div class="split">
+        <div class="stack">
+          <h3 style="margin-top:0">A SQL file that seeds a server</h3>
+          <p style="font-size:0.93rem">
+            A schema or a dump, replayed once into an empty database. Mounted into the
+            engine image's init directory, which runs every <code>.sql</code> and
+            <code>.sh</code> it finds on first boot — and <em>only</em> when the data
+            directory is empty.
+          </p>
+<pre><code>{
+  <span class="c-key">"database"</span>: {
+    <span class="c-key">"engine"</span>: <span class="c-str">"mariadb"</span>,
+    <span class="c-key">"init"</span>: <span class="c-str">"database/seed.sql"</span>
+  }
+}</code></pre>
+          <p style="font-size:0.93rem">
+            Detected automatically when absent, in order:
+            <code>database/schema.sql</code>, <code>database/init.sql</code>,
+            <code>database/dump.sql</code>, <code>schema.sql</code>. Nimbus reports which
+            it picked, the same way it reports the document root.
+          </p>
+        </div>
+
+        <div class="stack">
+          <h3 style="margin-top:0">A SQLite file that <em>is</em> the database</h3>
+          <p style="font-size:0.93rem">
+            Not seed data — the live database. No container, no password, no healthcheck.
+            Nimbus creates the file if missing, keeps it writable by the web user, and
+            makes sure a rebuild cannot silently discard it.
+          </p>
+<pre><code>{
+  <span class="c-key">"database"</span>: {
+    <span class="c-key">"engine"</span>: <span class="c-str">"sqlite"</span>,
+    <span class="c-key">"file"</span>: <span class="c-str">"database/database.sqlite"</span>
+  }
+}</code></pre>
+          <div class="note-card warn">
+            <span class="tag">Only safe in dev mode</span>
+            <p>
+              A built image holds a <em>copy</em> of the file, so writes vanish on rebuild.
+              Under <code>bin/nimbus dev</code> the clone is bind-mounted and the file is
+              the real one on your disk. Nimbus should warn when SQLite is paired with a
+              non-dev run.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="note-card stop" style="margin-top:1.25rem">
+        <span class="tag">The seeding trap</span>
+        <p>
+          Init files run only against an empty data directory. Change your
+          <code>.sql</code> after the first boot and nothing happens — the database
+          already exists, so the image skips initialisation entirely. Re-seeding means
+          removing the volume (<code>nimbus:delete</code> with volumes, or
+          <code>podman volume rm</code>). This surprises people every time, so the CLI
+          should say it out loud when it mounts an init file.
+        </p>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------ examples -->
+    <section id="examples">
+      <h2><span class="num">05</span> Worked examples</h2>
+
+      <h3>Bedrock / WordPress — what <code>blog</code> needs</h3>
+      <p>
+        MariaDB, credentials delivered as a <code>.env</code> file because Bedrock will
+        not read them otherwise.
+      </p>
+<pre><code><span class="c-com">// .installer/repos/bedrock/.nimbus.json</span>
+{
+  <span class="c-key">"docroot"</span>: <span class="c-str">"web"</span>,
+  <span class="c-key">"database"</span>: {
+    <span class="c-key">"engine"</span>: <span class="c-str">"mariadb"</span>,
+    <span class="c-key">"version"</span>: <span class="c-str">"11"</span>,
+    <span class="c-key">"name"</span>: <span class="c-str">"wordpress"</span>,
+    <span class="c-key">"user"</span>: <span class="c-str">"wordpress"</span>,
+    <span class="c-key">"env"</span>: <span class="c-str">"bedrock"</span>,
+    <span class="c-key">"env_file"</span>: <span class="c-str">".env"</span>
+  }
+}</code></pre>
+      <p>Nimbus writes, alongside the WP_HOME and salts Bedrock also requires:</p>
+<pre><code><span class="c-com"># .installer/repos/bedrock/.env  (generated, gitignored by Bedrock)</span>
+DB_NAME=<span class="c-str">'wordpress'</span>
+DB_USER=<span class="c-str">'wordpress'</span>
+DB_PASSWORD=<span class="c-str">'&lt;generated, vaulted&gt;'</span>
+DB_HOST=<span class="c-str">'blog-db'</span>
+WP_HOME=<span class="c-str">'http://localhost:8531'</span>
+WP_SITEURL=<span class="c-str">'http://localhost:8531/wp'</span></code></pre>
+      <div class="note-card">
+        <span class="tag">Bedrock needs more than credentials</span>
+        <p>
+          Its dotenv block also does <code>$dotenv-&gt;required(['WP_HOME','WP_SITEURL'])</code>,
+          so the connector has to fill those from the app's resolved port or WordPress
+          still refuses to boot. The <code>bedrock</code> preset should own that, since it
+          is the same class of problem.
+        </p>
+      </div>
+
+      <h3>Laravel — file-backed, no container</h3>
+<pre><code><span class="c-com">// .installer/repos/laravel/.nimbus.json</span>
+{
+  <span class="c-key">"docroot"</span>: <span class="c-str">"public"</span>,
+  <span class="c-key">"database"</span>: {
+    <span class="c-key">"engine"</span>: <span class="c-str">"sqlite"</span>,
+    <span class="c-key">"file"</span>: <span class="c-str">"database/database.sqlite"</span>,
+    <span class="c-key">"env"</span>: <span class="c-str">"laravel"</span>
+  }
+}</code></pre>
+      <p>
+        Which yields <code>DB_CONNECTION=sqlite</code> and an absolute
+        <code>DB_DATABASE</code> pointing inside the container — and no database service
+        in the compose file at all. Swapping to <code>"engine": "mariadb"</code> switches
+        <code>DB_CONNECTION</code> and adds the container, with no other edits.
+      </p>
+    </section>
+
+    <!-- ----------------------------------------------------- generated -->
+    <section id="generated">
+      <h2><span class="num">06</span> What Nimbus generates</h2>
+      <p class="lede">
+        For the Bedrock example, added to <code>blog-compose.yml</code>. The app waits on
+        the healthcheck, so WordPress never starts against a database still coming up.
+      </p>
+<pre><code><span class="c-key">services</span>:
+  <span class="c-key">blog-app</span>:
+    <span class="c-key">build</span>:
+      <span class="c-key">context</span>: <span class="c-str">"./.installer/repos/bedrock"</span>
+      <span class="c-key">dockerfile</span>: <span class="c-str">Containerfile</span>
+    <span class="c-key">environment</span>:
+      <span class="c-key">DB_HOST</span>: <span class="c-str">blog-db</span>
+      <span class="c-key">DB_NAME</span>: <span class="c-str">wordpress</span>
+      <span class="c-key">DB_USER</span>: <span class="c-str">wordpress</span>
+      <span class="c-key">DB_PASSWORD</span>: <span class="c-str">&lt;generated&gt;</span>
+    <span class="c-key">depends_on</span>:
+      <span class="c-key">blog-db</span>:
+        <span class="c-key">condition</span>: <span class="c-str">service_healthy</span>
+    <span class="c-key">ports</span>: [<span class="c-str">"8531:80"</span>]
+
+  <span class="c-key">blog-db</span>:
+    <span class="c-key">image</span>: <span class="c-str">"mariadb:11"</span>
+    <span class="c-key">container_name</span>: <span class="c-str">blog-db</span>
+    <span class="c-key">environment</span>:
+      <span class="c-key">MARIADB_DATABASE</span>: <span class="c-str">wordpress</span>
+      <span class="c-key">MARIADB_USER</span>: <span class="c-str">wordpress</span>
+      <span class="c-key">MARIADB_PASSWORD</span>: <span class="c-str">&lt;generated&gt;</span>
+      <span class="c-key">MARIADB_ROOT_PASSWORD</span>: <span class="c-str">&lt;generated&gt;</span>
+    <span class="c-key">volumes</span>:
+      <span class="c-com"># persistent data — see the gotcha below</span>
+      - <span class="c-str">"./data/blog:/var/lib/mysql:Z"</span>
+      <span class="c-com"># only when database.init is set</span>
+      - <span class="c-str">"./.installer/repos/bedrock/database/seed.sql:/docker-entrypoint-initdb.d/10-seed.sql:Z"</span>
+    <span class="c-key">healthcheck</span>:
+      <span class="c-key">test</span>: [<span class="c-str">"CMD"</span>, <span class="c-str">"healthcheck.sh"</span>, <span class="c-str">"--connect"</span>, <span class="c-str">"--innodb_initialized"</span>]
+      <span class="c-key">interval</span>: <span class="c-str">5s</span>
+      <span class="c-key">retries</span>: <span class="c-num">10</span>
+    <span class="c-key">networks</span>: [<span class="c-str">blog-net</span>]</code></pre>
+
+      <div class="note-card stop" style="margin-top:1.25rem">
+        <span class="tag">Fix this while you are in here</span>
+        <p>
+          The existing Postgres builder has its data volume <strong>commented out</strong>
+          (<code>AppManager::buildDatabaseService()</code>) — so today every template app's
+          database is ephemeral and loses everything on <code>down</code>. The new engines
+          should mount persistent storage from the start, and the Postgres path should be
+          fixed to match rather than have the inconsistency copied forward.
+        </p>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------- build -->
+    <section id="build">
+      <h2><span class="num">07</span> What it takes to build</h2>
+      <p class="lede">
+        The hierarchy already has the seams; this mostly fills them in.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Change</th><th scope="col">Where</th><th scope="col">Note</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Engine-aware service</th>
+              <td class="mono">AppManager::buildDatabaseService()</td>
+              <td>Split per engine — env var names, healthcheck and data path all differ. Postgres behaviour must stay byte-identical for template apps.</td>
+            </tr>
+            <tr>
+              <th scope="row">Manifest keys</th>
+              <td class="mono">GitAppManager::MANIFEST_KEYS</td>
+              <td>Accept <code>database</code> as a nested block; resolve it in <code>resolveRepoSettings()</code> with the existing precedence.</td>
+            </tr>
+            <tr>
+              <th scope="row">Engine detection</th>
+              <td class="mono">GitAppManager</td>
+              <td>Infer from the repo: <code>DB_CONNECTION</code> in <code>.env.example</code>, a <code>wp-cli.yml</code>, an <code>artisan</code> file, a committed <code>.sql</code>.</td>
+            </tr>
+            <tr>
+              <th scope="row">Credential delivery</th>
+              <td class="mono">new · EnvWriter</td>
+              <td>Render <code>env_file</code> from a preset map plus the resolved password; refuse to write if the repo does not gitignore it.</td>
+            </tr>
+            <tr>
+              <th scope="row">App service env</th>
+              <td class="mono">GitAppManager::buildAppService()</td>
+              <td>Add the mapped variables and the <code>depends_on: service_healthy</code> edge.</td>
+            </tr>
+            <tr>
+              <th scope="row">Flip the default</th>
+              <td class="mono">GitAppManager::writeGitAppConfig()</td>
+              <td><code>features.database</code> becomes true whenever <code>engine</code> is a server engine.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Open questions worth deciding first</h3>
+      <div class="stack">
+        <div class="note-card">
+          <span class="tag">Should Nimbus write into the clone at all?</span>
+          <p>
+            Writing <code>.env</code> breaks the "never touch the working tree" rule the
+            git flow was built on — the generated Containerfile is the only other
+            exception. The alternative is mounting a generated <code>.env</code> from the
+            instance directory over the repo path at runtime, which keeps the tree clean
+            but means the file is missing when you run the app any other way.
+          </p>
+        </div>
+        <div class="note-card">
+          <span class="tag">One password or two?</span>
+          <p>
+            MySQL and MariaDB have a root password distinct from the app user's.
+            <code>PasswordSet</code> models a single database password today, so either it
+            gains a field or the root password is derived and never surfaced.
+          </p>
+        </div>
+        <div class="note-card">
+          <span class="tag">Where does data live?</span>
+          <p>
+            Template apps use <code>./data/&lt;app&gt;</code> (currently disabled). A named
+            podman volume is more portable across machines; a bind mount is easier to
+            inspect and back up. Pick one and apply it to both paths.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    Nimbus · proposed · companion to UI-NIMBUS-GIT-APP-INSTALLER.html
+  </footer>
+
+</div>
+
+</body>
+</html>
