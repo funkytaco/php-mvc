@@ -53,6 +53,7 @@
         "nimbus:down": "Tasks\\ApplicationTasks::nimbusDown",
         "nimbus:add-eda": "Tasks\\ApplicationTasks::nimbusAddEda",
         "nimbus:status": "Tasks\\ApplicationTasks::nimbusStatus",
+        "nimbus:view": "Tasks\\ApplicationTasks::nimbusView",
         "nimbus:create-eda-keycloak": "Tasks\\ApplicationTasks::nimbusCreateEdaKeycloak",
         "nimbus:add-keycloak": "Tasks\\ApplicationTasks::nimbusAddKeycloak",
         "nimbus:add-eda-keycloak": "Tasks\\ApplicationTasks::nimbusAddEdaKeycloak",

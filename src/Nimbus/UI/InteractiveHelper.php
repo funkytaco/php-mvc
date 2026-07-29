@@ -215,6 +215,7 @@ class InteractiveHelper extends BaseTask
             ["composer nimbus:dev $appName", 'Live-edit dev mode + code-server (VS Code in browser)', !($features['dev'] ?? false)],
             ["composer nimbus:add-eda $appName", '(Optional) Add Event-Driven Ansible', !($features['eda'] ?? false)],
             ["composer nimbus:add-keycloak $appName", '(Optional) Add Keycloak SSO', !($features['keycloak'] ?? false)],
+            ["composer nimbus:view $appName", 'Show URLs, credentials + container info', true],
             ["composer nimbus:delete $appName", 'Delete app', true],
         ];
 
@@ -230,7 +231,7 @@ class InteractiveHelper extends BaseTask
         echo "  • composer nimbus:status            # Check app status" . PHP_EOL;
         echo "  • composer nimbus:down $appName     # Stop containers" . PHP_EOL;
         echo "  • composer nimbus:delete $appName   # Delete app" . PHP_EOL;
-        echo "  • bin/nimbus dev $appName           # Live-edit dev mode + code-server (VS Code in browser)" . PHP_EOL;
+        echo "  • composer nimbus:dev $appName      # Live-edit dev mode + code-server (VS Code in browser)" . PHP_EOL;
 
         $setupHostsPath = ".installer/apps/$appName/dns-setup-$appName-hosts.sh";
         if (file_exists($setupHostsPath) && PHP_OS === 'Darwin') {
@@ -261,7 +262,7 @@ class InteractiveHelper extends BaseTask
         $composeCheck = AppManager::checkPodmanCompose();
         if (!($composeCheck['installed'] ?? false)) {
             echo self::ansiFormat('WARNING', 'podman-compose is not available here — starting without dev mode.');
-            echo self::ansiFormat('INFO', "  Run this on your host later: bin/nimbus dev $appName");
+            echo self::ansiFormat('INFO', "  Run this on your host later: composer nimbus:dev $appName");
             return null;
         }
 
@@ -269,7 +270,7 @@ class InteractiveHelper extends BaseTask
             return $manager->generateDevCompose($appName);
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', '✗ Could not prepare dev overlay: ' . $e->getMessage());
-            echo self::ansiFormat('INFO', "  Starting without dev mode. Try later: bin/nimbus dev $appName");
+            echo self::ansiFormat('INFO', "  Starting without dev mode. Try later: composer nimbus:dev $appName");
             return null;
         }
     }
@@ -324,7 +325,7 @@ class InteractiveHelper extends BaseTask
             echo self::ansiFormat('INFO', "🖥️  VS Code in browser (code-server):");
             echo "  URL: http://localhost:{$devInfo['port']}" . PHP_EOL;
             echo "  Password: {$devInfo['password']}" . PHP_EOL;
-            echo "  Stop: bin/nimbus down $appName" . PHP_EOL;
+            echo "  Stop: composer nimbus:down $appName" . PHP_EOL;
             echo self::ansiFormat('INFO', "💡 Edit this app in .installer/apps/ (locally or via code-server) — changes apply live, isolated from other apps.");
         } else {
             $this->displayDevModeInfo($appName);
@@ -361,8 +362,8 @@ class InteractiveHelper extends BaseTask
                 echo "  Password: generated when dev mode first starts" . PHP_EOL;
             }
 
-            echo "  Start: bin/nimbus dev $appName" . PHP_EOL;
-            echo "  Stop:  bin/nimbus down $appName" . PHP_EOL;
+            echo "  Start: composer nimbus:dev $appName + composer nimbus:up $appName" . PHP_EOL;
+            echo "  Stop:  composer nimbus:down $appName" . PHP_EOL;
             echo self::ansiFormat('INFO', "💡 Dev mode serves the app's own .installer/apps/ dir — edits apply live, isolated per app.");
         } catch (\Exception $e) {
             // Non-fatal: dev mode info is advisory

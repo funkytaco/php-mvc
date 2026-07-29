@@ -311,6 +311,60 @@ class ContainerTask extends BaseTask
     }
 
     /**
+     * nimbus:view <app> — everything nimbus:up dumps after startup (URLs,
+     * credentials, feature endpoints) plus a dev-centric container listing
+     * (state, image URI, ports), on demand. Data comes from
+     * AppManager::describeContainers() and the shared display helpers, so a
+     * new feature container added to the ecosystem shows up here without
+     * this method changing.
+     */
+    public function view(Event $event): void
+    {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+
+        $appName = $args[0] ?? null;
+        if (!$appName) {
+            $apps = $this->appManager->listApps();
+            if (empty($apps)) {
+                echo self::ansiFormat('ERROR', 'No apps found. Create one first with: composer nimbus:create');
+                return;
+            }
+            $appNames = array_keys($apps);
+            $choice = $io->select('Select app to view:', $appNames, 0);
+            $appName = $appNames[$choice];
+        }
+
+        if (!$this->appManager->appExists($appName)) {
+            echo self::ansiFormat('ERROR', "App '$appName' not found.");
+            return;
+        }
+
+        echo self::ansiFormat('INFO', "📦 Containers for '$appName':");
+        foreach ($this->appManager->describeContainers($appName) as $c) {
+            if (!$c['exists']) {
+                $icon = '⚪';
+            } elseif (strpos($c['status'], 'Up') === 0) {
+                $icon = '🟢';
+            } else {
+                $icon = '🔴';
+            }
+            $note = $c['expected'] ? '' : '  (orphan: feature disabled, still in project)';
+            echo "  $icon {$c['name']}: {$c['status']}$note" . PHP_EOL;
+            if ($c['exists']) {
+                echo "       image: {$c['image']}" . PHP_EOL;
+                if ($c['ports'] !== '') {
+                    echo "       ports: {$c['ports']}" . PHP_EOL;
+                }
+            }
+        }
+
+        $this->displayAppDetails($appName);
+        $this->interactiveHelper->displayDevModeInfo($appName);
+        $this->interactiveHelper->displayKeycloakCredentials($appName);
+    }
+
+    /**
      * Display comprehensive app details after successful startup
      * Generic implementation - reads app config to determine what to show
      */

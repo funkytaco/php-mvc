@@ -1700,6 +1700,48 @@ class AppManager
     }
     
     /**
+     * Live container info for an app: the feature-derived expected list
+     * (getAppContainers) merged with what podman actually has. One podman ps
+     * call, keyed by the compose project label. Also surfaces orphans —
+     * containers still in the project after their feature was disabled.
+     * Adding a new feature container to the ecosystem means extending
+     * getAppContainers() + the compose generation; view/status/up/down all
+     * follow from those.
+     *
+     * @return array<int, array{name: string, expected: bool, exists: bool, image: string, status: string, ports: string}>
+     */
+    public function describeContainers(string $appName): array
+    {
+        $ps = shell_exec("podman ps -a --filter label=io.podman.compose.project=$appName --format '{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null") ?? '';
+
+        $live = [];
+        foreach (array_filter(explode("\n", trim($ps))) as $line) {
+            $parts = explode("\t", $line);
+            $live[$parts[0]] = [
+                'image' => $parts[1] ?? '',
+                'status' => $parts[2] ?? '',
+                'ports' => $parts[3] ?? ''
+            ];
+        }
+
+        $out = [];
+        foreach ($this->getAppContainers($appName) as $name) {
+            $out[$name] = [
+                'name' => $name,
+                'expected' => true,
+                'exists' => isset($live[$name])
+            ] + ($live[$name] ?? ['image' => '', 'status' => 'not created', 'ports' => '']);
+        }
+        foreach ($live as $name => $info) {
+            if (!isset($out[$name])) {
+                $out[$name] = ['name' => $name, 'expected' => false, 'exists' => true] + $info;
+            }
+        }
+
+        return array_values($out);
+    }
+
+    /**
      * Get detailed status of a container
      */
     private function getContainerStatus(string $containerName): array

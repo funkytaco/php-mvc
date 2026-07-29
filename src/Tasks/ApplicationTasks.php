@@ -426,6 +426,11 @@ class ApplicationTasks {
         echo self::ansiFormat('SUCCESS', "Stopped $stopped apps" . ($failed > 0 ? ", $failed failed" : ""));
     }
 
+    public static function nimbusView(Event $event) {
+        $task = new \Nimbus\Tasks\ContainerTask();
+        $task->view($event);
+    }
+
     public static function nimbusStatus(Event $event) {
         $task = new \Nimbus\Tasks\ContainerTask();
         $task->status($event);
