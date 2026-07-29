@@ -6,6 +6,7 @@ namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\App\AppManagerFactory;
 use Nimbus\UI\InteractiveHelper;
 use Composer\Script\Event;
 
@@ -52,7 +53,7 @@ class ContainerTask extends BaseTask
                         echo self::ansiFormat('INFO', "Skipped - run 'composer nimbus:install $targetApp' later");
                         return;
                     }
-                    $this->appManager->install($targetApp);
+                    AppManagerFactory::forApp($targetApp)->install($targetApp);
                     echo self::ansiFormat('SUCCESS', "App '$targetApp' installed successfully!");
                     echo self::ansiFormat('INFO', "Container config generated: $targetApp-compose.yml");
                     $startableApps = $this->appManager->getStartableApps();

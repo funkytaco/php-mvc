@@ -4,6 +4,7 @@ namespace Nimbus\UI;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\App\AppManagerFactory;
 use Nimbus\Template\TemplateConfig;
 use Composer\IO\IOInterface;
 
@@ -87,7 +88,7 @@ class InteractiveHelper extends BaseTask
                 echo PHP_EOL;
                 if ($io->askConfirmation("     Configuration edited. Install now? [Y/n]: ", true)) {
                     try {
-                        $manager->install($appName);
+                        AppManagerFactory::forApp($appName)->install($appName);
                         echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
                         echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
                     } catch (\Exception $e) {
@@ -106,7 +107,7 @@ class InteractiveHelper extends BaseTask
         } elseif ($installChoice === 'y' || $installChoice === 'yes' || $installChoice === '') {
             echo PHP_EOL;
             try {
-                $manager->install($appName);
+                AppManagerFactory::forApp($appName)->install($appName);
                 echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
                 echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
             } catch (\Exception $e) {

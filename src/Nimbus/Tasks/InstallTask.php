@@ -4,6 +4,7 @@ namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
+use Nimbus\App\AppManagerFactory;
 use Composer\Script\Event;
 
 class InstallTask extends BaseTask
@@ -40,7 +41,7 @@ class InstallTask extends BaseTask
         }
         
         try {
-            $this->appManager->install($appName);
+            AppManagerFactory::forApp($appName)->install($appName);
             
             echo self::ansiFormat('SUCCESS', "App '$appName' installed successfully!");
             echo self::ansiFormat('INFO', "Container config generated: $appName-compose.yml");

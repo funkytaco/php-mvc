@@ -935,7 +935,7 @@ class ApplicationTasks {
                 // After editing, ask again
                 if ($io->askConfirmation("     Configuration edited. Install now? [Y/n]: ", true)) {
                     try {
-                        $manager->install($appName);
+                        \Nimbus\App\AppManagerFactory::forApp($appName)->install($appName);
                         echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
                         echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
                     } catch (\Exception $e) {
@@ -954,7 +954,7 @@ class ApplicationTasks {
         } elseif ($installChoice === 'y' || $installChoice === 'yes' || $installChoice === '') {
             echo PHP_EOL;
             try {
-                $manager->install($appName);
+                \Nimbus\App\AppManagerFactory::forApp($appName)->install($appName);
                 echo self::ansiFormat('SUCCESS', "✓ App '$appName' installed successfully!");
                 echo self::ansiFormat('INFO', "  Container config generated: $appName-compose.yml");
             } catch (\Exception $e) {
