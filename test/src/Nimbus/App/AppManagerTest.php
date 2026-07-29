@@ -105,6 +105,181 @@ class AppManagerTest extends TestCase
     }
 
     /**
+     * An AppManager whose podman calls return a canned `ps` listing.
+     *
+     * @param array<int, array{0:string,1:string,2:string}> $containers project, name, state
+     */
+    private function managerSeeingContainers(array $containers): AppManager
+    {
+        $lines = implode("\n", array_map(
+            fn (array $c) => $c[0] . '|' . $c[1] . '|' . $c[2],
+            $containers
+        ));
+
+        $manager = new class ($this->baseDir) extends AppManager {
+            public string $psOutput = '';
+
+            protected function runCommand(string $command): ?string
+            {
+                return str_contains($command, 'podman ps') ? $this->psOutput : '';
+            }
+        };
+        $manager->psOutput = $lines;
+
+        return $manager;
+    }
+
+    /** Register an app on disk so listApps() sees it. */
+    private function seedApp(string $name, string $template = 'nimbus-app-php', ?string $port = null): void
+    {
+        mkdir($this->installerDir . '/' . $name, 0777, true);
+
+        $registryFile = $this->baseDir . '/.installer/apps.json';
+        $registry = file_exists($registryFile)
+            ? json_decode(file_get_contents($registryFile), true)
+            : ['apps' => []];
+        $registry['apps'][$name] = ['name' => $name, 'template' => $template, 'created' => '2026-01-01 00:00:00'];
+        file_put_contents($registryFile, json_encode($registry));
+
+        if ($port !== null) {
+            file_put_contents(
+                $this->installerDir . '/' . $name . '/app.nimbus.json',
+                json_encode(['name' => $name, 'containers' => ['app' => ['port' => $port]]])
+            );
+        }
+    }
+
+    /**
+     * The registry used to carry an 'installed' flag that nothing ever set to
+     * true, so nimbus:list called every app "created" forever. State is
+     * derived from disk and podman now.
+     */
+    public function testDescribeAppsDerivesStateInsteadOfTrustingTheRegistry(): void
+    {
+        $this->seedApp('fresh-app', 'nimbus-app-php', '8100');
+        $this->seedApp('built-app', 'nimbus-app-php', '8200');
+        $this->seedApp('live-app', 'git', '8300');
+
+        file_put_contents($this->baseDir . '/built-app-compose.yml', 'version: 3.8');
+        file_put_contents($this->baseDir . '/live-app-compose.yml', 'version: 3.8');
+
+        $manager = $this->managerSeeingContainers([
+            ['live-app', 'live-app-app', 'running'],
+            ['live-app', 'live-app-db', 'running'],
+        ]);
+
+        $byName = [];
+        foreach ($manager->describeApps() as $row) {
+            $byName[$row['name']] = $row;
+        }
+
+        // created: registered, but never installed - no compose file
+        $this->assertSame('created', $byName['fresh-app']['state']);
+        // installed: compose file written, but nothing started
+        $this->assertSame('installed', $byName['built-app']['state']);
+        // running: every container of the project is up
+        $this->assertSame('running', $byName['live-app']['state']);
+        $this->assertSame(2, $byName['live-app']['running']);
+        $this->assertSame(2, $byName['live-app']['total']);
+
+        $this->assertSame('git', $byName['live-app']['source']);
+        $this->assertSame('8300', $byName['live-app']['port']);
+    }
+
+    public function testDescribeAppsReportsPartialAndStoppedStacks(): void
+    {
+        $this->seedApp('half-app');
+        $this->seedApp('down-app');
+        file_put_contents($this->baseDir . '/half-app-compose.yml', 'version: 3.8');
+        file_put_contents($this->baseDir . '/down-app-compose.yml', 'version: 3.8');
+
+        $manager = $this->managerSeeingContainers([
+            ['half-app', 'half-app-app', 'running'],
+            ['half-app', 'half-app-db', 'exited'],
+            ['down-app', 'down-app-app', 'exited'],
+        ]);
+
+        $byName = [];
+        foreach ($manager->describeApps() as $row) {
+            $byName[$row['name']] = $row;
+        }
+
+        $this->assertSame('partial', $byName['half-app']['state']);
+        $this->assertSame(1, $byName['half-app']['running']);
+        $this->assertSame(2, $byName['half-app']['total']);
+
+        $this->assertSame('stopped', $byName['down-app']['state']);
+        $this->assertSame(0, $byName['down-app']['running']);
+    }
+
+    /**
+     * Containers are matched by compose project label, never by name prefix —
+     * "yo" must not absorb "yo-sup"'s containers.
+     */
+    public function testDescribeAppsDoesNotConfuseAppsWithSharedPrefixes(): void
+    {
+        $this->seedApp('yo');
+        $this->seedApp('yo-sup');
+        file_put_contents($this->baseDir . '/yo-compose.yml', 'version: 3.8');
+        file_put_contents($this->baseDir . '/yo-sup-compose.yml', 'version: 3.8');
+
+        $manager = $this->managerSeeingContainers([
+            ['yo-sup', 'yo-sup-app', 'running'],
+            ['yo-sup', 'yo-sup-db', 'running'],
+        ]);
+
+        $byName = [];
+        foreach ($manager->describeApps() as $row) {
+            $byName[$row['name']] = $row;
+        }
+
+        $this->assertSame('running', $byName['yo-sup']['state']);
+        $this->assertSame('installed', $byName['yo']['state'], 'yo owns no containers');
+        $this->assertSame(0, $byName['yo']['total']);
+    }
+
+    /** Containers with no compose-project label must be ignored, not crash. */
+    public function testDescribeAppsIgnoresUnlabelledContainers(): void
+    {
+        $this->seedApp('solo-app');
+
+        $manager = $this->managerSeeingContainers([
+            ['<no value>', 'some-hand-run-container', 'running'],
+            ['', 'another', 'running'],
+        ]);
+
+        $rows = $manager->describeApps();
+        $this->assertCount(1, $rows);
+        $this->assertSame('created', $rows[0]['state']);
+    }
+
+    /** The retired flag is stripped from registries written by older versions. */
+    public function testListAppsStripsTheRetiredInstalledFlag(): void
+    {
+        mkdir($this->installerDir . '/legacy-app', 0777, true);
+        $registryFile = $this->baseDir . '/.installer/apps.json';
+        file_put_contents($registryFile, json_encode([
+            'apps' => [
+                'legacy-app' => [
+                    'name' => 'legacy-app',
+                    'template' => 'nimbus-app-php',
+                    'created' => '2026-01-01 00:00:00',
+                    'installed' => false,
+                ],
+            ],
+        ]));
+
+        $apps = $this->appManager->listApps();
+
+        $this->assertArrayNotHasKey('installed', $apps['legacy-app']);
+        $this->assertArrayNotHasKey(
+            'installed',
+            json_decode(file_get_contents($registryFile), true)['apps']['legacy-app'],
+            'the migration should persist'
+        );
+    }
+
+    /**
      * Ports are exposed publicly so callers stop re-deriving the hash.
      */
     public function testGetServicePort(): void

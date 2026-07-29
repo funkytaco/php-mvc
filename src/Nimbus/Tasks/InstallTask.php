@@ -54,20 +54,34 @@ class InstallTask extends BaseTask
     public function list(Event $event): void
     {
         try {
-            $apps = $this->appManager->listApps();
-            
+            $apps = $this->appManager->describeApps();
+
             if (empty($apps)) {
                 echo self::ansiFormat('INFO', 'No apps created yet.');
                 echo self::ansiFormat('INFO', 'Create one with: composer nimbus:create my-app');
                 return;
             }
-            
+
+            $nameWidth = max(array_map(fn (array $a) => strlen($a['name']), $apps));
+            $nameWidth = max($nameWidth, 4);
+
             echo self::ansiFormat('INFO', 'Available apps:');
-            foreach ($apps as $name => $info) {
-                $status = $info['installed'] ? 'installed' : 'created';
-                echo "  $name ($status) - {$info['template']}" . PHP_EOL;
+            foreach ($apps as $app) {
+                // Containers exist -> show how many of them are up, so a
+                // partially-started stack is visible at a glance.
+                $state = in_array($app['state'], ['running', 'partial', 'stopped'], true)
+                    ? sprintf('%s (%d/%d)', $app['state'], $app['running'], $app['total'])
+                    : $app['state'];
+
+                echo sprintf(
+                    "  %-{$nameWidth}s  %-16s  %-12s  %s" . PHP_EOL,
+                    $app['name'],
+                    $state,
+                    $app['source'],
+                    $app['port'] !== null ? 'http://localhost:' . $app['port'] : ''
+                );
             }
-            
+
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
         }

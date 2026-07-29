@@ -259,15 +259,123 @@ class AppManager
             fn (string $name) => !is_dir($this->installerDir . '/' . $name)
         );
 
-        if (!empty($ghosts)) {
-            foreach ($ghosts as $name) {
-                unset($apps[$name]);
+        foreach ($ghosts as $name) {
+            unset($apps[$name]);
+        }
+
+        // Drop the retired 'installed' flag from registries written by older
+        // versions. Nothing ever set it to true, so it always claimed every
+        // app was uninstalled; state is derived now. One-time, idempotent.
+        $stale = false;
+        foreach ($apps as $name => $entry) {
+            if (array_key_exists('installed', $entry)) {
+                unset($apps[$name]['installed']);
+                $stale = true;
             }
+        }
+
+        if (!empty($ghosts) || $stale) {
             $registry['apps'] = $apps;
             file_put_contents($appsFile, json_encode($registry, JSON_PRETTY_PRINT));
         }
 
         return $apps;
+    }
+
+    /**
+     * Every registered app with its current state, for listings.
+     *
+     * State is derived, never stored. Container state comes from a single
+     * podman call shared across all apps rather than one per app, so a long
+     * list costs the same as a short one. Matching is by compose project
+     * label, not name prefix — an app called "yo" must not pick up "yo-sup"'s
+     * containers.
+     *
+     * @return list<array{name: string, source: string, state: string,
+     *                    running: int, total: int, port: string|null}>
+     */
+    public function describeApps(): array
+    {
+        $apps = $this->listApps();
+        if (empty($apps)) {
+            return [];
+        }
+
+        $byProject = $this->containerStatesByProject();
+
+        $rows = [];
+        foreach ($apps as $name => $info) {
+            $containers = $byProject[$name] ?? [];
+            $total = count($containers);
+            $running = count(array_filter($containers, fn ($state) => $state === 'running'));
+
+            if ($total > 0) {
+                $state = $running === 0
+                    ? 'stopped'
+                    : ($running === $total ? 'running' : 'partial');
+            } else {
+                $state = file_exists($this->baseDir . '/' . $name . '-compose.yml')
+                    ? 'installed'
+                    : 'created';
+            }
+
+            $rows[] = [
+                'name' => $name,
+                'source' => $info['template'] ?? 'unknown',
+                'state' => $state,
+                'running' => $running,
+                'total' => $total,
+                'port' => $this->appPort($name),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Container state for every compose project on the host, in one call.
+     *
+     * @return array<string, array<string, string>> project => [container => state]
+     */
+    protected function containerStatesByProject(): array
+    {
+        $format = '{{ index .Labels "io.podman.compose.project"}}|{{.Names}}|{{.State}}';
+        $output = $this->runCommand('podman ps -a --format ' . escapeshellarg($format) . ' 2>/dev/null');
+
+        $map = [];
+        foreach (explode("\n", trim((string) $output)) as $line) {
+            $parts = explode('|', trim($line));
+            if (count($parts) < 3) {
+                continue;
+            }
+
+            [$project, $container, $state] = $parts;
+            // podman prints <no value> for containers with no such label
+            if ($project === '' || $project === '<no value>') {
+                continue;
+            }
+
+            $map[$project][$container] = $state;
+        }
+
+        return $map;
+    }
+
+    /**
+     * The app's published host port, read from its config. Null when the app
+     * has no config yet or does not declare one.
+     */
+    protected function appPort(string $appName): ?string
+    {
+        $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
+        if (!is_file($configFile)) {
+            return null;
+        }
+
+        $config = json_decode((string) file_get_contents($configFile), true);
+        $port = is_array($config) ? ($config['containers']['app']['port'] ?? null) : null;
+
+        return $port === null ? null : (string) $port;
     }
     
     /**
@@ -403,8 +511,7 @@ class AppManager
      * Default: build the framework image from the repo root, which bakes the
      * app in at build time. Managers whose code lives elsewhere (a git clone)
      * override this to point the build somewhere else.
-     */
-    /**
+     *
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
@@ -430,8 +537,7 @@ class AppManager
     /**
      * Browser-based editor sidecar, sharing whichever host directory holds
      * the app's editable source.
-     */
-    /**
+     *
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
@@ -644,11 +750,12 @@ class AppManager
             $apps = json_decode(file_get_contents($appsFile), true);
         }
         
+        // No 'installed' flag: stored state goes stale the moment anything
+        // happens outside Nimbus. describeApps() derives it instead.
         $apps['apps'][$appName] = [
             'name' => $appName,
             'template' => $template,
-            'created' => date('Y-m-d H:i:s'),
-            'installed' => false
+            'created' => date('Y-m-d H:i:s')
         ];
         
         file_put_contents($appsFile, json_encode($apps, JSON_PRETTY_PRINT));
