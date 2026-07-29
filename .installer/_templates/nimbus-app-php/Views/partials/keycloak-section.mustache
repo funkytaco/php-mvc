@@ -1,13 +1,13 @@
-<div class="card" style="background: #e8f0ff; border: 2px solid #1976d2;">
-    <h2>🔐 Keycloak SSO Integration</h2>
-    
+<div class="card">
+    <h2>Keycloak SSO</h2>
+
     {{^user}}
-    <div style="background: #fff3cd; padding: 1rem; border-radius: 4px; margin: 1rem 0;">
-        <strong>⚠️ Not Authenticated</strong>
-        <p>Click the "Login with Keycloak" button above to authenticate.</p>
+    <div class="note note-warn">
+        <strong><span class="status-indicator status-warning"></span>Not signed in</strong>
+        <p>Use the Sign in button in the top bar to authenticate.</p>
     </div>
-    
-    <div style="margin-top: 1rem;">
+
+    <div>
         <h3>Configuration Status</h3>
         <p>Keycloak is enabled but may need configuration. If you haven't configured Keycloak yet:</p>
         <a href="/auth/configure" class="btn btn-success">Configure Keycloak</a>
@@ -15,8 +15,8 @@
     {{/user}}
     
     {{#user}}
-    <div style="background: #d4edda; padding: 1rem; border-radius: 4px; margin: 1rem 0;">
-        <strong>✅ Authenticated</strong>
+    <div class="note note-ok">
+        <strong><span class="status-indicator status-success"></span>Signed in</strong>
         <p>You are currently logged in as:</p>
         <ul>
             <li><strong>Name:</strong> {{user.name}}</li>
@@ -26,7 +26,7 @@
     </div>
     {{/user}}
     
-    <div style="margin-top: 1.5rem;">
+    <div>
         <h3>Protected Resources</h3>
         <p>When Keycloak is enabled, you can protect routes and resources based on authentication status.</p>
         
@@ -46,8 +46,8 @@
         </ul>
     </div>
     
-    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-top: 1rem;">
-        <h4>🔐 Keycloak Admin Console Access</h4>
+    <div class="subpanel">
+        <h4>Admin console</h4>
         <p><strong>URL:</strong> <a href="http://localhost:{{APP_PORT_KEYCLOAK}}" target="_blank">http://localhost:{{APP_PORT_KEYCLOAK}}</a></p>
         <p><strong>Admin Username:</strong> admin</p>
         {{#KEYCLOAK_ADMIN_PASSWORD}}
@@ -58,16 +58,16 @@
         {{/KEYCLOAK_ADMIN_PASSWORD}}
         <p><strong>Custom Realm:</strong> </p>
         
-        <div style="margin-top: 1rem; padding: 0.75rem; background: #d1ecf1; border-radius: 4px; border-left: 4px solid #17a2b8;">
-            <h5>👤 Test User Account</h5>
+        <div class="note">
+            <h5>Test account</h5>
             <p><strong>Username:</strong> testuser</p>
             <p><strong>Password:</strong> testpass9898</p>
             <p><strong>Email:</strong> testuser@{{app_name}}.local</p>
             <p><em>This user is automatically created in the custom realm for testing.</em></p>
         </div>
         
-        <div style="margin-top: 1rem; font-size: 0.9em; background: #e9ecef; padding: 0.5rem; border-radius: 4px;">
-            <p><strong>💡 To retrieve admin password via vault:</strong></p>
+        <div class="note">
+            <p><strong>Retrieve the admin password</strong></p>
             <code>composer nimbus:vault-view {{app_name}}</code>
             <p><strong>Or via container inspection:</strong></p>
             <code>podman inspect {{app_name}}-keycloak --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2</code>

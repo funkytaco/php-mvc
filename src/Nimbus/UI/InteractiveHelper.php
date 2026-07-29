@@ -351,6 +351,9 @@ class InteractiveHelper extends BaseTask
             $port = $config['containers']['codeserver']['port'] ?? null;
             $password = $config['containers']['codeserver']['password'] ?? null;
 
+            $state = trim(shell_exec("podman inspect $appName-code-server --format '{{.State.Status}}' 2>/dev/null") ?? '');
+            $running = $state === 'running';
+
             echo PHP_EOL;
             echo self::ansiFormat('INFO', "🖥️  VS Code in browser (code-server):");
 
@@ -362,8 +365,11 @@ class InteractiveHelper extends BaseTask
                 echo "  Password: generated when dev mode first starts" . PHP_EOL;
             }
 
-            echo "  Start: composer nimbus:dev $appName + composer nimbus:up $appName" . PHP_EOL;
-            echo "  Stop:  composer nimbus:down $appName" . PHP_EOL;
+            if ($running) {
+                echo "  Stop:  composer nimbus:down $appName" . PHP_EOL;
+            } else {
+                echo self::ansiFormat('NOTICE', "NOTE: code-server is NOT running — the URL above won't respond until you start it: composer nimbus:up $appName");
+            }
             echo self::ansiFormat('INFO', "💡 Dev mode serves the app's own .installer/apps/ dir — edits apply live, isolated per app.");
         } catch (\Exception $e) {
             // Non-fatal: dev mode info is advisory
