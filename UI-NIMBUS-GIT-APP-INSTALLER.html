@@ -508,6 +508,17 @@ footer {
               are live, and a code-server sidecar gives you VS Code in the browser on the
               same tree.
             </p>
+            <div class="note-card">
+              <span class="tag">Dependencies on the first dev run</span>
+              <p>
+                Mounting the clone replaces everything the image built at that path,
+                including <code>vendor/</code> — which every PHP repo gitignores, and
+                which for Bedrock is where WordPress core itself lives. So dev mode runs
+                <code>composer install</code> on start when the directory is missing,
+                putting the dependencies on the host side of the mount where they persist
+                and stay editable. Later starts skip it.
+              </p>
+            </div>
 <pre><code><span class="c-prompt">$ </span>bin/nimbus up blog          <span class="c-com"># built image, no mounts</span>
 <span class="c-prompt">$ </span>bin/nimbus dev blog         <span class="c-com"># live-edit + code-server</span>
 <span class="c-prompt">$ </span>bin/nimbus status</code></pre>
@@ -632,6 +643,11 @@ footer {
                   <th scope="row">webroot</th>
                   <td>Path <em>inside the container</em> the code is served from. Also where dev mode bind-mounts the clone.</td>
                   <td class="default">"/var/www/html"</td>
+                </tr>
+                <tr>
+                  <th scope="row">command</th>
+                  <td>How to start the server, if your image is not Apache. Dev mode otherwise tries <code>apache2-foreground</code> then <code>php-fpm -F</code>.</td>
+                  <td class="default">detected</td>
                 </tr>
               </tbody>
             </table>

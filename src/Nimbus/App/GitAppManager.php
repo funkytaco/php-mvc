@@ -34,6 +34,13 @@ class GitAppManager extends AppManager
             'image' => 'php:8.3-apache',
             'webroot' => '/var/www/html',
             'container_port' => 80,
+            // Tried in order by the dev entrypoint when the repo does not
+            // declare a `command`. php-fpm needs -F to stay in the foreground.
+            'serve_candidates' => ['apache2-foreground', 'php-fpm -F'],
+            'dependency_manifest' => 'composer.json',
+            'dependency_dir' => 'vendor',
+            'install_command' => 'COMPOSER_ALLOW_SUPERUSER=1 composer install --no-interaction --prefer-dist --no-progress',
+            'installer_binary' => 'composer',
         ],
     ];
 
@@ -52,7 +59,7 @@ class GitAppManager extends AppManager
     public const REPO_MANIFEST = '.nimbus.json';
 
     /** Settings a repo manifest is allowed to declare. */
-    protected const MANIFEST_KEYS = ['runtime', 'docroot', 'containerfile', 'container_port', 'webroot'];
+    protected const MANIFEST_KEYS = ['runtime', 'docroot', 'containerfile', 'container_port', 'webroot', 'command'];
 
     /**
      * Where a servable image definition is looked for, in order.
@@ -223,6 +230,7 @@ class GitAppManager extends AppManager
         [$docroot, $docrootFrom] = $pick('docroot', $this->detectDocroot($repoPath), '');
         [$webroot] = $pick('webroot', null, $defaults['webroot']);
         [$containerPort] = $pick('container_port', null, $defaults['container_port']);
+        [$command] = $pick('command', null, null);
 
         // Normalize a docroot given as './web' or 'web/'
         $docroot = trim(str_replace('\\', '/', (string) $docroot), './');
@@ -251,6 +259,7 @@ class GitAppManager extends AppManager
             'webroot' => $webroot,
             'container_port' => (int) $containerPort,
             'containerfile' => $containerfile,
+            'command' => $command === null ? null : (string) $command,
         ];
     }
 
@@ -601,9 +610,61 @@ class GitAppManager extends AppManager
             'services' => [
                 $appName . '-app' => [
                     'volumes' => [$repoHostDir . ':' . $webroot . ':Z'],
+                    'entrypoint' => [
+                        '/bin/sh',
+                        '-c',
+                        $this->buildDevBootstrap($webroot, $defaults, $source['command'] ?? null),
+                    ],
                 ],
                 $appName . '-code-server' => $this->buildCodeServerService($appName, $config, $repoHostDir),
             ],
         ];
+    }
+
+    /**
+     * Startup script for the dev container.
+     *
+     * Bind-mounting the clone over the web root REPLACES whatever the image
+     * built there — including dependencies the image installed at build time.
+     * Every PHP project gitignores those (Bedrock keeps WordPress core itself
+     * under web/wp), so without this the first dev run serves a tree with no
+     * vendor/ and dies on a missing require. Installing on start puts them on
+     * the host side of the mount, where they persist and stay editable.
+     *
+     * Only runs when the dependency dir is genuinely absent, so restarts stay
+     * fast. A failed install still starts the server — a debuggable app beats
+     * a container that exits.
+     *
+     * @param array<string, mixed> $defaults runtime defaults
+     */
+    protected function buildDevBootstrap(string $webroot, array $defaults, ?string $command): string
+    {
+        $manifest = $defaults['dependency_manifest'] ?? 'composer.json';
+        $depDir = $defaults['dependency_dir'] ?? 'vendor';
+        $installer = $defaults['installer_binary'] ?? 'composer';
+        $install = $defaults['install_command'] ?? 'composer install';
+
+        // The YAML emitter writes list items raw, so this must contain no
+        // colon-space and no leading indicator character.
+        $script = 'cd ' . $webroot . ' || exit 1; '
+            . 'if [ -f ' . $manifest . ' ] && [ ! -d ' . $depDir . ' ] && command -v ' . $installer . ' >/dev/null 2>&1; then '
+            . 'echo [nimbus] first dev run - installing dependencies into the mounted repo; '
+            . $install . ' || echo [nimbus] dependency install failed - starting server anyway; '
+            . 'fi; ';
+
+        if ($command !== null && $command !== '') {
+            return $script . 'exec ' . $command;
+        }
+
+        // No declared command: try the runtime's known servers, then say so
+        // clearly rather than exiting with a bare 127.
+        $candidates = $defaults['serve_candidates'] ?? [];
+        foreach ($candidates as $candidate) {
+            $binary = strtok($candidate, ' ');
+            $script .= 'if command -v ' . $binary . ' >/dev/null 2>&1; then exec ' . $candidate . '; fi; ';
+        }
+
+        return $script
+            . 'echo [nimbus] cannot tell how to start this image - declare command in .nimbus.json; exit 1';
     }
 }

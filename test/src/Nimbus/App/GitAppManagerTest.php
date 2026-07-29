@@ -339,6 +339,73 @@ class GitAppManagerTest extends TestCase
         $this->assertStringNotContainsString('composer dump-autoload', $overlay);
     }
 
+    /**
+     * Regression: bind-mounting the clone over the web root hides whatever the
+     * image installed at build time. Every PHP repo gitignores vendor/ (Bedrock
+     * keeps WordPress core itself under web/wp), so the first dev run served a
+     * tree with no dependencies and died on a missing require.
+     */
+    public function testDevOverlayInstallsDependenciesIntoTheMountedRepo(): void
+    {
+        $manager = $this->makeManager($this->laravelish());
+        $manager->createFromRepo('shop', 'https://example.com/acme/shop.git');
+        $manager->install('shop');
+
+        $overlay = file_get_contents($manager->generateDevCompose('shop')['file']);
+
+        // Guarded so restarts stay fast, and non-fatal so a failed install
+        // still leaves a debuggable container.
+        $this->assertStringContainsString('[ ! -d vendor ]', $overlay);
+        $this->assertStringContainsString('composer install', $overlay);
+        $this->assertStringContainsString('starting server anyway', $overlay);
+        $this->assertStringContainsString('exec apache2-foreground', $overlay);
+    }
+
+    /** A repo that knows how it starts can say so, instead of being guessed at. */
+    public function testDeclaredCommandOverridesServerDetection(): void
+    {
+        $manager = $this->makeManager([
+            'composer.json' => json_encode(['require' => ['php' => '^8.3']]),
+            'public/index.php' => '<?php',
+            'Containerfile' => "FROM php:8.3-fpm\n",
+            GitAppManager::REPO_MANIFEST => json_encode(['command' => 'php-fpm -F']),
+        ]);
+        $manager->createFromRepo('api', 'https://example.com/acme/api.git');
+        $manager->install('api');
+
+        $config = json_decode(file_get_contents($this->installerDir . '/api/app.nimbus.json'), true);
+        $this->assertSame('php-fpm -F', $config['source']['command']);
+
+        $overlay = file_get_contents($manager->generateDevCompose('api')['file']);
+        $this->assertStringContainsString('exec php-fpm -F', $overlay);
+        $this->assertStringNotContainsString('exec apache2-foreground', $overlay);
+    }
+
+    /**
+     * The YAML emitter writes list items raw and unquoted, so the bootstrap
+     * must not contain a colon-space or it silently becomes a mapping.
+     */
+    public function testDevBootstrapSurvivesTheRawYamlEmitter(): void
+    {
+        $manager = $this->makeManager($this->laravelish());
+        $manager->createFromRepo('shop', 'https://example.com/acme/shop.git');
+        $manager->install('shop');
+
+        $overlay = file_get_contents($manager->generateDevCompose('shop')['file']);
+
+        $script = null;
+        foreach (explode("\n", $overlay) as $line) {
+            if (str_contains($line, 'cd /var/www/html')) {
+                $script = $line;
+            }
+        }
+
+        $this->assertNotNull($script, 'bootstrap line not found');
+        $this->assertStringNotContainsString(': ', $script, 'colon-space would parse as a mapping');
+        $this->assertStringNotContainsString(' #', $script, 'hash would start a comment');
+        $this->assertStringStartsWith('      - cd ', $script, 'must stay one list item');
+    }
+
     public function testTemplateOnlyFeaturesAreRefused(): void
     {
         $manager = $this->makeManager($this->laravelish());
