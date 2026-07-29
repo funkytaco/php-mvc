@@ -111,7 +111,7 @@ class FeatureTask extends BaseTask
             }
             
             $appNames = array_keys($apps);
-            $choice = $io->select('Select app to add Keycloak to:', $appNames);
+            $choice = $io->select('Select app to add Keycloak to:', $appNames, 0);
             $appName = $appNames[$choice];
         }
         
@@ -183,7 +183,7 @@ class FeatureTask extends BaseTask
                 return;
             }
 
-            $choice = $io->select("Select app to remove $label from:", $enabledApps);
+            $choice = $io->select("Select app to remove $label from:", $enabledApps, 0);
             $appName = $enabledApps[$choice];
         }
 
@@ -217,7 +217,7 @@ class FeatureTask extends BaseTask
             }
             
             $appNames = array_keys($apps);
-            $choice = $io->select('Select app to add EDA and Keycloak to:', $appNames);
+            $choice = $io->select('Select app to add EDA and Keycloak to:', $appNames, 0);
             $appName = $appNames[$choice];
         }
         

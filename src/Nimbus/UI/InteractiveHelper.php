@@ -197,6 +197,33 @@ class InteractiveHelper extends BaseTask
         $this->showUsefulCommands($appName);
     }
     
+    /**
+     * One command menu for an app, with commands that don't apply to its
+     * current state struck out (dim + strikethrough) instead of hidden —
+     * the user sees the whole lifecycle and where they are in it.
+     * Used by nimbus:status <app>.
+     */
+    public function showCommandMenu(string $appName, bool $installed, bool $running, array $features): void
+    {
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', "📋 Commands for '$appName':");
+
+        $rows = [
+            ["composer nimbus:install $appName", 'Generate container configuration', !$installed],
+            ["composer nimbus:up $appName", 'Start containers', !$running],
+            ["composer nimbus:down $appName", 'Stop containers', $running],
+            ["composer nimbus:dev $appName", 'Live-edit dev mode + code-server (VS Code in browser)', !($features['dev'] ?? false)],
+            ["composer nimbus:add-eda $appName", '(Optional) Add Event-Driven Ansible', !($features['eda'] ?? false)],
+            ["composer nimbus:add-keycloak $appName", '(Optional) Add Keycloak SSO', !($features['keycloak'] ?? false)],
+            ["composer nimbus:delete $appName", 'Delete app', true],
+        ];
+
+        foreach ($rows as [$cmd, $desc, $available]) {
+            $line = sprintf('  • %-42s # %s', $cmd, $desc);
+            echo ($available ? $line : "\033[9;2m" . $line . "\033[0m") . PHP_EOL;
+        }
+    }
+
     private function showUsefulCommands(string $appName): void
     {
         echo self::ansiFormat('INFO', "💡 Other useful commands:");

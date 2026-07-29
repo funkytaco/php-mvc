@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nimbus Install — composer nimbus:install</title>
+<style>
+/* ---------------------------------------------------------------
+   Theme tokens. Dark is the default; light is applied either by OS
+   preference or by an explicit data-theme on <html>. The explicit
+   attribute always wins, which is what makes the toggle work.
+   --------------------------------------------------------------- */
+:root {
+  --bg:            #0f172a;
+  --bg-raised:     #1e293b;
+  --bg-sunken:     #0b1220;
+  --border:        #334155;
+  --border-strong: #475569;
+
+  --text:          #e2e8f0;
+  --text-muted:    #94a3b8;
+  --text-strong:   #f8fafc;
+
+  --accent:        #60a5fa;
+  --accent-soft:   #93c5fd;
+  --code:          #67e8f9;
+
+  --ok-bg:     #052e26;  --ok-border:   #10b981;  --ok-text:   #a7f3d0;  --ok-head:   #6ee7b7;
+  --warn-bg:   #3b2408;  --warn-border: #b45309;  --warn-text: #fde9c8;  --warn-head: #fbbf24;
+  --err-bg:    #431316;  --err-border:  #dc2626;  --err-text:  #fecaca;  --err-head:  #f87171;
+
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --radius: 10px;
+  --gap: 1.5rem;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg:            #f1f5f9;
+    --bg-raised:     #ffffff;
+    --bg-sunken:     #f8fafc;
+    --border:        #e2e8f0;
+    --border-strong: #cbd5e1;
+
+    --text:          #334155;
+    --text-muted:    #64748b;
+    --text-strong:   #0f172a;
+
+    --accent:        #2563eb;
+    --accent-soft:   #1d4ed8;
+    --code:          #0e7490;
+
+    --ok-bg:   #ecfdf5;  --ok-border:   #6ee7b7;  --ok-text:   #065f46;  --ok-head:   #047857;
+    --warn-bg: #fffbeb;  --warn-border: #fcd34d;  --warn-text: #78350f;  --warn-head: #b45309;
+    --err-bg:  #fef2f2;  --err-border:  #fca5a5;  --err-text:  #7f1d1d;  --err-head:  #b91c1c;
+
+    --shadow: 0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+  }
+}
+
+/* Explicit override — beats the media query in both directions. */
+:root[data-theme="light"] {
+  --bg:            #f1f5f9;
+  --bg-raised:     #ffffff;
+  --bg-sunken:     #f8fafc;
+  --border:        #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --text:          #334155;
+  --text-muted:    #64748b;
+  --text-strong:   #0f172a;
+
+  --accent:        #2563eb;
+  --accent-soft:   #1d4ed8;
+  --code:          #0e7490;
+
+  --ok-bg:   #ecfdf5;  --ok-border:   #6ee7b7;  --ok-text:   #065f46;  --ok-head:   #047857;
+  --warn-bg: #fffbeb;  --warn-border: #fcd34d;  --warn-text: #78350f;  --warn-head: #b45309;
+  --err-bg:  #fef2f2;  --err-border:  #fca5a5;  --err-text:  #7f1d1d;  --err-head:  #b91c1c;
+
+  --shadow: 0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 2rem 1.25rem 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1080px; margin: 0 auto; }
+
+/* --- header ---------------------------------------------------- */
+
+header { padding: 1rem 0 2.5rem; }
+
+h1 {
+  margin: 0 0 .35rem;
+  font-size: clamp(1.9rem, 4.5vw, 2.6rem);
+  line-height: 1.15;
+  letter-spacing: -.02em;
+  color: var(--text-strong);
+}
+
+.tagline {
+  margin: 0 0 1.5rem;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  max-width: 60ch;
+}
+
+.command-display {
+  display: block;
+  padding: .85rem 1.1rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: .95rem;
+  color: var(--code);
+  overflow-x: auto;
+}
+
+/* --- sections -------------------------------------------------- */
+
+.section { margin-bottom: 3.5rem; }
+
+.section-title {
+  margin: 0 0 1.5rem;
+  padding-bottom: .6rem;
+  font-size: 1.3rem;
+  letter-spacing: -.01em;
+  color: var(--text-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--gap);
+  align-items: start;
+}
+
+/* --- cards ----------------------------------------------------- */
+
+.card, .panel {
+  padding: 1.5rem;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.panel { background: var(--bg-sunken); }
+
+.card > :first-child, .panel > :first-child { margin-top: 0; }
+.card > :last-child,  .panel > :last-child  { margin-bottom: 0; }
+
+.card h3, .panel h3 {
+  margin: 0 0 .9rem;
+  font-size: 1.05rem;
+  color: var(--text-strong);
+  display: flex;
+  align-items: baseline;
+  gap: .55rem;
+}
+
+.card p, .panel p { margin: 0 0 .9rem; }
+
+/* --- inline + block code --------------------------------------- */
+
+code {
+  font-family: var(--mono);
+  font-size: .875em;
+  padding: .15em .4em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--code);
+  word-break: break-word;
+}
+
+pre.code-block {
+  margin: .9rem 0;
+  padding: .9rem 1.1rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: .875rem;
+  line-height: 1.55;
+  color: var(--code);
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+/* The copy affordance is a real button, not a click handler bolted
+   onto a div — so it is focusable and announced to screen readers. */
+.copy-wrap { position: relative; }
+
+.copy-btn {
+  position: absolute;
+  top: .5rem;
+  right: .5rem;
+  padding: .25rem .6rem;
+  font-family: var(--sans);
+  font-size: .75rem;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.copy-wrap:hover .copy-btn,
+.copy-btn:focus-visible { opacity: 1; }
+
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn[data-copied="true"] { color: var(--ok-head); border-color: var(--ok-border); opacity: 1; }
+
+/* --- lists ----------------------------------------------------- */
+
+.checklist { margin: .9rem 0; padding: 0; list-style: none; }
+
+.checklist li {
+  position: relative;
+  padding: .3rem 0 .3rem 1.6rem;
+}
+
+.checklist li::before {
+  content: "";
+  position: absolute;
+  left: .15rem;
+  top: .78em;
+  width: .5rem;
+  height: .5rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* --- numbered flow --------------------------------------------- */
+
+.flow { margin: 0; padding: 0; list-style: none; counter-reset: flow; }
+
+.flow li {
+  position: relative;
+  counter-increment: flow;
+  padding: 0 0 1.5rem 3.25rem;
+}
+
+.flow li::before {
+  content: counter(flow);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  font-size: .85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--bg);
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+/* Connector line between steps. */
+.flow li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(1rem - 1px);
+  top: 2.25rem;
+  bottom: .35rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.flow li:last-child { padding-bottom: 0; }
+
+.flow strong {
+  display: block;
+  margin-bottom: .15rem;
+  font-size: 1rem;
+  color: var(--text-strong);
+}
+
+.flow span { color: var(--text-muted); font-size: .95rem; }
+
+.flow li.is-current::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+.flow li.is-current strong::after {
+  content: "you are here";
+  margin-left: .6rem;
+  padding: .1rem .45rem;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-radius: 4px;
+}
+
+/* --- callouts -------------------------------------------------- */
+
+.note {
+  margin: 1rem 0;
+  padding: .9rem 1.1rem;
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-size: .95rem;
+}
+
+.note strong { display: block; margin-bottom: .25rem; }
+
+.note.ok   { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok-text); }
+.note.ok strong   { color: var(--ok-head); }
+.note.warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+.note.warn strong { color: var(--warn-head); }
+.note.err  { background: var(--err-bg);  border-color: var(--err-border);  color: var(--err-text); }
+.note.err strong  { color: var(--err-head); }
+
+/* Terminal-ish output samples keep the mono face inside callouts. */
+.note.is-output, .terminal { font-family: var(--mono); font-size: .85rem; line-height: 1.6; }
+
+.terminal {
+  margin: .9rem 0;
+  padding: .9rem 1.1rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+.terminal .cursor {
+  display: inline-block;
+  width: .5em;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* --- tables ---------------------------------------------------- */
+
+.state-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+
+.state-table th {
+  padding: .5rem .6rem;
+  text-align: left;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.state-table td {
+  padding: .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.state-table tr:last-child td { border-bottom: none; }
+
+.state-table td:first-child {
+  font-family: var(--mono);
+  font-size: .85em;
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+.yes { color: var(--ok-head); }
+.no  { color: var(--err-head); }
+
+.table-scroll { overflow-x: auto; }
+
+/* --- theme toggle ---------------------------------------------- */
+
+.theme-toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+
+.theme-toggle:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+footer {
+  margin-top: 4rem;
+  padding: 1.75rem 0 3rem;
+  border-top: 1px solid var(--border);
+  font-size: .85rem;
+  color: var(--text-muted);
+}
+
+footer p { margin: 0 0 .3rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" type="button" aria-label="Switch between light and dark theme">
+  <span aria-hidden="true" data-theme-icon>◑</span>
+</button>
+
+<div class="wrap">
+
+  <header>
+    <h1>composer nimbus:install</h1>
+    <p class="tagline">
+      Takes an app instance that <code>nimbus:create</code> generated and prepares it to run:
+      copies its assets into place and writes the compose file that <code>nimbus:up</code> needs.
+    </p>
+    <code class="command-display">composer nimbus:install [&lt;app&gt;]</code>
+  </header>
+
+  <section class="section">
+    <h2 class="section-title">Where it sits in the lifecycle</h2>
+    <div class="panel">
+      <ol class="flow">
+        <li>
+          <strong>Template</strong>
+          <span>The shared blueprint in <code>.installer/_templates/&lt;template&gt;/</code> — the source of truth you edit.</span>
+        </li>
+        <li>
+          <strong>Create the app instance</strong>
+          <span><code>composer nimbus:create my-app lkui</code> copies the template into <code>.installer/apps/my-app/</code> and resolves its placeholders.</span>
+        </li>
+        <li class="is-current">
+          <strong>Install</strong>
+          <span><code>composer nimbus:install my-app</code> copies the instance's assets to the runtime location and generates <code>my-app-compose.yml</code>.</span>
+        </li>
+        <li>
+          <strong>Start the containers</strong>
+          <span><code>composer nimbus:up my-app</code> hands the compose file to podman-compose.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Running it</h2>
+    <div class="grid">
+
+      <div class="card">
+        <h3><span aria-hidden="true">▸</span> With an app name</h3>
+        <p>Installs that app directly, no prompting.</p>
+        <div class="copy-wrap">
+          <pre class="code-block">composer nimbus:install my-app</pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+        <div class="note ok is-output">
+          App 'my-app' installed successfully!<br>
+          Container config generated: my-app-compose.yml
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><span aria-hidden="true">▸</span> Without an app name</h3>
+        <p>Lists every app it knows about and asks which one to install.</p>
+        <div class="copy-wrap">
+          <pre class="code-block">composer nimbus:install</pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+        <div class="terminal">
+          Select app to install:<br>
+          &nbsp;&nbsp;[1] my-app<br>
+          &nbsp;&nbsp;[2] another-app<br>
+          &gt; <span class="cursor" aria-hidden="true"></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">What the command does</h2>
+    <div class="panel">
+      <ol class="flow">
+        <li>
+          <strong>Resolve which app</strong>
+          <span>Uses the first CLI argument if given; otherwise lists the known apps and prompts. With no apps at all, it stops here with an error.</span>
+        </li>
+        <li>
+          <strong>Copy the app's assets into place</strong>
+          <span>Walks the <code>assets</code> map in <code>app.nimbus.json</code> and copies each source into its target.</span>
+        </li>
+        <li>
+          <strong>Write the compose file</strong>
+          <span>Generates <code>&lt;app&gt;-compose.yml</code> from the app's declared features and containers.</span>
+        </li>
+        <li>
+          <strong>Report the result</strong>
+          <span>Prints a success line naming the generated compose file, or the failure reason.</span>
+        </li>
+      </ol>
+      <div class="note warn">
+        <strong>Verify before relying on the details</strong>
+        Steps 2 and 3 summarise <code>AppManager::install()</code> and <code>buildComposeConfig()</code>, which this page has not been checked against. The command entry point is <code>src/Nimbus/Tasks/InstallTask.php</code>; trust the source over this page.
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Before and after</h2>
+    <div class="grid">
+
+      <div class="card">
+        <h3>Before</h3>
+        <div class="table-scroll">
+          <table class="state-table">
+            <thead><tr><th>Path</th><th>State</th></tr></thead>
+            <tbody>
+              <tr><td>.installer/apps/my-app/</td><td><span class="yes">✓</span> created by <code>nimbus:create</code></td></tr>
+              <tr><td>app/</td><td>empty, or left over from another app</td></tr>
+              <tr><td>my-app-compose.yml</td><td><span class="no">✗</span> does not exist</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>After</h3>
+        <div class="table-scroll">
+          <table class="state-table">
+            <thead><tr><th>Path</th><th>State</th></tr></thead>
+            <tbody>
+              <tr><td>.installer/apps/my-app/</td><td>unchanged</td></tr>
+              <tr><td>app/</td><td><span class="yes">✓</span> populated from the asset map</td></tr>
+              <tr><td>my-app-compose.yml</td><td><span class="yes">✓</span> generated</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">The asset map</h2>
+    <div class="card">
+      <p>
+        Each app's <code>app.nimbus.json</code> declares an <code>assets</code> object mapping source paths
+        inside the app instance to their targets. Install walks that map — it does not copy the
+        instance directory wholesale.
+      </p>
+      <div class="copy-wrap">
+        <pre class="code-block">{
+  "assets": {
+    "Controllers": "app/Controllers",
+    "Views": "app/Views",
+    "Models": "app/Models",
+    "routes/CustomRoutes.php": "app/CustomRoutes.php",
+    "app.config.php": "app/app.config.php"
+  }
+}</pre>
+        <button class="copy-btn" type="button">Copy</button>
+      </div>
+      <div class="note warn">
+        <strong>Illustrative, not verbatim</strong>
+        The exact keys differ per template. Read the <code>assets</code> block in the template you are
+        actually using — <code>.installer/_templates/&lt;template&gt;/app.nimbus.json</code>.
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Errors you will hit</h2>
+    <div class="grid">
+
+      <div class="card">
+        <h3>No apps found</h3>
+        <div class="note err is-output">
+          [ERROR] No apps found. Create one first with: composer nimbus:create
+        </div>
+        <p>Nothing exists under <code>.installer/apps/</code> yet. Create an app first:</p>
+        <div class="copy-wrap">
+          <pre class="code-block">composer nimbus:create my-app</pre>
+          <button class="copy-btn" type="button">Copy</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Install failed</h3>
+        <div class="note err is-output">
+          [ERROR] Failed to install app: &lt;reason&gt;
+        </div>
+        <p>The message carries the underlying exception. Common causes:</p>
+        <ul class="checklist">
+          <li>The named app does not exist under <code>.installer/apps/</code></li>
+          <li><code>app.nimbus.json</code> is missing or is not valid JSON</li>
+          <li>A path in the <code>assets</code> map points at something that isn't there</li>
+          <li>The target directory is not writable</li>
+        </ul>
+        <p>Run <code>composer nimbus:lint-check &lt;template&gt;</code> to catch asset-map problems at the template level.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">After a successful install</h2>
+    <div class="panel">
+      <ol class="flow">
+        <li><strong>Start it</strong><span><code>composer nimbus:up my-app</code></span></li>
+        <li><strong>Check it came up</strong><span><code>composer nimbus:status</code> shows container state and health.</span></li>
+        <li><strong>Open it</strong><span>The port is derived from the app name — read it from <code>my-app-compose.yml</code> or from <code>nimbus:status</code>.</span></li>
+      </ol>
+      <div class="note ok">
+        <strong>Re-running is fine</strong>
+        Install is repeatable. After changing <code>app.nimbus.json</code> or adding a feature with
+        <code>nimbus:add-eda</code> / <code>nimbus:add-keycloak</code>, run it again to regenerate the compose file.
+      </div>
+      <div class="note warn">
+        <strong>Don't edit the generated files</strong>
+        <code>app/</code> and <code>&lt;app&gt;-compose.yml</code> are both generated and gitignored. The next install
+        overwrites them. Edit the template instead — or use <code>nimbus:dev</code>, which serves the app's own
+        instance directory so your edits survive.
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Related commands</h2>
+    <div class="grid">
+      <div class="card">
+        <h3><code>nimbus:create</code></h3>
+        <p>Scaffolds a new app instance from a template. Must run before install.</p>
+      </div>
+      <div class="card">
+        <h3><code>nimbus:up</code> / <code>nimbus:down</code></h3>
+        <p>Starts and stops an installed app's containers via podman-compose.</p>
+      </div>
+      <div class="card">
+        <h3><code>nimbus:list</code></h3>
+        <p>Lists every app with its template and whether it has been installed.</p>
+      </div>
+      <div class="card">
+        <h3><code>nimbus:dev</code></h3>
+        <p>Writes a dev overlay that bind-mounts the app's instance dir, so edits are live.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Nimbus — PHP 8.2+ MVC micro-framework and container app generator.</p>
+    <p>Entry point for this command: <code>src/Nimbus/Tasks/InstallTask.php</code></p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---- theme -------------------------------------------------- */
+  var root = document.documentElement;
+  var toggle = document.querySelector('.theme-toggle');
+  var icon = toggle.querySelector('[data-theme-icon]');
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+  function activeTheme() {
+    return root.dataset.theme || (mq.matches ? 'dark' : 'light');
+  }
+
+  function paint() {
+    icon.textContent = activeTheme() === 'dark' ? '☾' : '☀';
+  }
+
+  toggle.addEventListener('click', function () {
+    root.dataset.theme = activeTheme() === 'dark' ? 'light' : 'dark';
+    paint();
+  });
+
+  // Follow the OS while no explicit choice has been made.
+  mq.addEventListener('change', function () { if (!root.dataset.theme) paint(); });
+  paint();
+
+  /* ---- copy buttons ------------------------------------------- *
+   * Read from the <pre>, never write to it — the earlier version
+   * replaced textContent with "Copied!", which permanently ate the
+   * multi-line JSON block. Feedback goes on the button instead.    */
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentElement.querySelector('pre');
+      if (!pre) return;
+
+      var done = function (ok) {
+        btn.textContent = ok ? 'Copied' : 'Press ⌘C';
+        btn.dataset.copied = String(ok);
+        setTimeout(function () {
+          btn.textContent = 'Copy';
+          delete btn.dataset.copied;
+        }, 1600);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(pre.textContent).then(
+          function () { done(true); },
+          function () { done(false); }
+        );
+      } else {
+        // file:// without a secure context has no async clipboard.
+        var sel = window.getSelection();
+        var range = document.createRange();
+        range.selectNodeContents(pre);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        done(false);
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

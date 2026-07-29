@@ -47,7 +47,7 @@ class DevTask extends BaseTask
                 return;
             }
             $appNames = array_keys($apps);
-            $choice = $io->select('Select app for dev mode:', $appNames);
+            $choice = $io->select('Select app for dev mode:', $appNames, 0);
             $appName = $appNames[$choice];
         }
 
@@ -56,8 +56,8 @@ class DevTask extends BaseTask
 
             echo self::ansiFormat('SUCCESS', "Dev overlay written: " . basename($result['file']));
             echo self::ansiFormat('INFO', "Dev mode serves this app's own directory: .installer/apps/$appName/ — edit it locally or in code-server; changes are live, apps stay isolated, and edits survive installs.");
+            echo self::ansiFormat('INFO', "Start it with: composer nimbus:up $appName");
             echo self::ansiFormat('INFO', "🖥  code-server (VS Code web): http://localhost:{$result['port']}  password: {$result['password']}");
-            echo self::ansiFormat('INFO', "Start with: bin/nimbus dev $appName   (or: podman-compose -f $appName-compose.yml -f $appName-compose.dev.yml up --build -d)");
             echo self::ansiFormat('INFO', "💡 Share your edits with future apps via: bin/nimbus commit $appName (copies them to the shared template)");
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to generate dev overlay: ' . $e->getMessage());
@@ -86,7 +86,7 @@ class DevTask extends BaseTask
                 return;
             }
             $appNames = array_keys($apps);
-            $choice = $io->select('Select app to commit edits from:', $appNames);
+            $choice = $io->select('Select app to commit edits from:', $appNames, 0);
             $appName = $appNames[$choice];
         }
 

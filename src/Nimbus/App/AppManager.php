@@ -1690,6 +1690,10 @@ class AppManager
                 $containers[] = $appName . '-keycloak';
                 $containers[] = $appName . '-keycloak-db';
             }
+            // Dev mode adds a code-server sidecar via the dev overlay
+            if ($config['features']['dev'] ?? false) {
+                $containers[] = $appName . '-code-server';
+            }
         }
         
         return $containers;
@@ -1727,21 +1731,50 @@ class AppManager
     }
     
     /**
+     * The ordered podman-compose -f file list for an app, derived from its
+     * features in app.nimbus.json (single source of truth). Base compose
+     * always; the dev overlay when features.dev is enabled — regenerated if
+     * missing, since overlay files are derived artifacts. Every lifecycle
+     * path (up/down/status) must build its file list here so feature
+     * containers like code-server are never started-but-not-stopped.
+     */
+    public function getComposeFiles(string $appName): array
+    {
+        $files = [$this->baseDir . '/' . $appName . '-compose.yml'];
+
+        $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
+        $config = file_exists($configFile)
+            ? json_decode(file_get_contents($configFile), true)
+            : [];
+
+        if ($config['features']['dev'] ?? false) {
+            $devFile = $this->baseDir . '/' . $appName . '-compose.dev.yml';
+            if (!file_exists($devFile)) {
+                $this->generateDevCompose($appName);
+            }
+            $files[] = $devFile;
+        }
+
+        return $files;
+    }
+
+    /**
      * Stop an app and optionally remove containers/volumes
      */
     public function stopApp(string $appName, array $options = []): array
     {
-        $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
-        
-        if (!file_exists($composeFile)) {
+        $composeFiles = $this->getComposeFiles($appName);
+
+        if (!file_exists($composeFiles[0])) {
             throw new \RuntimeException("Compose file not found for app '$appName'");
         }
-        
+
         $commands = [];
         $results = ['stopped' => false, 'removed' => false, 'cleaned' => false, 'output' => ''];
-        
-        // Build command based on options
-        $downCommand = "podman-compose -f $composeFile down";
+
+        // Build command based on options; include every feature overlay so
+        // their containers (e.g. code-server) are brought down too
+        $downCommand = 'podman-compose -f ' . implode(' -f ', $composeFiles) . ' down';
         
         if ($options['remove_volumes'] ?? false) {
             $downCommand .= ' --volumes';
@@ -1870,7 +1903,7 @@ class AppManager
                     'container_name' => $appName . '-code-server',
                     'ports' => [$codeServerPort . ':8080'],
                     'volumes' => [
-                        '.:/home/coder/workspace:Z'
+                        './.installer/apps/' . $appName . ':/home/coder/workspace:Z'
                     ],
                     'environment' => [
                         'PASSWORD' => $codeServerPassword
@@ -1897,12 +1930,21 @@ class AppManager
         $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
         $config = $this->loadAppConfig($appName);
 
-        // Persist code-server port + password once so they survive regeneration
+        // Persist code-server port + password once so they survive regeneration,
+        // and flag dev as an app feature so up/down/status include the sidecar
+        $dirty = false;
         if (empty($config['containers']['codeserver']['password'])) {
             $config['containers']['codeserver'] = [
                 'port' => (string) $this->generateCodeServerPort($appName),
                 'password' => $this->generatePassword()
             ];
+            $dirty = true;
+        }
+        if (!($config['features']['dev'] ?? false)) {
+            $config['features']['dev'] = true;
+            $dirty = true;
+        }
+        if ($dirty) {
             file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
         }
 

@@ -41,25 +41,38 @@ class ContainerTask extends BaseTask
         
         try {
             $startableApps = $this->appManager->getStartableApps();
-            
-            if (empty($startableApps)) {
-                echo self::ansiFormat('INFO', 'No apps found with compose files.');
-                echo self::ansiFormat('INFO', 'Create and install an app first:');
-                echo "  1. composer nimbus:create my-app" . PHP_EOL;
-                echo "  2. composer nimbus:install my-app" . PHP_EOL;
-                return;
-            }
-            
             $targetApp = $args[0] ?? null;
-            
+
             if ($targetApp) {
                 $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
+
+                // App was created but never installed — offer to install now
+                if (empty($app) && $this->appManager->appExists($targetApp)) {
+                    if (!$io->askConfirmation("App '$targetApp' exists but is not installed. Install it now? [Y/n] ", true)) {
+                        echo self::ansiFormat('INFO', "Skipped - run 'composer nimbus:install $targetApp' later");
+                        return;
+                    }
+                    $this->appManager->install($targetApp);
+                    echo self::ansiFormat('SUCCESS', "App '$targetApp' installed successfully!");
+                    echo self::ansiFormat('INFO', "Container config generated: $targetApp-compose.yml");
+                    $startableApps = $this->appManager->getStartableApps();
+                    $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
+                }
+
                 if (empty($app)) {
                     echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
                     return;
                 }
                 $app = array_values($app)[0];
                 $this->startApp($app);
+                return;
+            }
+
+            if (empty($startableApps)) {
+                echo self::ansiFormat('INFO', 'No apps found with compose files.');
+                echo self::ansiFormat('INFO', 'Create and install an app first:');
+                echo "  1. composer nimbus:create my-app" . PHP_EOL;
+                echo "  2. composer nimbus:install my-app" . PHP_EOL;
                 return;
             }
             
@@ -191,7 +204,49 @@ class ContainerTask extends BaseTask
         echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
         
         $startableApps = $this->appManager->getStartableApps();
-        
+        $targetApp = $args[0] ?? null;
+
+        if ($targetApp) {
+            $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
+
+            if (empty($app) && !$this->appManager->appExists($targetApp)) {
+                echo self::ansiFormat('ERROR', "App '$targetApp' not found.");
+                return;
+            }
+
+            $installed = !empty($app);
+            $running = false;
+
+            echo self::ansiFormat('INFO', 'App Status:');
+            if ($installed) {
+                $app = array_values($app)[0];
+                $running = $app['is_running'];
+                $imageStatus = $app['has_image'] ? '✓ built' : '✗ not built';
+                $runningStatus = $this->formatRunningStatus($app);
+                $healthStatus = $this->formatHealthStatus($app);
+                echo "  • {$app['name']} ($imageStatus, $runningStatus, $healthStatus)" . PHP_EOL;
+
+                if ($app['is_running']) {
+                    foreach ($app['containers'] as $containerName => $status) {
+                        $stateIcon = $status['state'] === 'running' ? '🟢' : '🔴';
+                        $healthIcon = $this->getHealthIcon($status['health']);
+                        echo "      └─ $stateIcon $containerName: {$status['state']} $healthIcon" . PHP_EOL;
+                    }
+                }
+            } else {
+                echo "  • $targetApp (created, not installed)" . PHP_EOL;
+            }
+
+            try {
+                $features = $this->appManager->loadAppConfig($targetApp)['features'] ?? [];
+            } catch (\Exception $e) {
+                $features = [];
+            }
+
+            $this->interactiveHelper->showCommandMenu($targetApp, $installed, $running, $features);
+            return;
+        }
+
         if (empty($startableApps)) {
             echo self::ansiFormat('INFO', 'No apps found with compose files.');
             echo self::ansiFormat('INFO', 'Create and install an app first:');
@@ -199,20 +254,7 @@ class ContainerTask extends BaseTask
             echo "  2. composer nimbus:install my-app" . PHP_EOL;
             return;
         }
-        
-        $targetApp = $args[0] ?? null;
-        
-        if ($targetApp) {
-            $app = array_filter($startableApps, fn($a) => $a['name'] === $targetApp);
-            if (empty($app)) {
-                echo self::ansiFormat('ERROR', "App '$targetApp' not found or not installed.");
-                return;
-            }
-            $app = array_values($app)[0];
-            $this->startApp($app);
-            return;
-        }
-        
+
         echo self::ansiFormat('INFO', 'App Status:');
         
         foreach ($startableApps as $app) {
@@ -235,25 +277,28 @@ class ContainerTask extends BaseTask
     private function startApp(array $app): void
     {
         $appName = $app['name'];
-        $composeFile = $app['compose_file'];
-        
+        // Feature-derived file list (base + overlays); a feature container
+        // missing from a running app means health is 'partial', so the
+        // already-running shortcut below won't skip starting it
+        $composeFlags = '-f ' . implode(' -f ', $this->appManager->getComposeFiles($appName));
+
         if ($app['is_running'] && $app['health_status'] === 'healthy') {
             echo self::ansiFormat('INFO', "App '$appName' is already running and healthy!");
             $this->showAppStatus($app);
             return;
         }
-        
+
         echo self::ansiFormat('INFO', "Building app '$appName' image...");
-        $buildCommand = "podman-compose -f $composeFile up --build -d";
-        
+        $buildCommand = "podman-compose $composeFlags up --build -d";
+
         echo self::ansiFormat('INFO', "Running: $buildCommand");
         $output = shell_exec($buildCommand . ' 2>&1');
-        
+
         if ($output) {
             echo $output;
         }
-        
-        $statusOutput = shell_exec("podman-compose -f $composeFile ps --format table 2>/dev/null");
+
+        $statusOutput = shell_exec("podman-compose $composeFlags ps --format table 2>/dev/null");
         if ($statusOutput) {
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
             echo $statusOutput;

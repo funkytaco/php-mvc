@@ -35,7 +35,8 @@ class InstallTask extends BaseTask
             
             $io = $event->getIO();
             $appNames = array_keys($apps);
-            $appName = $io->select('Select app to install:', $appNames);
+            $choice = $io->select('Select app to install:', $appNames, 0);
+            $appName = $appNames[$choice];
         }
         
         try {
