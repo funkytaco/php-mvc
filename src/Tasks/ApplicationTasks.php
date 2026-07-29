@@ -698,34 +698,29 @@ class ApplicationTasks {
             echo "  - Compose file: $composeFile" . PHP_EOL;
             echo "  - Any associated containers, volumes, and images" . PHP_EOL;
             
-            // Ask about backing up credentials to vault
+            // Ask about backing up credentials to vault. State the vault's
+            // status first — the prompts alone don't reveal whether a vault
+            // exists, and their defaults are opposite.
+            echo PHP_EOL;
             try {
                 $vaultManager = new \Nimbus\Vault\VaultManager();
-                if ($vaultManager->isInitialized()) {
+                $status = self::vaultStatus($vaultManager);
+                self::printVaultStatus($status);
+
+                $canBackup = $status['ready'] || self::ensureVaultReady($vaultManager, $status, $io);
+
+                if ($canBackup) {
                     if ($io->askConfirmation('🔐 Backup credentials to vault before deleting? [Y/n]: ', true)) {
-                        echo self::ansiFormat('INFO', "Backing up credentials for '$appName'...");
-                        $credentials = $vaultManager->extractAppCredentials($appName);
-                        if (!empty($credentials)) {
-                            $vaultManager->backupAppCredentials($appName, $credentials);
-                            echo self::ansiFormat('INFO', '✅ Credentials backed up to vault!');
-                        } else {
-                            echo self::ansiFormat('WARNING', 'No credentials found to backup (app may not be running)');
-                        }
+                        self::backupAppToVault($vaultManager, $appName);
+                    } else {
+                        echo self::ansiFormat('INFO', 'Deleting without a vault backup.');
                     }
                 } else {
-                    // Vault not initialized - suggest it
-                    if ($io->askConfirmation('🔐 Initialize vault to backup credentials? [y/N]: ', false)) {
-                        $vaultManager->initializeVault();
-                        echo self::ansiFormat('INFO', 'Vault initialized! Now backing up credentials...');
-                        $credentials = $vaultManager->extractAppCredentials($appName);
-                        if (!empty($credentials)) {
-                            $vaultManager->backupAppCredentials($appName, $credentials);
-                            echo self::ansiFormat('INFO', '✅ Credentials backed up to vault!');
-                        }
-                    }
+                    echo self::ansiFormat('INFO', 'Deleting without a vault backup.');
                 }
             } catch (\Exception $e) {
                 echo self::ansiFormat('WARNING', 'Could not backup credentials: ' . $e->getMessage());
+                echo self::ansiFormat('INFO', 'Deleting without a vault backup.');
             }
             
             echo PHP_EOL;
@@ -777,22 +772,24 @@ class ApplicationTasks {
         
         // Ask about backing up ALL credentials to vault before mass deletion
         $backupToVault = false;
+        echo PHP_EOL;
         try {
             $vaultManager = new \Nimbus\Vault\VaultManager();
-            if ($vaultManager->isInitialized()) {
-                if ($io->askConfirmation('🔐 Backup all app credentials to vault before deleting? [Y/n]: ', true)) {
-                    $backupToVault = true;
-                }
-            } else {
-                // Vault not initialized - suggest it
-                if ($io->askConfirmation('🔐 Initialize vault to backup all credentials? [y/N]: ', false)) {
-                    $vaultManager->initializeVault();
-                    echo self::ansiFormat('INFO', 'Vault initialized!');
-                    $backupToVault = true;
-                }
+            $status = self::vaultStatus($vaultManager);
+            self::printVaultStatus($status);
+
+            // Only offer the backup once the vault is genuinely usable —
+            // initializeVault() can fail (no toolchain) or report a false
+            // success over a stale credentials.yml.
+            if ($status['ready'] || self::ensureVaultReady($vaultManager, $status, $io)) {
+                $backupToVault = $io->askConfirmation('🔐 Backup all app credentials to vault before deleting? [Y/n]: ', true);
             }
         } catch (\Exception $e) {
-            echo self::ansiFormat('WARNING', 'Could not initialize vault: ' . $e->getMessage());
+            echo self::ansiFormat('WARNING', 'Could not prepare vault: ' . $e->getMessage());
+        }
+
+        if (!$backupToVault) {
+            echo self::ansiFormat('INFO', 'Deleting without a vault backup.');
         }
         
         $options = [
@@ -813,12 +810,13 @@ class ApplicationTasks {
                 if ($backupToVault) {
                     try {
                         $credentials = $vaultManager->extractAppCredentials($appName);
-                        if (!empty($credentials)) {
-                            $vaultManager->backupAppCredentials($appName, $credentials);
+                        if (empty($credentials)) {
+                            echo self::ansiFormat('INFO', "  ⚠️  No credentials found for '$appName' — its containers may already be removed");
+                        } elseif ($vaultManager->backupAppCredentials($appName, $credentials)) {
                             echo self::ansiFormat('INFO', "  ✅ Credentials backed up for '$appName'");
                             $backedUp++;
                         } else {
-                            echo self::ansiFormat('INFO', "  ⚠️  No credentials found for '$appName' (app may not be running)");
+                            echo self::ansiFormat('WARNING', "  ⚠️  Backup did not complete for '$appName' — deleting without one");
                         }
                     } catch (\Exception $e) {
                         echo self::ansiFormat('WARNING', "  ⚠️  Could not backup '$appName' credentials: " . $e->getMessage());
@@ -1340,6 +1338,157 @@ class ApplicationTasks {
         echo "     composer nimbus:vault-backup $app  # encrypt this app's passwords into the vault" . PHP_EOL;
         echo "     composer nimbus:vault-restore $app # restore them when re-creating the app" . PHP_EOL;
         echo "  Once the vault exists, passwords generated by nimbus:create back up automatically." . PHP_EOL;
+    }
+
+    /**
+     * Resolve what the vault can actually do right now.
+     *
+     * isInitialized() only checks that two files exist, so a present-but-
+     * undecryptable vault reports as ready; and encryption needs either
+     * ansible-vault on PATH or podman (VaultManager::runVaultContainer()
+     * falls back in that order). Both are probed here so prompts can state
+     * the truth instead of implying it.
+     *
+     * @return array{ready: bool, toolchain: bool, broken: bool, label: string, detail: string}
+     */
+    private static function vaultStatus(\Nimbus\Vault\VaultManager $vaultManager): array
+    {
+        $hasAnsible = trim(shell_exec('command -v ansible-vault 2>/dev/null') ?: '') !== '';
+        $hasPodman = trim(shell_exec('command -v podman 2>/dev/null') ?: '') !== '';
+        $toolchain = $hasAnsible || $hasPodman;
+
+        if (!$vaultManager->isInitialized()) {
+            return [
+                'ready' => false,
+                'toolchain' => $toolchain,
+                'broken' => false,
+                'label' => $toolchain
+                    ? 'NOT set up — nothing is encrypted-backed-up yet'
+                    : 'unavailable — install ansible-vault or podman to enable backups',
+                'detail' => ''
+            ];
+        }
+
+        // Files exist — confirm they actually decrypt before calling it ready
+        try {
+            $credentials = $vaultManager->getAllCredentials();
+            $count = count($credentials['apps'] ?? []);
+            return [
+                'ready' => true,
+                'toolchain' => $toolchain,
+                'broken' => false,
+                'label' => 'available (.installer/vault/credentials.yml)',
+                'detail' => $count . ' app(s) backed up'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'ready' => false,
+                'toolchain' => $toolchain,
+                'broken' => true,
+                'label' => 'present but unreadable (wrong password or corrupt) — backup will fail',
+                'detail' => ''
+            ];
+        }
+    }
+
+    /**
+     * State the vault's status before asking anything about it
+     */
+    private static function printVaultStatus(array $status): void
+    {
+        $line = '🔐 Vault: ' . $status['label'];
+        if ($status['detail'] !== '') {
+            $line .= ' — ' . $status['detail'];
+        }
+
+        if ($status['ready']) {
+            echo self::ansiFormat('INFO', $line);
+        } elseif ($status['broken']) {
+            echo self::ansiFormat('WARNING', $line);
+        } else {
+            echo self::ansiFormat('NOTICE', $line);
+        }
+    }
+
+    /**
+     * Offer to set the vault up when it isn't ready. Returns true only when
+     * the vault ends up genuinely usable AND the user confirms they saved
+     * the generated master password — without it every backup is
+     * unrecoverable, so an unacknowledged password counts as failure.
+     */
+    private static function ensureVaultReady(\Nimbus\Vault\VaultManager $vaultManager, array $status, $io): bool
+    {
+        if (!$status['toolchain']) {
+            echo self::ansiFormat('INFO', 'Vault setup needs ansible-vault (or podman to run it in a container).');
+            self::showCredentialStorageHelp();
+            return false;
+        }
+
+        if (!$io->askConfirmation('🔐 Set up the vault now so credentials can be backed up? [y/N]: ', false)) {
+            return false;
+        }
+
+        // initializeVault() prints the password itself; capture it so the
+        // acknowledgement block below is the only place it appears.
+        ob_start();
+        $initialized = $vaultManager->initializeVault();
+        $initOutput = ob_get_clean();
+
+        // encryptAndSave() reports success by file_exists(), which can lie
+        // over a stale credentials.yml — re-check before trusting it.
+        if (!$initialized || !$vaultManager->isInitialized()) {
+            echo self::ansiFormat('ERROR', 'Vault setup failed — encryption did not complete.');
+            echo self::ansiFormat('INFO', 'Check that ansible-vault runs, or that podman can pull quay.io/ansible/ansible-runner.');
+            return false;
+        }
+
+        $password = '';
+        if (preg_match('/Generated vault master password:\s*(\S+)/', $initOutput, $matches)) {
+            $password = $matches[1];
+        }
+
+        echo PHP_EOL;
+        echo self::ansiFormat('WARNING', '════════ VAULT MASTER PASSWORD ════════');
+        if ($password !== '') {
+            echo "  $password" . PHP_EOL;
+        } else {
+            echo trim($initOutput) . PHP_EOL;
+        }
+        echo self::ansiFormat('WARNING', 'Store this now. Without it every backup is unrecoverable.');
+        echo "  (also written to .installer/vault/.vault_pass)" . PHP_EOL;
+        echo PHP_EOL;
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $answer = strtolower(trim((string) $io->ask('Type "saved" once you have stored this password: ')));
+            if ($answer === 'saved') {
+                return true;
+            }
+        }
+
+        echo self::ansiFormat('WARNING', 'Password not acknowledged — continuing without a vault backup.');
+        return false;
+    }
+
+    /**
+     * Back an app's credentials up, reporting what actually happened.
+     * extractAppCredentials() reads passwords from running containers via
+     * podman inspect, so an already-torn-down app yields nothing.
+     */
+    private static function backupAppToVault(\Nimbus\Vault\VaultManager $vaultManager, string $appName): void
+    {
+        echo self::ansiFormat('INFO', "Backing up credentials for '$appName'...");
+
+        $credentials = $vaultManager->extractAppCredentials($appName);
+        if (empty($credentials)) {
+            echo self::ansiFormat('WARNING', "No credentials found for '$appName' — its containers may already be removed. Deleting WITHOUT a vault backup.");
+            return;
+        }
+
+        if ($vaultManager->backupAppCredentials($appName, $credentials)) {
+            echo self::ansiFormat('INFO', '✅ Backed up ' . count($credentials) . " credential set(s) for '$appName' to the vault.");
+        } else {
+            echo self::ansiFormat('WARNING', "Backup did not complete for '$appName'. Deleting WITHOUT a vault backup.");
+        }
     }
 
     /**

@@ -81,9 +81,51 @@ class AppManagerTest extends TestCase
     public function testCreateFromTemplateInvalidAppName(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage("App name must contain only lowercase letters, numbers, and hyphens");
-        
+        $this->expectExceptionMessage("App name must start with a letter or number");
+
         $this->appManager->createFromTemplate('Test_App!', $this->getDefaultTemplate());
+    }
+
+    /**
+     * Names that pass a naive [a-z0-9-]+ check but produce container names
+     * podman rejects, or that collide with framework behavior.
+     *
+     * @dataProvider invalidAppNameProvider
+     */
+    public function testCreateFromTemplateRejectsPodmanIncompatibleNames(string $name): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->appManager->createFromTemplate($name, $this->getDefaultTemplate());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function invalidAppNameProvider(): array
+    {
+        return [
+            'leading hyphen' => ['-lead'],       // podman: names must match [a-zA-Z0-9]...
+            'bare hyphen' => ['-'],
+            'trailing hyphen' => ['trail-'],     // yields "trail--app", collides with prefix matching
+            'reserved lkui' => ['lkui'],         // Dockerfile builds the default app instead
+            'too long' => [str_repeat('a', 49)], // derived hostnames exceed the DNS label limit
+        ];
+    }
+
+    /**
+     * Hyphenated names are the documented convention and must keep working.
+     */
+    public function testValidateAppNameAcceptsHyphenatedNames(): void
+    {
+        $validate = new \ReflectionMethod($this->appManager, 'validateAppName');
+        $validate->setAccessible(true);
+
+        foreach (['yo-sup', 'my-app', 'a-b-c', 'app123', 'a'] as $name) {
+            $validate->invoke($this->appManager, $name);
+        }
+
+        $this->addToAssertionCount(1);
     }
     
     /**

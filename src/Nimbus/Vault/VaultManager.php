@@ -271,25 +271,28 @@ class VaultManager
                 continue;
             }
             
-            // Match app name (2 spaces)
-            if (preg_match('/^  (\w+):$/', $line, $matches)) {
+            // Match app name (2 spaces). App names are hyphenated by
+            // convention ("my-app"), so \w is too narrow — it silently
+            // parsed "yo-sup:" as no match, leaving $currentApp null and
+            // filing every credential under an empty key.
+            if (preg_match('/^  ([^:\s][^:]*):$/', $line, $matches)) {
                 $currentApp = $matches[1];
                 $data['apps'][$currentApp] = [];
                 $currentSection = null;
-            } 
+            }
             // Match section (database/keycloak) with 4 spaces
-            elseif (preg_match('/^    (database|keycloak):$/', $line, $matches)) {
+            elseif ($currentApp !== null && preg_match('/^    (database|keycloak):$/', $line, $matches)) {
                 $currentSection = $matches[1];
                 $data['apps'][$currentApp][$currentSection] = [];
-            } 
+            }
             // Match properties with 6 spaces (inside sections)
-            elseif (preg_match('/^      (\w+):\s*"?([^"]*)"?$/', $line, $matches)) {
+            elseif ($currentApp !== null && preg_match('/^      ([^:\s][^:]*):\s*"?([^"]*)"?$/', $line, $matches)) {
                 if ($currentSection) {
                     $data['apps'][$currentApp][$currentSection][$matches[1]] = $matches[2];
                 }
             }
             // Match properties with 4 spaces (app level)
-            elseif (preg_match('/^    (\w+):\s*"?([^"]*)"?$/', $line, $matches)) {
+            elseif ($currentApp !== null && preg_match('/^    ([^:\s][^:]*):\s*"?([^"]*)"?$/', $line, $matches)) {
                 $data['apps'][$currentApp][$matches[1]] = $matches[2];
                 $currentSection = null; // Reset section for app-level properties
             }

@@ -64,7 +64,9 @@ class AppManager
         if (is_dir($targetPath)) {
             throw new \RuntimeException("App '$appName' already exists");
         }
-        
+
+        $this->assertNoContainerNameCollision($appName);
+
         try {
             // 1. FIRST: Resolve password strategy using new PasswordManager
             $passwordManager = new \Nimbus\Password\PasswordManager($this->getVaultManager(), $this->baseDir);
@@ -788,12 +790,83 @@ class AppManager
     }
     
     /**
-     * Validate app name
+     * Refuse to create an app whose derived container names are already
+     * taken. Container names are a flat, host-wide namespace shared with
+     * every other podman workload — without this the collision only
+     * surfaces at 'nimbus:up', after create and install have succeeded,
+     * as "the container name X is already in use".
+     */
+    private function assertNoContainerNameCollision(string $appName): void
+    {
+        $existing = shell_exec("podman ps -a --format '{{.Names}}' 2>/dev/null");
+        if (empty($existing)) {
+            return;  // podman unavailable or no containers — nothing to check
+        }
+
+        $existing = array_filter(array_map('trim', explode("\n", trim($existing))));
+
+        // Every suffix this generator can ever append — features are added
+        // after create (nimbus:add-eda / add-keycloak / dev), so checking
+        // only the containers enabled today would let a later feature
+        // collide with something that was already there.
+        $wanted = array_map(
+            fn ($suffix) => $appName . $suffix,
+            ['-app', '-postgres', '-eda', '-keycloak', '-keycloak-db', '-keycloak-setup', '-code-server']
+        );
+        $conflicts = array_values(array_intersect($wanted, $existing));
+
+        if (!empty($conflicts)) {
+            throw new \RuntimeException(
+                "App '$appName' would use container name(s) already in use: " . implode(', ', $conflicts) . '. '
+                . "Choose a different app name, or remove the existing container(s) first."
+            );
+        }
+    }
+
+    /**
+     * Names that would silently change what the build does rather than
+     * failing loudly: the Dockerfile treats APP_NAME=lkui as "install the
+     * default LKUI app instead of this one" (Dockerfile ARG APP_NAME).
+     */
+    private const RESERVED_APP_NAMES = ['lkui'];
+
+    /**
+     * Longest app name whose derived hostnames stay inside a 63-char DNS
+     * label. The longest suffix this generator appends is '-keycloak-setup'
+     * (15 chars); podman-compose resolves services by those names.
+     */
+    private const MAX_APP_NAME_LENGTH = 48;
+
+    /**
+     * Validate app name.
+     *
+     * Stricter than "lowercase, numbers, hyphens": every app name becomes
+     * container names, a network name, a compose project name and an image
+     * tag, so it must satisfy podman's own rule
+     * ([a-zA-Z0-9][a-zA-Z0-9_.-]*) after suffixes are appended. The old
+     * pattern accepted '-lead' and a bare '-', which create/install accept
+     * and podman then rejects at up time ("names must match ...").
      */
     private function validateAppName(string $name): void
     {
-        if (!preg_match('/^[a-z0-9-]+$/', $name)) {
-            throw new \InvalidArgumentException("App name must contain only lowercase letters, numbers, and hyphens");
+        if (!preg_match('/^[a-z0-9][a-z0-9._-]*$/', $name)) {
+            throw new \InvalidArgumentException(
+                "App name must start with a letter or number and contain only lowercase letters, numbers, hyphens, dots, and underscores"
+            );
+        }
+
+        if (str_ends_with($name, '-') || str_ends_with($name, '_') || str_ends_with($name, '.')) {
+            throw new \InvalidArgumentException("App name must not end with a hyphen, underscore, or dot");
+        }
+
+        if (strlen($name) > self::MAX_APP_NAME_LENGTH) {
+            throw new \InvalidArgumentException(
+                'App name must be ' . self::MAX_APP_NAME_LENGTH . ' characters or fewer (derived container hostnames must stay within DNS limits)'
+            );
+        }
+
+        if (in_array($name, self::RESERVED_APP_NAMES, true)) {
+            throw new \InvalidArgumentException("App name '$name' is reserved by the framework — choose another name");
         }
     }
     
@@ -951,7 +1024,7 @@ class AppManager
         if (file_exists($composeFile)) {
             $content = file_get_contents($composeFile);
             // Look for Keycloak database password (try both POSTGRES_PASSWORD and KC_DB_PASSWORD)
-            if (preg_match('/' . $appName . '-keycloak-db:.*?POSTGRES_PASSWORD:\s*([a-f0-9]{32})/s', $content, $matches)) {
+            if (preg_match('/' . preg_quote($appName, '/') . '-keycloak-db:.*?POSTGRES_PASSWORD:\s*([a-f0-9]{32})/s', $content, $matches)) {
                 return $matches[1];
             }
             if (preg_match('/KC_DB_PASSWORD:\s*([a-f0-9]{32})/', $content, $matches)) {
@@ -2130,10 +2203,15 @@ class AppManager
             if ($allImages) {
                 $imageLines = explode("\n", trim($allImages));
                 foreach ($imageLines as $image) {
-                    // Remove any images that start with the app name
-                    if (strpos($image, $appName . '_') === 0 || strpos($image, $appName . '-') === 0) {
+                    // Match only images belonging to THIS app. A bare prefix
+                    // match ("$appName-") also matches longer app names —
+                    // deleting 'yo' would delete 'yo-sup's images — so the
+                    // name must be followed by a compose/tag separator and
+                    // then the app's own service suffix.
+                    if (preg_match('/^' . preg_quote($appName, '/') . '[_-]' . preg_quote($appName, '/') . '\b/', $image)
+                        || $image === $appName) {
                         echo "Deleting image $image...\n";
-                        shell_exec("podman rmi $image 2>&1");
+                        shell_exec('podman rmi ' . escapeshellarg($image) . ' 2>&1');
                     }
                 }
             }
