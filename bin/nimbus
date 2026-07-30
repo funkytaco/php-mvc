@@ -204,9 +204,29 @@ cmd_logs() {
 }
 
 cmd_dev() {
-    app="${1:-}"
-    [ -n "$app" ] || die "App name required. Usage: nimbus dev <app>"
+    app="${1:-}"; shift 2>/dev/null || true
+    force=""
+    for a in "$@"; do [ "$a" = "--force" ] && force=1; done
+
+    [ -n "$app" ] || die "App name required. Usage: nimbus dev <app> [--force]"
     [ -d "$REPO_ROOT/.installer/apps/$app" ] || die "App '$app' not found. Run: nimbus create $app"
+
+    # Refuse to re-enter dev mode for a stack that already has it. Bringing the
+    # stack up again recreates every container, not just the sidecar — it stops
+    # and removes the app and its database, which for a running site means an
+    # avoidable outage. Nothing here needs doing twice.
+    if [ -z "$force" ] && podman container exists "$app-code-server" 2>/dev/null; then
+        cs_port=$(podman port "$app-code-server" 8080 2>/dev/null | head -1 | sed 's/.*://')
+        cs_state=$(podman inspect "$app-code-server" --format '{{.State.Status}}' 2>/dev/null)
+
+        c_info "Dev mode is already set up for '$app' (container $app-code-server is $cs_state)."
+        [ -n "$cs_port" ] && printf '  Open it:   http://localhost:%s\n' "$cs_port"
+        printf '  Password:  composer nimbus:view %s\n' "$app"
+        printf '  Stop it:   composer nimbus:down %s\n' "$app"
+        printf '\n'
+        c_warn "Re-running recreates every container, including the database. Pass --force if that is what you want."
+        exit 0
+    fi
 
     case "$REPO_ROOT" in
         "$HOME"*) : ;;
