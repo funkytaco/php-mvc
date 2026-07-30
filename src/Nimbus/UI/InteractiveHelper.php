@@ -436,10 +436,14 @@ class InteractiveHelper extends BaseTask
         );
 
         if ($isGit) {
+            $devEnabled = $config['features']['dev'] ?? false;
+
             $steps->add(
                 "bin/nimbus dev $appName",
-                false,
-                'optional — live-edit the repo instead of baking it in',
+                $devEnabled,
+                $devEnabled
+                    ? 'dev mode set up — code-server is part of this stack'
+                    : 'optional — live-edit the repo instead of baking it in',
                 true
             );
         }
@@ -522,7 +526,9 @@ class InteractiveHelper extends BaseTask
         echo PHP_EOL;
         echo self::ansiFormat('INFO', '🖥️  VS Code in browser (code-server):');
         echo '  URL: ' . (!empty($port) ? "http://localhost:$port" : '(assigned on first dev start)') . PHP_EOL;
-        echo "  Password: composer nimbus:config $appName" . PHP_EOL;
+        echo '  Password: composer nimbus:'
+            . (!empty($config['containers']['codeserver']['password']) ? 'config' : 'vault-view')
+            . " $appName" . PHP_EOL;
 
         if ($running) {
             echo "  Stop: composer nimbus:down $appName" . PHP_EOL;
@@ -581,8 +587,12 @@ class InteractiveHelper extends BaseTask
         if (($config['features']['keycloak'] ?? false) && !empty($entry['keycloak'])) {
             $rows[] = ['keycloak admin + client secret', "composer nimbus:vault-view $appName"];
         }
+        // Kept in the vault for apps that have one, and in app.nimbus.json for
+        // those that do not — point at whichever actually holds it.
         if (!empty($config['containers']['codeserver']['password'])) {
             $rows[] = ['code-server password', "composer nimbus:config $appName"];
+        } elseif ($config['features']['dev'] ?? false) {
+            $rows[] = ['code-server password', "composer nimbus:vault-view $appName"];
         }
 
         if ($rows === []) {

@@ -1587,6 +1587,11 @@ class ApplicationTasks {
                     }
                 }
 
+                if (!empty($nimbus['codeserver']['password'])) {
+                    echo "  🖥️  code-server:" . PHP_EOL;
+                    echo "     Password: " . $nimbus['codeserver']['password'] . PHP_EOL;
+                }
+
                 // Keycloak credentials
                 if (isset($credentials['keycloak'])) {
                     echo "  🔐 Keycloak:" . PHP_EOL;

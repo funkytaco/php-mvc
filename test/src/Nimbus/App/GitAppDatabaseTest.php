@@ -638,6 +638,90 @@ class GitAppDatabaseTest extends TestCase
         $manager->addDatabase('static');
     }
 
+    /**
+     * code-server grants a browser shell over the app's source, so its
+     * password belongs with the other credentials rather than in a config file
+     * that gets read, copied and echoed (NIST 800-53 IA-5).
+     */
+    public function testCodeServerPasswordIsStoredInTheVaultNotAppConfig(): void
+    {
+        $vault = $this->makeVault();
+        $manager = $this->makeManager($this->bedrockish(), $vault);
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git', ['database' => true]);
+        $manager->install('blog');
+
+        $dev = $manager->generateDevCompose('blog');
+        $password = $dev['password'];
+
+        $this->assertNotEmpty($password);
+        $this->assertSame($password, $vault->nimbus['blog']['codeserver']['password']);
+
+        $config = $this->configFor('blog');
+        $this->assertArrayNotHasKey('password', $config['containers']['codeserver'] ?? []);
+        $this->assertStringNotContainsString(
+            $password,
+            file_get_contents($this->installerDir . '/blog/app.nimbus.json')
+        );
+
+        // The container still receives it
+        $this->assertStringContainsString(
+            $password,
+            file_get_contents($this->baseDir . '/blog-compose.dev.yml')
+        );
+    }
+
+    public function testRegeneratingDevComposeKeepsTheSameCodeServerPassword(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $first = $manager->generateDevCompose('blog')['password'];
+        $second = $manager->generateDevCompose('blog')['password'];
+
+        $this->assertSame($first, $second);
+    }
+
+    /**
+     * An app that predates vault storage must have its password lifted out of
+     * plaintext rather than rotated — rotating would lock the user out of a
+     * running editor.
+     */
+    public function testExistingPlaintextCodeServerPasswordIsMigratedNotRolled(): void
+    {
+        $vault = $this->makeVault();
+        $manager = $this->makeManager($this->bedrockish(), $vault);
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $configFile = $this->installerDir . '/blog/app.nimbus.json';
+        $config = json_decode(file_get_contents($configFile), true);
+        $config['features']['dev'] = true;
+        $config['containers']['codeserver'] = ['port' => '11999', 'password' => 'legacyPlaintextPw'];
+        file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT));
+
+        $manager->generateDevCompose('blog');
+
+        $this->assertSame('legacyPlaintextPw', $vault->nimbus['blog']['codeserver']['password']);
+        $this->assertStringNotContainsString('legacyPlaintextPw', file_get_contents($configFile));
+    }
+
+    /**
+     * Without a vault there is nowhere else to put it, so the historical
+     * behaviour has to still work rather than losing the password.
+     */
+    public function testCodeServerPasswordFallsBackToConfigWithoutAVault(): void
+    {
+        $manager = $this->makeManager(
+            ['composer.json' => '{}', 'web/index.php' => '<?php'],
+            $this->makeVault(false)
+        );
+        $manager->createFromRepo('plain', 'https://example.com/acme/plain.git');
+
+        $password = $manager->generateDevCompose('plain')['password'];
+
+        $this->assertNotEmpty($password);
+        $this->assertSame($password, $this->configFor('plain')['containers']['codeserver']['password']);
+    }
+
     private function removeDirectory(string $dir): void
     {
         if (!is_dir($dir)) {

@@ -570,6 +570,31 @@ class AppManager
     }
 
     /**
+     * The code-server password for an app.
+     *
+     * It grants a browser shell and editor over the app's source, so it is the
+     * most powerful credential in the stack. Base keeps it in app.nimbus.json
+     * because template apps have no guaranteed vault; managers that do have
+     * one override both this and persistCodeServerPassword().
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function codeServerPassword(string $appName, array $config): string
+    {
+        return (string) ($config['containers']['codeserver']['password'] ?? '');
+    }
+
+    /**
+     * Record a freshly generated code-server password.
+     *
+     * @param array<string, mixed> $config modified in place; the caller saves it
+     */
+    protected function persistCodeServerPassword(string $appName, array &$config, string $password): void
+    {
+        $config['containers']['codeserver']['password'] = $password;
+    }
+
+    /**
      * Browser-based editor sidecar, sharing whichever host directory holds
      * the app's editable source.
      *
@@ -588,7 +613,7 @@ class AppManager
                 $hostDir . ':/home/coder/workspace:Z'
             ],
             'environment' => [
-                'PASSWORD' => $config['containers']['codeserver']['password'] ?? ''
+                'PASSWORD' => $this->codeServerPassword($appName, $config)
             ],
             'command' => ['--bind-addr', '0.0.0.0:8080', '/home/coder/workspace'],
             'networks' => [$appName . '-net']
@@ -1818,11 +1843,9 @@ class AppManager
         // Persist code-server port + password once so they survive regeneration,
         // and flag dev as an app feature so up/down/status include the sidecar
         $dirty = false;
-        if (empty($config['containers']['codeserver']['password'])) {
-            $config['containers']['codeserver'] = [
-                'port' => (string) $this->generateCodeServerPort($appName),
-                'password' => $this->generatePassword()
-            ];
+        if ($this->codeServerPassword($appName, $config) === '') {
+            $config['containers']['codeserver']['port'] = (string) $this->generateCodeServerPort($appName);
+            $this->persistCodeServerPassword($appName, $config, $this->generatePassword());
             $dirty = true;
         }
         if (!($config['features']['dev'] ?? false)) {
@@ -1844,7 +1867,7 @@ class AppManager
         return [
             'file' => $file,
             'port' => $config['containers']['codeserver']['port'],
-            'password' => $config['containers']['codeserver']['password']
+            'password' => $this->codeServerPassword($appName, $config)
         ];
     }
     

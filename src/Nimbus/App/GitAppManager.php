@@ -66,6 +66,9 @@ class GitAppManager extends AppManager
     /** Settings a repo manifest is allowed to declare. */
     protected const MANIFEST_KEYS = ['runtime', 'docroot', 'containerfile', 'container_port', 'webroot', 'command', 'database'];
 
+    /** Where the code-server password sits inside the app's nimbus namespace. */
+    private const CODESERVER_KEY = 'codeserver';
+
     private ?EnvManager $envManager = null;
 
     private ?SecretsManager $secretsManager = null;
@@ -1118,8 +1121,72 @@ class GitAppManager extends AppManager
      *
      * @return array<string, mixed>
      */
+    /**
+     * The code-server password lives in the vault for git apps, like every
+     * other credential they hold.
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function codeServerPassword(string $appName, array $config): string
+    {
+        $stored = $this->getVaultManager()->getNimbusData($appName)[self::CODESERVER_KEY]['password'] ?? null;
+
+        if (is_string($stored) && $stored !== '') {
+            return $stored;
+        }
+
+        // Apps created before the password moved into the vault still have it
+        // in their config; migrateCodeServerPassword() lifts it out.
+        return parent::codeServerPassword($appName, $config);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    protected function persistCodeServerPassword(string $appName, array &$config, string $password): void
+    {
+        if (!$this->getVaultManager()->isInitialized()) {
+            parent::persistCodeServerPassword($appName, $config, $password);
+
+            return;
+        }
+
+        $data = $this->getVaultManager()->getNimbusData($appName);
+        $data[self::CODESERVER_KEY] = ['password' => $password];
+        $this->getVaultManager()->setNimbusData($appName, $data);
+
+        // Never both places at once
+        unset($config['containers']['codeserver']['password']);
+    }
+
+    /**
+     * Lift a code-server password out of plaintext config for an app created
+     * before it was kept in the vault.
+     *
+     * Runs on the next dev-mode generation rather than as a separate migration
+     * command, because that is the only moment the password is needed anyway.
+     */
+    protected function migrateCodeServerPassword(string $appName): void
+    {
+        if (!$this->getVaultManager()->isInitialized()) {
+            return;
+        }
+
+        $config = $this->loadAppConfig($appName);
+        $plaintext = $config['containers']['codeserver']['password'] ?? null;
+
+        if (!is_string($plaintext) || $plaintext === '') {
+            return;
+        }
+
+        $this->persistCodeServerPassword($appName, $config, $plaintext);
+        $this->saveAppConfig($appName, $config);
+    }
+
     public function generateDevCompose(string $appName): array
     {
+        $this->migrateCodeServerPassword($appName);
+
         $result = parent::generateDevCompose($appName);
 
         $environment = $this->resolveAppEnvironment(
