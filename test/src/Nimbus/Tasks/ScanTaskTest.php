@@ -130,6 +130,53 @@ class ScanTaskTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/-v [^ ]+:rw/', $command);
     }
 
+    /**
+     * `trivy config` scans misconfigurations by its nature and rejects the
+     * --scanners flag with a FATAL — which is exactly how this regressed.
+     */
+    public function testScanCommandUsesOnlyFlagsTrivyConfigAccepts(): void
+    {
+        $commands = [];
+        $command = $this->scanCommand($this->makeTask($commands));
+
+        $this->assertStringNotContainsString('--scanners', $command);
+        $this->assertStringContainsString('--skip-check-update', $command, 'offline scan must not wait on a check-bundle fetch');
+        $this->assertStringContainsString("--skip-dirs '**/vendor'", $command, 'third-party dependencies are not this app');
+    }
+
+    /**
+     * A scanner that failed to run is not a scan result — its FATAL must not
+     * be followed by the success footer.
+     */
+    public function testScannerFailureIsReportedAsAFailureNotAsFindings(): void
+    {
+        $commands = [];
+        $task = new class ($this->baseDir) extends ScanTask {
+            /** @var array<int, string> */
+            public array $commands = [];
+
+            protected function runCommand(string $command): ?string
+            {
+                $this->commands[] = $command;
+
+                if (str_contains($command, 'podman images')) {
+                    return 'sha256:abc123';
+                }
+
+                return "Usage:\n  trivy config [flags] DIR\n\n2026-07-30T07:52:13Z    FATAL   Fatal error     unknown flag: --scanners";
+            }
+        };
+
+        ob_start();
+        $result = $task->scanApp('blog');
+        $output = ob_get_clean();
+
+        $this->assertFalse($result);
+        $this->assertStringContainsString('scanner itself failed', $output);
+        $this->assertStringContainsString('unknown flag', $output);
+        $this->assertStringNotContainsString('Findings are advisory', $output);
+    }
+
     public function testScannerImageIsPinned(): void
     {
         $commands = [];

@@ -125,6 +125,23 @@ class ScanTask extends BaseTask
             return false;
         }
 
+        // The scanner failing is not a scan result. Without this, trivy's own
+        // usage dump and FATAL line were followed by our success footer.
+        if (preg_match('/^\s*(?:\S+\s+)?FATAL\b/m', $output) === 1) {
+            $fatal = null;
+            foreach (explode("\n", $output) as $line) {
+                if (str_contains($line, 'FATAL')) {
+                    $fatal = trim($line);
+                }
+            }
+
+            echo self::ansiFormat('ERROR', 'The scanner itself failed — no scan was performed.');
+            echo '  ' . ($fatal ?? 'See full output below.') . PHP_EOL;
+            echo self::ansiFormat('INFO', 'Nothing about the app was checked or changed.');
+
+            return false;
+        }
+
         echo $output . PHP_EOL;
         echo self::ansiFormat('INFO', 'Findings are advisory — Nimbus does not modify your repository.');
         echo self::ansiFormat('INFO', "The scanner container ($appName" . self::CONTAINER_SUFFIX . ') has already been removed.');
@@ -173,8 +190,10 @@ class ScanTask extends BaseTask
         }
 
         // --network=none: `trivy config` uses policies baked into the image,
-        // so the scanner never needs to reach the network. No podman socket is
-        // mounted, deliberately.
+        // so the scanner never needs to reach the network (pass
+        // --skip-check-update or it tries anyway and wastes a timeout). No
+        // podman socket is mounted, deliberately. `config` scans
+        // misconfigurations only by its nature — it takes no --scanners flag.
         return 'podman run --rm'
             . ' --name ' . escapeshellarg($appName . self::CONTAINER_SUFFIX)
             . ' --network=none'
@@ -182,7 +201,11 @@ class ScanTask extends BaseTask
             . ' --security-opt=no-new-privileges'
             . $mounts
             . ' ' . escapeshellarg(self::SCANNER_IMAGE)
-            . ' config --exit-code 0 --scanners misconfig /scan'
+            . ' config --exit-code 0 --skip-check-update'
+            // Third-party dependencies ship their own Dockerfiles and CI
+            // configs; findings there are not actionable for this app.
+            . " --skip-dirs '**/vendor' --skip-dirs '**/node_modules'"
+            . ' /scan'
             . ' 2>&1';
     }
 
