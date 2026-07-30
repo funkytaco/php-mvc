@@ -369,6 +369,16 @@ class ContainerTask extends BaseTask
         $this->displayAppDetails($appName);
         $this->interactiveHelper->displayDevModeInfo($appName);
         $this->interactiveHelper->displayKeycloakCredentials($appName);
+
+        try {
+            $this->interactiveHelper->displayAppCommands(
+                $appName,
+                $this->appManager->loadAppConfig($appName),
+                $this->appManager
+            );
+        } catch (\Throwable $e) {
+            // A viewable app with an unreadable config is worth not crashing over
+        }
     }
 
     /**
@@ -391,10 +401,11 @@ class ContainerTask extends BaseTask
             
             // Show database connection info
             if ($appConfig['features']['database'] ?? true) {
+                $engine = \Nimbus\Database\DatabaseEngine::fromConfig($appConfig);
                 $dbName = $appConfig['database']['name'] ?? ($appName . '_db');
                 $dbUser = $appConfig['database']['user'] ?? ($appName . '_user');
                 echo "  📊 Database: $dbName (user: $dbUser)" . PHP_EOL;
-                echo "  🐘 Postgres container: $appName-postgres" . PHP_EOL;
+                echo "  🗄️  {$engine->image} container: {$engine->containerName($appName)}" . PHP_EOL;
             }
             
             // Show EDA info if enabled

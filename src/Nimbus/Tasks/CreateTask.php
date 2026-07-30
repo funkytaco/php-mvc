@@ -191,11 +191,7 @@ class CreateTask extends BaseTask
                 echo self::ansiFormat('INFO', "🔐 Credentials and secrets are stored in the vault, not in app config.");
                 echo self::ansiFormat('INFO', "📄 A resolved .env is written to .installer/apps/$appName/.env on install.");
             }
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "Next steps:");
-            echo "  composer nimbus:install $appName" . PHP_EOL;
-            echo "  composer nimbus:up $appName" . PHP_EOL;
-            echo "  bin/nimbus dev $appName   # live-edit the repo in a container" . PHP_EOL;
+            $this->interactiveHelper->displayAppCommands($appName, $config, $manager);
         } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }

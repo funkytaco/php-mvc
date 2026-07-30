@@ -273,9 +273,15 @@ class GitAppManager extends AppManager
 
         $plain = [];
         $secretKeys = [];
+        $declaresDatabase = false;
 
         foreach ($example as $key => $value) {
             if (in_array($key, EnvManager::DERIVED_KEYS, true)) {
+                // A repo documenting DB_NAME/DB_USER/DB_PASSWORD is telling us
+                // it does not run without a database — worth recording, since
+                // it is the difference between "you could add one" and "this
+                // will not boot until you do".
+                $declaresDatabase = true;
                 continue;
             }
 
@@ -300,6 +306,17 @@ class GitAppManager extends AppManager
             $this->assertVaultAvailable($appName, 'its repository declares secret environment values');
             $this->getSecretsManager()->generateMissing($appName, $secretKeys);
             $this->notices[] = count($secretKeys) . ' secret value(s) generated and stored in the vault.';
+        }
+
+        if ($declaresDatabase) {
+            $config = $this->loadAppConfig($appName);
+            $config['source']['declares_database'] = true;
+            $this->saveAppConfig($appName, $config);
+
+            if (!($config['features']['database'] ?? false)) {
+                $this->notices[] = 'This repository expects a database — its .env.example declares '
+                    . 'DB_* variables. Add one with: composer nimbus:add-db ' . $appName;
+            }
         }
     }
 
@@ -468,13 +485,29 @@ class GitAppManager extends AppManager
     }
 
     /**
-     * App name as a SQL identifier. MySQL and MariaDB accept a hyphen in a
-     * database name only when it is quoted everywhere it is referenced, which
-     * neither the image's entrypoint nor most apps do.
+     * The apps this manager targets are CMS and framework projects, which
+     * overwhelmingly expect MySQL rather than Postgres.
      */
-    protected function databaseIdentifier(string $appName): string
+    protected function defaultDatabaseSpec(): string
     {
-        return str_replace('-', '_', $appName);
+        return DatabaseEngine::DEFAULT_GIT_ENGINE;
+    }
+
+    /**
+     * A git app's database password lives in the vault and nowhere else.
+     */
+    protected function assertDatabaseSupported(string $appName, DatabaseEngine $engine): void
+    {
+        $this->assertVaultAvailable($appName, 'it has a database password to store');
+    }
+
+    /**
+     * Deliberately nothing: writing the password into app.nimbus.json is
+     * exactly what git apps avoid. It is resolved from the vault whenever the
+     * compose file is generated.
+     */
+    protected function persistDatabaseCredentials(string $appName, PasswordSet $passwords): void
+    {
     }
 
     /**
@@ -858,22 +891,51 @@ class GitAppManager extends AppManager
      */
     protected function resolveAppEnvironment(string $appName, array $config, ?PasswordSet $passwords): array
     {
-        $derived = [];
+        return $this->getEnvManager()->resolve(
+            $appName,
+            $this->derivedEnvironment($appName, $config, $passwords),
+            $this->getSecretsManager()
+        );
+    }
 
-        if (($config['features']['database'] ?? false) && $passwords !== null) {
-            $engine = DatabaseEngine::fromConfig($config);
-
-            $derived = [
-                // Reachable under this name on the app's compose network
-                'DB_HOST' => $engine->containerName($appName),
-                'DB_PORT' => (string) $engine->port(),
-                'DB_NAME' => $config['database']['name'] ?? $this->databaseIdentifier($appName) . '_db',
-                'DB_USER' => $config['database']['user'] ?? $this->databaseIdentifier($appName) . '_user',
-                'DB_PASSWORD' => $passwords->databasePassword,
-            ];
+    /**
+     * The values Nimbus computes from the app's own configuration, as opposed
+     * to the ones it stores.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, string>
+     */
+    protected function derivedEnvironment(string $appName, array $config, ?PasswordSet $passwords): array
+    {
+        if (!($config['features']['database'] ?? false) || $passwords === null) {
+            return [];
         }
 
-        return $this->getEnvManager()->resolve($appName, $derived, $this->getSecretsManager());
+        $engine = DatabaseEngine::fromConfig($config);
+
+        return [
+            // Reachable under this name on the app's compose network
+            'DB_HOST' => $engine->containerName($appName),
+            'DB_PORT' => (string) $engine->port(),
+            'DB_NAME' => $config['database']['name'] ?? $this->databaseIdentifier($appName) . '_db',
+            'DB_USER' => $config['database']['user'] ?? $this->databaseIdentifier($appName) . '_user',
+            'DB_PASSWORD' => $passwords->databasePassword,
+        ];
+    }
+
+    /**
+     * @return array{derived: array<string, string>, stored: array<string, string>, secrets: array<string, string>, dotenv: ?string}
+     */
+    public function describeEnvironment(string $appName): array
+    {
+        $config = $this->loadAppConfig($appName);
+
+        return [
+            'derived' => $this->derivedEnvironment($appName, $config, $this->extractPasswordsFromConfig($appName)),
+            'stored' => $this->getEnvManager()->all($appName),
+            'secrets' => $this->getSecretsManager()->all($appName),
+            'dotenv' => $this->getEnvManager()->dotEnvPath($appName),
+        ];
     }
 
     /**
@@ -911,6 +973,48 @@ class GitAppManager extends AppManager
         }
 
         parent::generatePodmanCompose($appName, $config);
+    }
+
+    /**
+     * Keep the generated .env in step with the compose file that mounts it.
+     *
+     * Every path that rewrites compose without going through install — adding
+     * a database, toggling a feature — has to refresh the .env too. Otherwise
+     * the mount points at a file that is missing or stale, and podman silently
+     * creates a *directory* in its place, which the app then fails to read.
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function regenerateComposeFile(string $appName, array $config): void
+    {
+        $environment = $this->resolveAppEnvironment(
+            $appName,
+            $config,
+            $this->extractPasswordsFromConfig($appName)
+        );
+
+        if ($environment !== []) {
+            $this->getEnvManager()->writeDotEnv($appName, $environment);
+        }
+
+        parent::regenerateComposeFile($appName, $config);
+    }
+
+    /**
+     * A git app is only startable once the .env its compose file mounts also
+     * exists, not just the compose file itself.
+     */
+    public function isInstalled(string $appName): bool
+    {
+        if (!parent::isInstalled($appName)) {
+            return false;
+        }
+
+        if (!$this->hasAppEnvironment($appName, $this->loadAppConfig($appName))) {
+            return true;
+        }
+
+        return is_file($this->getEnvManager()->dotEnvPath($appName));
     }
 
     /**

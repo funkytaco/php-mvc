@@ -333,6 +333,30 @@ class AppManager
     }
 
     /**
+     * Whether the generated runtime files this app needs to start are on disk.
+     */
+    public function isInstalled(string $appName): bool
+    {
+        return is_file($this->baseDir . '/' . $appName . '-compose.yml');
+    }
+
+    /**
+     * The row describeApps() produces, for a single app.
+     *
+     * @return array{name: string, source: string, state: string, running: int, total: int, port: ?string}|null
+     */
+    public function describeApp(string $appName): ?array
+    {
+        foreach ($this->describeApps() as $row) {
+            if ($row['name'] === $appName) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Container state for every compose project on the host, in one call.
      *
      * @return array<string, array<string, string>> project => [container => state]
@@ -1120,6 +1144,117 @@ class AppManager
      * Only 'eda' and 'keycloak' are supported: 'database' toggling after
      * creation is out of scope (data-loss questions), use --no-db at create.
      */
+    /**
+     * Give an app a database it was created without.
+     *
+     * $spec is an engine name or an image reference; null takes the manager's
+     * own default. Refuses rather than re-provisioning an app that already has
+     * one — re-running this must never roll a password the running database
+     * still expects.
+     */
+    public function addDatabase(string $appName, ?string $spec = null): \Nimbus\Database\DatabaseEngine
+    {
+        if (!$this->appExists($appName)) {
+            throw new \RuntimeException("App '$appName' not found");
+        }
+
+        $config = $this->loadAppConfig($appName);
+
+        if ($config['features']['database'] ?? false) {
+            throw new \RuntimeException(
+                "App '$appName' already has a database ("
+                . \Nimbus\Database\DatabaseEngine::fromConfig($config)->image . ').'
+            );
+        }
+
+        $engine = \Nimbus\Database\DatabaseEngine::fromSpec($spec ?? $this->defaultDatabaseSpec());
+
+        $this->assertDatabaseSupported($appName, $engine);
+
+        $config['features']['database'] = true;
+        $config['database'] = array_merge($config['database'] ?? [], [
+            'engine' => $engine->name,
+            'image' => $engine->image,
+            'name' => $this->databaseIdentifier($appName) . '_db',
+            'user' => $this->databaseIdentifier($appName) . '_user',
+        ]);
+
+        // Written before passwords are resolved: the engine decides which
+        // credentials exist and where they are probed for.
+        $this->saveAppConfig($appName, $config);
+
+        $passwords = $this->resolveAppPasswords($appName);
+        $this->backupPasswordsToVault($appName, $passwords);
+        $this->persistDatabaseCredentials($appName, $passwords);
+
+        $this->regenerateComposeFile($appName, $this->loadAppConfig($appName));
+
+        return $engine;
+    }
+
+    /**
+     * The environment an app's container runs with, grouped by where each
+     * value comes from.
+     *
+     * Managers whose apps read their configuration some other way — the
+     * framework image reads app.config.php at request time — report nothing.
+     *
+     * @return array{derived: array<string, string>, stored: array<string, string>, secrets: array<string, string>, dotenv: ?string}
+     */
+    public function describeEnvironment(string $appName): array
+    {
+        return ['derived' => [], 'stored' => [], 'secrets' => [], 'dotenv' => null];
+    }
+
+    /**
+     * Engine an app gets when it asks for a database without naming one.
+     */
+    protected function defaultDatabaseSpec(): string
+    {
+        return \Nimbus\Database\DatabaseEngine::DEFAULT_ENGINE;
+    }
+
+    /**
+     * Hook for managers with a precondition on having a database at all.
+     */
+    protected function assertDatabaseSupported(string $appName, \Nimbus\Database\DatabaseEngine $engine): void
+    {
+    }
+
+    /**
+     * Record the resolved database password wherever this manager's apps read
+     * it from. Template apps read app.config.php / app.nimbus.json; managers
+     * that keep credentials only in the vault override this to do nothing.
+     */
+    protected function persistDatabaseCredentials(string $appName, \Nimbus\Password\PasswordSet $passwords): void
+    {
+        $config = $this->loadAppConfig($appName);
+        $config['database']['password'] = $passwords->databasePassword;
+
+        $this->saveAppConfig($appName, $config);
+    }
+
+    /**
+     * App name as a SQL identifier. MySQL and MariaDB accept a hyphen in a
+     * database name only when it is quoted everywhere it is referenced, which
+     * neither the image's entrypoint nor most apps do.
+     */
+    protected function databaseIdentifier(string $appName): string
+    {
+        return str_replace('-', '_', $appName);
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    protected function saveAppConfig(string $appName, array $config): void
+    {
+        file_put_contents(
+            $this->installerDir . '/' . $appName . '/app.nimbus.json',
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
     public function setFeature(string $appName, string $feature, bool $enabled): bool
     {
         if (!in_array($feature, ['eda', 'keycloak'], true)) {
@@ -1183,6 +1318,10 @@ class AppManager
         
         $composeFile = $this->baseDir . '/' . $appName . '-compose.yml';
         file_put_contents($composeFile, $yamlContent);
+
+        // Same reasoning as generatePodmanCompose(): this file carries
+        // credentials in the clear (IA-5).
+        chmod($composeFile, 0600);
     }
     
     /**

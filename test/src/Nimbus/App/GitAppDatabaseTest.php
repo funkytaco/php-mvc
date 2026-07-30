@@ -317,6 +317,57 @@ class GitAppDatabaseTest extends TestCase
         $this->assertArrayNotHasKey('AUTH_KEY', $config['env']);
     }
 
+    /**
+     * A repo documenting DB_* in .env.example is stating it needs a database.
+     * That is what turns "you could add one" into "this will not boot until
+     * you do" in the gated step list.
+     */
+    public function testRepoDeclaringDatabaseVarsIsRecorded(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $this->assertTrue($this->configFor('blog')['source']['declares_database']);
+
+        $this->assertNotEmpty(array_filter(
+            $manager->getNotices(),
+            static fn (string $n): bool => str_contains($n, 'expects a database')
+        ));
+    }
+
+    public function testRepoWithoutDatabaseVarsIsNotFlagged(): void
+    {
+        $manager = $this->makeManager([
+            'composer.json' => '{}',
+            'web/index.php' => '<?php',
+            '.env.example' => "APP_NAME='demo'\n",
+        ]);
+        $manager->createFromRepo('plain', 'https://example.com/acme/plain.git');
+
+        $this->assertArrayNotHasKey('declares_database', $this->configFor('plain')['source']);
+
+        $this->assertSame([], array_filter(
+            $manager->getNotices(),
+            static fn (string $n): bool => str_contains($n, 'expects a database')
+        ));
+    }
+
+    /**
+     * Once the app has a database, the "you need one" nudge must stop.
+     */
+    public function testNoDatabaseNudgeWhenOneWasRequested(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git', ['database' => true]);
+
+        $this->assertTrue($this->configFor('blog')['source']['declares_database']);
+
+        $this->assertSame([], array_filter(
+            $manager->getNotices(),
+            static fn (string $n): bool => str_contains($n, 'expects a database')
+        ));
+    }
+
     public function testExampleUrlsArePointedAtTheAppsOwnPortAndFlattened(): void
     {
         $manager = $this->makeManager($this->bedrockish());
@@ -430,6 +481,161 @@ class GitAppDatabaseTest extends TestCase
             'schema.sql',
             file_get_contents($this->baseDir . '/blog-compose.yml')
         );
+    }
+
+    public function testDatabaseCanBeAddedAfterTheAppWasCreatedWithoutOne(): void
+    {
+        $vault = $this->makeVault();
+        $manager = $this->makeManager($this->bedrockish(), $vault);
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+        $manager->install('blog');
+
+        $this->assertFalse($this->configFor('blog')['features']['database']);
+
+        $engine = $manager->addDatabase('blog');
+
+        $this->assertSame('mariadb:12', $engine->image, 'git apps default to MariaDB');
+
+        $config = $this->configFor('blog');
+        $this->assertTrue($config['features']['database']);
+        $this->assertSame('mariadb', $config['database']['engine']);
+        $this->assertSame('blog_db', $config['database']['name']);
+        $this->assertArrayNotHasKey('password', $config['database']);
+
+        // The credential landed in the vault, and the compose file was rebuilt
+        $this->assertNotEmpty($vault->credentials['blog']['database']['password']);
+
+        $compose = file_get_contents($this->baseDir . '/blog-compose.yml');
+        $this->assertStringContainsString('container_name: blog-db', $compose);
+        $this->assertStringContainsString('MYSQL_DATABASE: blog_db', $compose);
+        $this->assertStringContainsString('condition: service_healthy', $compose);
+    }
+
+    /**
+     * The CLI asks before running this, and a declined prompt must leave the
+     * app exactly as it was — so addDatabase() has to be the only thing that
+     * writes anything.
+     */
+    public function testNothingIsWrittenUntilAddDatabaseIsCalled(): void
+    {
+        $vault = $this->makeVault();
+        $manager = $this->makeManager($this->bedrockish(), $vault);
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+        $manager->install('blog');
+
+        $configFile = $this->installerDir . '/blog/app.nimbus.json';
+        $composeFile = $this->baseDir . '/blog-compose.yml';
+
+        $configBefore = file_get_contents($configFile);
+        $composeBefore = file_get_contents($composeFile);
+
+        // Everything the confirmation prompt does before the user answers
+        $engine = \Nimbus\Database\DatabaseEngine::fromSpec('mariadb');
+        $manager->describeEnvironment('blog');
+        $manager->loadAppConfig('blog');
+
+        $this->assertSame('mariadb:12', $engine->image);
+        $this->assertSame($configBefore, file_get_contents($configFile));
+        $this->assertSame($composeBefore, file_get_contents($composeFile));
+        $this->assertArrayNotHasKey('database', $vault->credentials['blog'] ?? []);
+    }
+
+    /**
+     * The question the gated step list answers: after add-db, is install still
+     * required? It must not be — the compose file mounts a .env, and podman
+     * creates a directory in its place when the source is missing.
+     */
+    public function testAddingADatabaseLeavesTheAppStartableWithoutInstall(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $this->assertFalse($manager->isInstalled('blog'), 'nothing generated yet');
+
+        $manager->addDatabase('blog');
+
+        $this->assertTrue($manager->isInstalled('blog'));
+
+        $dotEnv = $this->installerDir . '/blog/.env';
+        $this->assertFileExists($dotEnv);
+
+        // The two delivery paths must agree, or the app authenticates with one
+        // password while the database was created with the other
+        preg_match('/DB_PASSWORD: (\S+)/', file_get_contents($this->baseDir . '/blog-compose.yml'), $fromCompose);
+        preg_match("/DB_PASSWORD='([^']+)'/", file_get_contents($dotEnv), $fromDotEnv);
+
+        $this->assertNotEmpty($fromCompose[1] ?? '');
+        $this->assertSame($fromCompose[1], $fromDotEnv[1] ?? null);
+    }
+
+    /**
+     * A git app whose .env is missing is not startable, whatever the compose
+     * file says.
+     */
+    public function testGitAppWithoutItsDotEnvIsNotConsideredInstalled(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git', ['database' => true]);
+        $manager->install('blog');
+
+        $this->assertTrue($manager->isInstalled('blog'));
+
+        unlink($this->installerDir . '/blog/.env');
+
+        $this->assertFalse($manager->isInstalled('blog'));
+    }
+
+    public function testAddingADatabaseAcceptsAnExplicitEngine(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $this->assertSame('mysql:8.4', $manager->addDatabase('blog', 'mysql')->image);
+    }
+
+    /**
+     * Re-running it must never roll a password the running database still
+     * expects.
+     */
+    public function testAddingADatabaseTwiceIsRefused(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git', ['database' => true]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/already has a database/');
+
+        $manager->addDatabase('blog');
+    }
+
+    public function testAddingADatabaseRefusesAnUnpinnedImage(): void
+    {
+        $manager = $this->makeManager($this->bedrockish());
+        $manager->createFromRepo('blog', 'https://example.com/roots/bedrock.git');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $manager->addDatabase('blog', 'mariadb:latest');
+    }
+
+    /**
+     * Marks the boundary: a repo with nothing secret needs no vault to be
+     * created, but does the moment it has a password to store.
+     */
+    public function testAddingADatabaseRefusesWithoutAVault(): void
+    {
+        $manager = $this->makeManager(
+            ['composer.json' => '{}', 'web/index.php' => '<?php'],
+            $this->makeVault(false)
+        );
+
+        $manager->createFromRepo('static', 'https://example.com/acme/static.git');
+        $this->assertDirectoryExists($this->installerDir . '/static');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/vault/i');
+
+        $manager->addDatabase('static');
     }
 
     private function removeDirectory(string $dir): void

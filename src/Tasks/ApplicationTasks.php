@@ -328,6 +328,21 @@ class ApplicationTasks {
         $task->scan($event);
     }
 
+    public static function nimbusAddDb(Event $event) {
+        $task = new \Nimbus\Tasks\FeatureTask();
+        $task->addDatabase($event);
+    }
+
+    public static function nimbusEnv(Event $event) {
+        $task = new \Nimbus\Tasks\EnvTask();
+        $task->showEnv($event);
+    }
+
+    public static function nimbusConfig(Event $event) {
+        $task = new \Nimbus\Tasks\EnvTask();
+        $task->showConfig($event);
+    }
+
     public static function nimbusList(Event $event) {
         $task = new \Nimbus\Tasks\InstallTask();
         $task->list($event);

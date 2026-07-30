@@ -6,6 +6,7 @@ use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
 use Nimbus\App\AppManagerFactory;
 use Nimbus\Template\TemplateConfig;
+use Nimbus\UI\StepList;
 use Composer\IO\IOInterface;
 
 class InteractiveHelper extends BaseTask
@@ -343,6 +344,158 @@ class InteractiveHelper extends BaseTask
      * overlay is built, so it's only shown once it actually exists rather
      * than printing a value that isn't real yet.
      */
+    /**
+     * The commands that answer "what is this app actually configured with,
+     * and what do I do next".
+     *
+     * Shown after create and by nimbus:view, from one place, so the two can
+     * never drift into suggesting different things.
+     *
+     * @param array<string, mixed> $config the app's app.nimbus.json
+     */
+    public function displayAppCommands(string $appName, array $config, ?AppManager $manager = null): void
+    {
+        $inspect = [
+            ["composer nimbus:config $appName", 'app.nimbus.json as written on disk'],
+            ["composer nimbus:env $appName", 'resolved environment (secrets masked)'],
+            ["composer nimbus:vault-view $appName", 'the credentials behind it'],
+            ["composer nimbus:scan $appName", 'security scan (throwaway container)'],
+        ];
+
+        $width = max(array_map(static fn (array $row): int => strlen($row[0]), $inspect));
+
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', '🔍 Inspect:');
+        $this->printCommands($inspect, $width);
+
+        // Where the app stands right now, so the list below reads as what is
+        // left to do rather than as things that might already be done.
+        if ($manager !== null) {
+            $this->displayAppStatus($appName, $manager);
+        }
+
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', 'Next steps:');
+        echo $this->buildAppSteps($appName, $config, $manager)->render();
+    }
+
+    /**
+     * The remaining work for an app, with each step knowing whether it is
+     * already done.
+     *
+     * Steps that Nimbus cannot know are needed — adding a database to a repo
+     * that never mentions one, or dev mode — are marked optional so they never
+     * take the "run this next" marker away from something that is required.
+     *
+     * @param array<string, mixed> $config
+     */
+    private function buildAppSteps(string $appName, array $config, ?AppManager $manager): StepList
+    {
+        $isGit = ($config['source']['kind'] ?? null) === 'git';
+        $hasDatabase = $config['features']['database'] ?? false;
+        $declaresDatabase = $config['source']['declares_database'] ?? false;
+
+        $installed = false;
+        $running = false;
+
+        if ($manager !== null) {
+            try {
+                $installed = $manager->isInstalled($appName);
+                $running = in_array($manager->describeApp($appName)['state'] ?? '', ['running', 'partial'], true);
+            } catch (\Throwable $e) {
+                // podman unavailable; the commands are still worth printing
+            }
+        }
+
+        $steps = new StepList();
+
+        if (!$hasDatabase) {
+            $steps->add(
+                "composer nimbus:add-db $appName",
+                false,
+                $declaresDatabase
+                    ? 'this repo declares DB_* in .env.example — it needs one'
+                    : 'optional — add a database (default mariadb:12)',
+                !$declaresDatabase
+            );
+        }
+
+        $steps->add(
+            "composer nimbus:install $appName",
+            $installed,
+            $installed
+                ? 'already done — compose' . ($isGit ? ' and .env are' : ' is') . ' current'
+                : 'write compose' . ($isGit ? ' and .env' : '')
+        );
+
+        $steps->add(
+            "composer nimbus:up $appName",
+            $running,
+            $running ? 'already running' : 'start the stack'
+        );
+
+        if ($isGit) {
+            $steps->add(
+                "bin/nimbus dev $appName",
+                false,
+                'optional — live-edit the repo instead of baking it in',
+                true
+            );
+        }
+
+        return $steps;
+    }
+
+    /**
+     * One-line "is this thing up yet" summary, from the same state vocabulary
+     * nimbus:status uses.
+     */
+    public function displayAppStatus(string $appName, AppManager $manager): void
+    {
+        try {
+            $row = $manager->describeApp($appName);
+        } catch (\Throwable $e) {
+            return;  // podman unavailable; the command list is still useful
+        }
+
+        if ($row === null) {
+            return;
+        }
+
+        [$icon, $label, $detail] = match ($row['state']) {
+            'created' => ['⚪', 'not installed', "no $appName-compose.yml yet"],
+            'installed' => ['⚪', 'installed, not started', 'no containers created yet'],
+            'stopped' => ['🔴', 'stopped', "{$row['total']} container(s) exist, none running"],
+            'partial' => ['🟡', 'partially running', "{$row['running']}/{$row['total']} containers up"],
+            'running' => ['🟢', 'running', "{$row['running']}/{$row['total']} containers up"],
+            default => ['⚪', $row['state'], ''],
+        };
+
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', "📊 Status: $label");
+
+        if ($detail !== '') {
+            echo "  $icon $detail" . PHP_EOL;
+        }
+
+        if (!empty($row['port'])) {
+            $isUp = in_array($row['state'], ['running', 'partial'], true);
+            echo '  🌐 http://localhost:' . $row['port'] . ($isUp ? '' : '  (once started)') . PHP_EOL;
+        }
+    }
+
+    /**
+     * @param array<int, array{0: string, 1: ?string}> $rows
+     */
+    private function printCommands(array $rows, int $width): void
+    {
+        foreach ($rows as [$command, $comment]) {
+            echo $comment === null
+                ? '  ' . $command . PHP_EOL
+                : sprintf("  %-{$width}s  # %s\n", $command, $comment);
+        }
+    }
+
     public function displayDevModeInfo(string $appName): void
     {
         try {
