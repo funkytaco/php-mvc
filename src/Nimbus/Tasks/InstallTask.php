@@ -53,6 +53,17 @@ class InstallTask extends BaseTask
 
     public function list(Event $event): void
     {
+        // `nimbus:list <app>` reads as "list this one"; ignoring the argument
+        // silently left people thinking the filter had worked.
+        $this->listApps($event->getArguments()[0] ?? null);
+    }
+
+    /**
+     * The body of nimbus:list, free of the Composer event so it can be driven
+     * directly.
+     */
+    public function listApps(?string $filter = null): void
+    {
         try {
             $apps = $this->appManager->describeApps();
 
@@ -60,6 +71,18 @@ class InstallTask extends BaseTask
                 echo self::ansiFormat('INFO', 'No apps created yet.');
                 echo self::ansiFormat('INFO', 'Create one with: composer nimbus:create my-app');
                 return;
+            }
+
+            if ($filter !== null) {
+                $matched = array_values(array_filter($apps, fn (array $a) => $a['name'] === $filter));
+
+                if ($matched === []) {
+                    echo self::ansiFormat('ERROR', "App '$filter' not found.");
+                    echo self::ansiFormat('INFO', 'Run without an app name to see them all.');
+                    return;
+                }
+
+                $apps = $matched;
             }
 
             $nameWidth = max(array_map(fn (array $a) => strlen($a['name']), $apps));
@@ -81,6 +104,11 @@ class InstallTask extends BaseTask
                     $app['port'] !== null ? 'http://localhost:' . $app['port'] : ''
                 );
             }
+
+            // A concrete name rather than a placeholder, so it is copy-pastable
+            echo PHP_EOL;
+            echo self::ansiFormat('INFO', 'Related commands:');
+            echo '  composer nimbus:view ' . $apps[0]['name'] . PHP_EOL;
 
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to list apps: ' . $e->getMessage());
