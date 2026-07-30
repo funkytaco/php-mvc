@@ -293,29 +293,32 @@ class ContainerTask extends BaseTask
         $buildCommand = "podman-compose $composeFlags up --build -d";
 
         echo self::ansiFormat('INFO', "Running: $buildCommand");
-        $output = shell_exec($buildCommand . ' 2>&1');
 
-        if ($output) {
-            echo $output;
+        // passthru, not shell_exec: a build streams progress for minutes, and
+        // it reports the exit status. Success used to be inferred from
+        // `podman-compose ps --format table` having output — but that command
+        // prints nothing here, so a perfectly good build fell straight through
+        // and told the user nothing.
+        passthru($buildCommand . ' 2>&1', $exitCode);
+
+        if ($exitCode !== 0) {
+            echo self::ansiFormat('ERROR', "Failed to start '$appName' — podman-compose exited $exitCode.");
+            echo self::ansiFormat('INFO', "Inspect the stack with: composer nimbus:view $appName");
+
+            return;
         }
 
-        // Probed rather than printed: the richer per-container listing in the
-        // view below supersedes this table, but its presence is still what
-        // says the stack came up.
-        $statusOutput = shell_exec("podman-compose $composeFlags ps --format table 2>/dev/null");
+        echo PHP_EOL;
+        echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
+        echo PHP_EOL;
 
-        if ($statusOutput) {
-            echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
-            echo PHP_EOL;
+        $this->showAppView($appName);
 
-            $this->showAppView($appName);
-
-            // Advisory security pass over the generated stack. Runs as its own
-            // throwaway container that is not part of the app, and stays quiet
-            // when the scanner image has not been pulled, so it can never turn
-            // a working `up` into a slow or failing one.
-            (new ScanTask())->scanApp($appName, true);
-        }
+        // Advisory security pass over the generated stack. Runs as its own
+        // throwaway container that is not part of the app, and stays quiet
+        // when the scanner image has not been pulled, so it can never turn a
+        // working `up` into a slow or failing one.
+        (new ScanTask())->scanApp($appName, true);
     }
 
     /**
