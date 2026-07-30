@@ -49,6 +49,7 @@
         "nimbus:create-with-eda": "Tasks\\ApplicationTasks::nimbusCreateWithEda",
         "nimbus:create-from-git": "Tasks\\ApplicationTasks::nimbusCreateFromGit",
         "nimbus:install": "Tasks\\ApplicationTasks::nimbusInstall",
+        "nimbus:scan": "Tasks\\ApplicationTasks::nimbusScan",
         "nimbus:list": "Tasks\\ApplicationTasks::nimbusList",
         "nimbus:up": "Tasks\\ApplicationTasks::nimbusUp",
         "nimbus:down": "Tasks\\ApplicationTasks::nimbusDown",

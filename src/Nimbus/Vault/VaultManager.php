@@ -2,11 +2,27 @@
 
 namespace Nimbus\Vault;
 
+use Nimbus\Database\DatabaseEngine;
+
 /**
  * VaultManager handles encrypted credential storage using Ansible Vault
  */
 class VaultManager
 {
+    /**
+     * Marks the per-app value holding Nimbus-owned data that is not a bare
+     * credential — app environment secrets today, annotations later.
+     *
+     * It is stored as one opaque base64(JSON) scalar rather than nested YAML
+     * on purpose: the hand-rolled parser below understands exactly two levels
+     * and two section names, so a nested structure would not survive a
+     * round-trip. A scalar does, which means this namespace can grow without
+     * ever touching the (de)serializer or migrating existing vault files.
+     */
+    private const NIMBUS_KEY = 'nimbus';
+
+    private const NIMBUS_PREFIX = 'base64:';
+
     private string $baseDir;
     private string $vaultDir;
     private string $credentialsFile;
@@ -63,13 +79,90 @@ class VaultManager
         }
         
         $data = $this->loadCredentials();
-        
-        $data['apps'][$appName] = array_merge($credentials, [
-            'backed_up_at' => date('c'),
-            'backup_version' => '1.0'
-        ]);
-        
+
+        // Merge over whatever this app already has rather than replacing it:
+        // credentials and the nimbus namespace are written by different
+        // callers at different times, and a plain assignment here silently
+        // dropped whichever one was written first.
+        $data['apps'][$appName] = array_merge(
+            $data['apps'][$appName] ?? [],
+            $credentials,
+            [
+                'backed_up_at' => date('c'),
+                'backup_version' => '1.0'
+            ]
+        );
+
         return $this->encryptAndSave($data);
+    }
+
+    /**
+     * Read this app's Nimbus namespace (env secrets and other Nimbus-owned
+     * values). Returns [] when the vault is uninitialized or the app has none.
+     *
+     * Scoped to a single app by construction — there is deliberately no
+     * "all apps" accessor here, so one app's secrets can never be handed to
+     * another app's generation run.
+     *
+     * @return array<string, mixed>
+     */
+    public function getNimbusData(string $appName): array
+    {
+        if (!$this->isInitialized()) {
+            return [];
+        }
+
+        $data = $this->loadCredentials();
+        $raw = $data['apps'][$appName][self::NIMBUS_KEY] ?? null;
+
+        return is_string($raw) ? $this->decodeNimbus($raw) : [];
+    }
+
+    /**
+     * Replace this app's Nimbus namespace, leaving its credentials intact.
+     *
+     * @param array<string, mixed> $data
+     */
+    public function setNimbusData(string $appName, array $data): bool
+    {
+        if (!$this->isInitialized()) {
+            throw new \RuntimeException("Vault not initialized. Run 'composer nimbus:vault-init' first.");
+        }
+
+        $all = $this->loadCredentials();
+
+        $entry = $all['apps'][$appName] ?? [];
+        $entry[self::NIMBUS_KEY] = $this->encodeNimbus($data);
+        $all['apps'][$appName] = $entry;
+
+        return $this->encryptAndSave($all);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function encodeNimbus(array $data): string
+    {
+        return self::NIMBUS_PREFIX . base64_encode((string) json_encode($data));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeNimbus(string $raw): array
+    {
+        if (!str_starts_with($raw, self::NIMBUS_PREFIX)) {
+            return [];
+        }
+
+        $json = base64_decode(substr($raw, strlen(self::NIMBUS_PREFIX)), true);
+        if ($json === false) {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
     
     /**
@@ -102,7 +195,8 @@ class VaultManager
                 'name' => $appName,
                 'backed_up_at' => $credentials['backed_up_at'] ?? 'unknown',
                 'has_database' => isset($credentials['database']),
-                'has_keycloak' => isset($credentials['keycloak'])
+                'has_keycloak' => isset($credentials['keycloak']),
+                'has_env' => isset($credentials[self::NIMBUS_KEY])
             ];
         }
         
@@ -146,18 +240,34 @@ class VaultManager
     public function extractAppCredentials(string $appName): array
     {
         $credentials = [];
-        
-        // Extract database credentials
-        $dbContainer = $appName . '-postgres';
-        $dbPassword = $this->extractPasswordFromContainer($dbContainer, 'POSTGRES_PASSWORD');
+
+        // Extract database credentials under whichever engine this app runs.
+        // Apps with no declared engine resolve to Postgres, which is the only
+        // thing this used to look for.
+        $appConfig = $this->loadAppConfig($appName);
+        $engine = DatabaseEngine::fromConfig($appConfig);
+        $dbContainer = $engine->containerName($appName);
+
+        $dbPassword = $this->extractPasswordFromContainer($dbContainer, $engine->passwordVar());
         if ($dbPassword) {
             $credentials['database'] = [
                 'password' => $dbPassword,
-                'user' => $appName . '_user',
-                'name' => $appName . '_db'
+                'user' => $appConfig['database']['user'] ?? $appName . '_user',
+                'name' => $appConfig['database']['name'] ?? $appName . '_db'
             ];
+
+            if ($engine->usesRootPassword()) {
+                $rootPassword = $this->extractPasswordFromContainer($dbContainer, $engine->rootPasswordVar());
+                if ($rootPassword) {
+                    $credentials['database']['root_password'] = $rootPassword;
+                }
+            }
+
+            if (!$engine->isPostgres()) {
+                $credentials['database']['engine'] = $engine->name;
+            }
         }
-        
+
         // Extract Keycloak credentials if present
         $keycloakContainer = $appName . '-keycloak';
         $keycloakAdminPassword = $this->extractPasswordFromContainer($keycloakContainer, 'KEYCLOAK_ADMIN_PASSWORD');
@@ -170,22 +280,39 @@ class VaultManager
             ];
             
             // Try to get client secret from app config
-            $configFile = $this->baseDir . '/.installer/apps/' . $appName . '/app.nimbus.json';
-            if (file_exists($configFile)) {
-                $config = json_decode(file_get_contents($configFile), true);
-                if (isset($config['keycloak']['client_secret'])) {
-                    $credentials['keycloak']['client_secret'] = $config['keycloak']['client_secret'];
-                }
+            if (isset($appConfig['keycloak']['client_secret'])) {
+                $credentials['keycloak']['client_secret'] = $appConfig['keycloak']['client_secret'];
             }
         }
-        
+
         return $credentials;
     }
-    
+
+    /**
+     * An app's app.nimbus.json, or [] when it has none.
+     *
+     * @return array<string, mixed>
+     */
+    private function loadAppConfig(string $appName): array
+    {
+        $configFile = $this->baseDir . '/.installer/apps/' . $appName . '/app.nimbus.json';
+
+        if (!file_exists($configFile)) {
+            return [];
+        }
+
+        $config = json_decode((string) file_get_contents($configFile), true);
+
+        return is_array($config) ? $config : [];
+    }
+
     /**
      * Load and decrypt credentials from vault
+     *
+     * Protected rather than private so tests can substitute an in-memory store
+     * for the ansible-vault round trip.
      */
-    private function loadCredentials(): array
+    protected function loadCredentials(): array
     {
         if (!file_exists($this->credentialsFile)) {
             return ['apps' => []];
@@ -220,8 +347,10 @@ class VaultManager
     
     /**
      * Encrypt and save credentials to vault
+     *
+     * Protected for the same reason as loadCredentials().
      */
-    private function encryptAndSave(array $data): bool
+    protected function encryptAndSave(array $data): bool
     {
         $masterPassword = trim(file_get_contents($this->vaultPasswordFile));
         

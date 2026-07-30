@@ -306,8 +306,14 @@ class ContainerTask extends BaseTask
             
             // Display comprehensive app information
             $this->displayAppDetails($appName);
-            
+
             $this->interactiveHelper->displayKeycloakCredentials($appName);
+
+            // Advisory security pass over the generated stack. Runs as its own
+            // throwaway container that is not part of the app, and stays quiet
+            // when the scanner image has not been pulled, so it can never turn
+            // a working `up` into a slow or failing one.
+            (new ScanTask())->scanApp($appName, true);
         }
     }
 

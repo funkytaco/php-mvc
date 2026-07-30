@@ -439,13 +439,20 @@ class AppManager
         
         // App container. depends_on is built up per enabled feature below;
         // an app with no database must not reference the missing -db service.
-        $compose['services'][$appName . '-app'] = $this->buildAppService($appName, $config);
+        $compose['services'][$appName . '-app'] = $this->buildAppService($appName, $config, $passwords);
 
         // Database container
         $hasDatabase = $config['features']['database'] ?? true;
         if ($hasDatabase) {
             $compose['services'][$appName . '-app']['depends_on'][] = $appName . '-db';
             $compose['services'][$appName . '-db'] = $this->buildDatabaseService($appName, $config, $passwords);
+
+            // Engines that keep a named data volume need it declared at the
+            // top level (see buildDatabaseService for why Postgres does not).
+            $engine = \Nimbus\Database\DatabaseEngine::fromConfig($config);
+            if (!$engine->isPostgres()) {
+                $compose['volumes'] = [$this->databaseVolumeName($appName) => []];
+            }
         }
         
         // EDA container
@@ -512,10 +519,14 @@ class AppManager
      * app in at build time. Managers whose code lives elsewhere (a git clone)
      * override this to point the build somewhere else.
      *
+     * $passwords is passed for managers that inject resolved credentials into
+     * the app's own environment; the framework image reads its configuration
+     * from app.config.php instead, so this implementation ignores it.
+     *
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
-    protected function buildAppService(string $appName, array $config): array
+    protected function buildAppService(string $appName, array $config, ?\Nimbus\Password\PasswordSet $passwords = null): array
     {
         return [
             'build' => [
@@ -562,39 +573,75 @@ class AppManager
 
     /**
      * Build database service configuration with PasswordSet
+     *
+     * Everything engine-specific — image, container name, environment variable
+     * names, health check — comes from DatabaseEngine. Apps that declare no
+     * engine resolve to Postgres, which is what this method used to hardcode.
      */
     protected function buildDatabaseService(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
     {
-        $dbEnvironment = [
-            'POSTGRES_DB' => $config['database']['name'] ?? $appName . '_db',
-            'POSTGRES_USER' => $config['database']['user'] ?? $appName . '_user',
-            'POSTGRES_PASSWORD' => $passwords ? $passwords->databasePassword : ($config['database']['password'] ?? '')
-        ];
-        
-        $dbVolumes = [
-            //'./data/' . $appName . ':/var/lib/postgresql/data:Z',
-            './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z'
-        ];
-        
+        $engine = \Nimbus\Database\DatabaseEngine::fromConfig($config);
+
+        $dbName = $config['database']['name'] ?? $appName . '_db';
+        $dbUser = $config['database']['user'] ?? $appName . '_user';
+
+        $dbEnvironment = $engine->environment(
+            $dbName,
+            $dbUser,
+            $passwords ? $passwords->databasePassword : ($config['database']['password'] ?? ''),
+            $passwords ? $passwords->databaseRootPassword : ''
+        );
+
+        $dbVolumes = [];
+
+        // Only mounted when the app actually ships a schema: the MVC templates
+        // do, a bare git repository does not, and podman would silently create
+        // a directory where the file was expected.
+        if (is_file($this->installerDir . '/' . $appName . '/database/schema.sql')) {
+            $dbVolumes[] = './.installer/apps/' . $appName . '/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:Z';
+        }
+
+        // Postgres keeps its historical layout, where the data volume is
+        // commented out — adding one now would change the compose file of
+        // every app that already exists. Engines added since get a named
+        // volume so their data survives the container being recreated.
+        if (!$engine->isPostgres()) {
+            $dbVolumes[] = $this->databaseVolumeName($appName) . ':' . $engine->dataDir();
+        }
+
         // Add force init for vault restore with existing data
         if ($passwords && $passwords->requiresForceInit) {
             $dbEnvironment['FORCE_INIT'] = 'true';
             $dbVolumes[] = './.installer/apps/' . $appName . '/database/force-init.sh:/docker-entrypoint-initdb.d/force-init.sh:Z';
         }
-        
-        return [
-            'image' => 'postgres:14',
-            'container_name' => $appName . '-postgres',
+
+        $service = [
+            'image' => $engine->image,
+            'container_name' => $engine->containerName($appName),
             'environment' => $dbEnvironment,
-            'volumes' => $dbVolumes,
-            'networks' => [$appName . '-net'],
-            'healthcheck' => [
-                'test' => ['CMD-SHELL', 'pg_isready -U ' . ($config['database']['user'] ?? $appName . '_user') . ' -d ' . ($config['database']['name'] ?? $appName . '_db')],
-                'interval' => '5s',
-                'timeout' => '5s',
-                'retries' => 5
-            ]
         ];
+
+        if ($dbVolumes !== []) {
+            $service['volumes'] = $dbVolumes;
+        }
+
+        $service['networks'] = [$appName . '-net'];
+        $service['healthcheck'] = [
+            'test' => ['CMD-SHELL', $engine->healthcheckCmd($dbUser, $dbName)],
+            'interval' => '5s',
+            'timeout' => '5s',
+            'retries' => 5
+        ];
+
+        return $service;
+    }
+
+    /**
+     * Named volume backing the database's data directory.
+     */
+    protected function databaseVolumeName(string $appName): string
+    {
+        return $appName . '-db-data';
     }
     
     /**
@@ -783,7 +830,7 @@ class AppManager
         // collide with something that was already there.
         $wanted = array_map(
             fn ($suffix) => $appName . $suffix,
-            ['-app', '-postgres', '-eda', '-keycloak', '-keycloak-db', '-keycloak-setup', '-code-server']
+            ['-app', '-postgres', '-db', '-eda', '-keycloak', '-keycloak-db', '-keycloak-setup', '-code-server']
         );
         $conflicts = array_values(array_intersect($wanted, $existing));
 
@@ -1262,6 +1309,7 @@ class AppManager
     private function checkAppRunningStatus(string $appName): array
     {
         $containers = $this->getAppContainers($appName);
+        $databaseContainer = $this->databaseContainerName($appName);
         $runningContainers = 0;
         $healthyContainers = 0;
         $totalContainers = count($containers);
@@ -1278,9 +1326,9 @@ class AppManager
                 // - Has no health check (health = 'none')
                 // - Has a health check and is healthy
                 // - Health check is starting up
-                if ($status['health'] === 'healthy' || 
-                    $status['health'] === 'none' || 
-                    ($status['health'] === 'starting' && $containerName !== $appName . '-postgres')) {
+                if ($status['health'] === 'healthy' ||
+                    $status['health'] === 'none' ||
+                    ($status['health'] === 'starting' && $containerName !== $databaseContainer)) {
                     $healthyContainers++;
                 }
             }
@@ -1327,7 +1375,9 @@ class AppManager
             : [];
 
         if ($config['features']['database'] ?? true) {
-            $containers[] = $appName . '-postgres';  // database container
+            // Engine-derived: '-postgres' for apps that declare no engine
+            $containers[] = \Nimbus\Database\DatabaseEngine::fromConfig(is_array($config) ? $config : [])
+                ->containerName($appName);
         }
         if ($config !== []) {
             if ($config['features']['eda'] ?? false) {
@@ -1347,6 +1397,21 @@ class AppManager
         return $containers;
     }
     
+    /**
+     * The database container name for an app, derived from the engine it
+     * declares. Apps with no declared engine resolve to '<app>-postgres'.
+     */
+    protected function databaseContainerName(string $appName): string
+    {
+        $configFile = $this->installerDir . '/' . $appName . '/app.nimbus.json';
+        $config = file_exists($configFile)
+            ? json_decode((string) file_get_contents($configFile), true)
+            : [];
+
+        return \Nimbus\Database\DatabaseEngine::fromConfig(is_array($config) ? $config : [])
+            ->containerName($appName);
+    }
+
     /**
      * Live container info for an app: the feature-derived expected list
      * (getAppContainers) merged with what podman actually has. One podman ps
@@ -1546,7 +1611,12 @@ class AppManager
         $compose = $this->buildComposeConfig($appName, $config, $passwords);
         $yamlContent = $this->arrayToYaml($compose);
 
-        file_put_contents($this->baseDir . '/' . $appName . '-compose.yml', $yamlContent);
+        $file = $this->baseDir . '/' . $appName . '-compose.yml';
+        file_put_contents($file, $yamlContent);
+
+        // Database and admin passwords are written into this file in the clear;
+        // it is an authenticator store and readable only by its owner (IA-5).
+        chmod($file, 0600);
     }
 
     /**
@@ -1627,6 +1697,10 @@ class AppManager
         $overlay = $this->buildDevOverlay($appName, $config);
         $file = $this->baseDir . '/' . $appName . '-compose.dev.yml';
         file_put_contents($file, $this->arrayToYaml($overlay));
+
+        // Carries the code-server password (and, for git apps, the app's
+        // resolved environment) — owner-readable only (IA-5).
+        chmod($file, 0600);
 
         return [
             'file' => $file,

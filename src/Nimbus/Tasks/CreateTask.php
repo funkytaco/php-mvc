@@ -134,10 +134,20 @@ class CreateTask extends BaseTask
 
         $options = [];
         foreach ($args as $arg) {
-            if (preg_match('/^--(ref|docroot|containerfile|runtime|webroot|repo)=(.*)$/', $arg, $m)) {
-                $options[$m[1]] = $m[2];
+            if (preg_match('/^--(ref|docroot|containerfile|runtime|webroot|repo|db)=(.*)$/', $arg, $m)) {
+                $options[$m[1] === 'db' ? 'database' : $m[1]] = $m[2];
             }
         }
+
+        // Bare forms: --db takes the default engine, --no-db refuses one even
+        // if the repository's own manifest asks for it.
+        if (in_array('--db', $args, true)) {
+            $options['database'] = true;
+        }
+        if (in_array('--no-db', $args, true)) {
+            $options['database'] = false;
+        }
+
         $positional = array_values(array_filter($args, fn ($a) => !str_starts_with($a, '--')));
 
         $appName = $positional[0] ?? $io->ask('App name: ');
@@ -149,6 +159,16 @@ class CreateTask extends BaseTask
         }
 
         try {
+            // Reject an unusable --db before anything is created, rather than
+            // partway through the materializer.
+            if (!empty($options['database'])) {
+                \Nimbus\Database\DatabaseEngine::fromSpec(
+                    is_bool($options['database']) ? true : (string) $options['database']
+                );
+            }
+
+            $this->ensureVaultForGitApp();
+
             $manager = new GitAppManager();
             $manager->createFromRepo($appName, $repoUrl, $options);
 
@@ -164,6 +184,12 @@ class CreateTask extends BaseTask
             echo self::ansiFormat('INFO', "📦 Repository: .installer/repos/" . ($source['repo'] ?? '?'));
             if (!empty($source['docroot'])) {
                 echo self::ansiFormat('INFO', "🌐 Document root: " . $source['docroot'] . '/');
+            }
+            if ($config['features']['database'] ?? false) {
+                echo self::ansiFormat('INFO', "🗄️  Database: " . ($config['database']['image'] ?? '?')
+                    . " (db '" . ($config['database']['name'] ?? '?') . "')");
+                echo self::ansiFormat('INFO', "🔐 Credentials and secrets are stored in the vault, not in app config.");
+                echo self::ansiFormat('INFO', "📄 A resolved .env is written to .installer/apps/$appName/.env on install.");
             }
             echo PHP_EOL;
             echo self::ansiFormat('INFO', "Next steps:");
@@ -229,6 +255,26 @@ class CreateTask extends BaseTask
         } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Git apps keep their database password and environment secrets in the
+     * vault and nowhere else, so one has to exist before the app does.
+     *
+     * Initialized here rather than inside the manager on purpose: creating the
+     * vault prints a master password the user has to keep, which is a decision
+     * for the command line to own, and it must happen outside the create
+     * transaction — a rolled-back app must not take the vault with it.
+     */
+    private function ensureVaultForGitApp(): void
+    {
+        if ($this->vaultManager->isInitialized()) {
+            return;
+        }
+
+        echo self::ansiFormat('INFO', '🔐 Git apps keep credentials and secrets in the Nimbus vault. Initializing it now.');
+        $this->vaultManager->initializeVault();
+        echo PHP_EOL;
     }
 
     private function checkVaultCredentials(string $appName): void

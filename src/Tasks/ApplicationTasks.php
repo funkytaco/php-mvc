@@ -323,6 +323,11 @@ class ApplicationTasks {
         $task->install($event);
     }
 
+    public static function nimbusScan(Event $event) {
+        $task = new \Nimbus\Tasks\ScanTask();
+        $task->scan($event);
+    }
+
     public static function nimbusList(Event $event) {
         $task = new \Nimbus\Tasks\InstallTask();
         $task->list($event);
@@ -1549,8 +1554,24 @@ class ApplicationTasks {
                 if (isset($credentials['database'])) {
                     echo "  📊 Database:" . PHP_EOL;
                     echo "     Password: " . $credentials['database']['password'] . PHP_EOL;
+                    if (isset($credentials['database']['root_password'])) {
+                        echo "     Root Password: " . $credentials['database']['root_password'] . PHP_EOL;
+                    }
+                    if (isset($credentials['database']['engine'])) {
+                        echo "     Engine: " . $credentials['database']['engine'] . PHP_EOL;
+                    }
                 }
-                
+
+                // Environment secrets, held in the app's nimbus namespace and
+                // stored as one encoded value — decode it for display.
+                $nimbus = $vaultManager->getNimbusData((string) $appName);
+                if (!empty($nimbus['secrets'])) {
+                    echo "  🧬 Environment secrets:" . PHP_EOL;
+                    foreach ($nimbus['secrets'] as $key => $value) {
+                        echo "     $key: $value" . PHP_EOL;
+                    }
+                }
+
                 // Keycloak credentials
                 if (isset($credentials['keycloak'])) {
                     echo "  🔐 Keycloak:" . PHP_EOL;

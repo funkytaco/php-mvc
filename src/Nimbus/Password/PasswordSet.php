@@ -2,18 +2,22 @@
 
 namespace Nimbus\Password;
 
+use Nimbus\Database\DatabaseEngine;
+
 /**
  * Value object containing all passwords for a Nimbus app
  */
 class PasswordSet
 {
     public readonly string $databasePassword;
+    public readonly string $databaseRootPassword;
+    public readonly string $databaseEngine;
     public readonly string $keycloakAdminPassword;
     public readonly string $keycloakDbPassword;
     public readonly string $keycloakClientSecret;
     public readonly PasswordStrategy $strategy;
     public readonly bool $requiresForceInit;
-    
+
     public function __construct(
         string $databasePassword,
         string $keycloakAdminPassword = '',
@@ -21,16 +25,20 @@ class PasswordSet
         string $keycloakClientSecret = '',
         PasswordStrategy $strategy = PasswordStrategy::GENERATE_NEW,
         private string $baseDir = '',
-        private string $appName = ''
+        private string $appName = '',
+        string $databaseRootPassword = '',
+        string $databaseEngine = DatabaseEngine::DEFAULT_ENGINE
     ) {
         $this->databasePassword = $databasePassword;
+        $this->databaseRootPassword = $databaseRootPassword;
+        $this->databaseEngine = $databaseEngine;
         $this->keycloakAdminPassword = $keycloakAdminPassword;
         $this->keycloakDbPassword = $keycloakDbPassword;
         $this->keycloakClientSecret = $keycloakClientSecret;
         $this->strategy = $strategy;
         $this->requiresForceInit = $this->determineForceInit();
     }
-    
+
     /**
      * Determine if force init is required
      */
@@ -40,11 +48,18 @@ class PasswordSet
         if ($this->strategy !== PasswordStrategy::VAULT_RESTORE) {
             return false;
         }
-        
+
+        // force-init.sh is a Postgres entrypoint script shipped by the MVC
+        // templates; no other engine has one to run, and no other engine
+        // writes the data directory this looks for.
+        if ($this->databaseEngine !== DatabaseEngine::DEFAULT_ENGINE) {
+            return false;
+        }
+
         if (empty($this->baseDir) || empty($this->appName)) {
             return false;
         }
-        
+
         return $this->hasExistingDataDirectory();
     }
     
@@ -75,10 +90,19 @@ class PasswordSet
      */
     public function toArray(): array
     {
+        $database = ['password' => $this->databasePassword];
+
+        // Only recorded when they carry information, so a Postgres app's vault
+        // entry keeps exactly the shape it has always had.
+        if ($this->databaseRootPassword !== '') {
+            $database['root_password'] = $this->databaseRootPassword;
+        }
+        if ($this->databaseEngine !== DatabaseEngine::DEFAULT_ENGINE) {
+            $database['engine'] = $this->databaseEngine;
+        }
+
         return [
-            'database' => [
-                'password' => $this->databasePassword
-            ],
+            'database' => $database,
             'keycloak' => [
                 'admin_password' => $this->keycloakAdminPassword,
                 'db_password' => $this->keycloakDbPassword,

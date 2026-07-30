@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Nimbus\App;
 
+use Nimbus\Database\DatabaseEngine;
+use Nimbus\Env\EnvManager;
+use Nimbus\Env\SecretsManager;
+use Nimbus\Password\PasswordSet;
+
 /**
  * Manages apps whose code comes from a git repository rather than a local
  * template.
@@ -59,7 +64,46 @@ class GitAppManager extends AppManager
     public const REPO_MANIFEST = '.nimbus.json';
 
     /** Settings a repo manifest is allowed to declare. */
-    protected const MANIFEST_KEYS = ['runtime', 'docroot', 'containerfile', 'container_port', 'webroot', 'command'];
+    protected const MANIFEST_KEYS = ['runtime', 'docroot', 'containerfile', 'container_port', 'webroot', 'command', 'database'];
+
+    private ?EnvManager $envManager = null;
+
+    private ?SecretsManager $secretsManager = null;
+
+    /**
+     * The app's non-secret environment, stored in its app.nimbus.json.
+     */
+    protected function getEnvManager(): EnvManager
+    {
+        return $this->envManager ??= new EnvManager($this->baseDir);
+    }
+
+    /**
+     * The app's secret environment, stored only in the vault.
+     */
+    protected function getSecretsManager(): SecretsManager
+    {
+        return $this->secretsManager ??= new SecretsManager($this->baseDir, $this->getVaultManager());
+    }
+
+    /**
+     * Git apps keep credentials and environment secrets in the vault and
+     * nowhere else, so anything with a secret to store requires one.
+     *
+     * The CLI initializes the vault automatically before creating a git app;
+     * this is the backstop for every other entry point.
+     */
+    protected function assertVaultAvailable(string $appName, string $because): void
+    {
+        if ($this->getVaultManager()->isInitialized()) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            "App '$appName' needs the Nimbus vault because $because, but the vault is not "
+            . "initialized. Run 'composer nimbus:vault-init' first."
+        );
+    }
 
     /**
      * Where a servable image definition is looked for, in order.
@@ -179,6 +223,12 @@ class GitAppManager extends AppManager
 
             $settings = $this->resolveRepoSettings($repoPath, $repo, $options);
 
+            // Fail before anything is written when the app will need somewhere
+            // to keep a credential and has none.
+            if (($settings['database'] ?? null) !== null) {
+                $this->assertVaultAvailable($appName, 'it has a database password to store');
+            }
+
             mkdir($targetPath, 0755, true);
 
             $this->writeGitAppConfig($appName, $targetPath, array_merge($settings, [
@@ -186,7 +236,127 @@ class GitAppManager extends AppManager
                 'url' => $repoUrl,
                 'ref' => $options['ref'] ?? null,
             ]));
+
+            // Both of these read the config that was just written — the engine
+            // decides which credentials exist, and the app's port decides what
+            // its URLs resolve to.
+            if (($settings['database'] ?? null) !== null) {
+                $passwords = $this->resolveAppPasswords($appName);
+                $this->backupPasswordsToVault($appName, $passwords);
+            }
+
+            $this->seedAppEnvironment($appName, $repoPath);
         });
+    }
+
+    /**
+     * Give the app the environment its repository says it needs.
+     *
+     * The repo's .env.example is the starting point. Values Nimbus computes
+     * itself are skipped, anything naming a secret is generated fresh into the
+     * vault — never copied from the example, since a value shipped in a public
+     * repository is a published default (NIST 800-53 IA-5) — and the rest is
+     * recorded as plain, editable app config.
+     *
+     * Vault entries deliberately survive a failed create: like the clone, they
+     * live outside the instance directory, so retrying restores the app's
+     * existing credentials instead of orphaning its data behind new ones.
+     */
+    protected function seedAppEnvironment(string $appName, string $repoPath): void
+    {
+        $envManager = $this->getEnvManager();
+        $example = $envManager->parseEnvExample($repoPath);
+
+        if ($example === []) {
+            return;
+        }
+
+        $plain = [];
+        $secretKeys = [];
+
+        foreach ($example as $key => $value) {
+            if (in_array($key, EnvManager::DERIVED_KEYS, true)) {
+                continue;
+            }
+
+            if ($envManager->isSecretKey($key)) {
+                $secretKeys[] = $key;
+                continue;
+            }
+
+            $plain[$key] = $value;
+        }
+
+        $plain = $this->expandEnvReferences(
+            $this->localizeExampleUrls($plain, (string) $this->generatePort($appName))
+        );
+
+        if ($plain !== []) {
+            $envManager->setMany($appName, $plain);
+            $this->notices[] = count($plain) . ' environment value(s) seeded from .env.example into app.nimbus.json.';
+        }
+
+        if ($secretKeys !== []) {
+            $this->assertVaultAvailable($appName, 'its repository declares secret environment values');
+            $this->getSecretsManager()->generateMissing($appName, $secretKeys);
+            $this->notices[] = count($secretKeys) . ' secret value(s) generated and stored in the vault.';
+        }
+    }
+
+    /**
+     * Point example URLs at the address this app is actually served on.
+     *
+     * A .env.example necessarily hardcodes a placeholder host (Bedrock ships
+     * http://example.com). Left alone, WordPress builds every link, redirect
+     * and asset URL against it.
+     *
+     * @param array<string, string> $env
+     * @return array<string, string>
+     */
+    protected function localizeExampleUrls(array $env, string $port): array
+    {
+        foreach ($env as $key => $value) {
+            // The path group is written to always participate, so there is no
+            // trailing-unmatched-group case to guard against.
+            if (preg_match('#^https?://[^/]*(.*)$#i', $value, $matches) !== 1) {
+                continue;
+            }
+
+            $env[$key] = 'http://localhost:' . $port . $matches[1];
+        }
+
+        return $env;
+    }
+
+    /**
+     * Flatten ${VAR} / $VAR references between seeded values.
+     *
+     * Compose environment blocks are not interpolated by the container engine,
+     * and podman-compose would try to resolve an unknown ${VAR} against the
+     * host shell — so references are resolved here, while the values they
+     * point at are still in hand. Two passes, which covers the one level of
+     * indirection these files actually use (Bedrock's WP_SITEURL => WP_HOME).
+     *
+     * @param array<string, string> $env
+     * @return array<string, string>
+     */
+    protected function expandEnvReferences(array $env): array
+    {
+        for ($pass = 0; $pass < 2; $pass++) {
+            foreach ($env as $key => $value) {
+                $env[$key] = preg_replace_callback(
+                    '/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/',
+                    static function (array $matches) use ($env): string {
+                        $name = ($matches[1] ?? '') !== '' ? $matches[1] : ($matches[2] ?? '');
+
+                        return $env[$name] ?? $matches[0];
+                    },
+                    $value
+                ) ?? $value;
+            }
+        }
+
+        return $env;
     }
 
     /**
@@ -199,7 +369,8 @@ class GitAppManager extends AppManager
      *
      * @param array<string, mixed> $options
      * @return array{runtime: string, docroot: string, webroot: string,
-     *               container_port: int, containerfile: string}
+     *               container_port: int, containerfile: string,
+     *               database: array{engine: string, image: string}|null}
      */
     protected function resolveRepoSettings(string $repoPath, string $repo, array $options): array
     {
@@ -253,6 +424,12 @@ class GitAppManager extends AppManager
             $docroot
         );
 
+        // Opt-in, unlike template apps: a bare repository is not assumed to
+        // want a database. A repo can ask for one in its manifest, and the
+        // command line wins either way — so --no-db turns off what a manifest
+        // requested, and --db overrides the manifest's choice of engine.
+        [$database, $databaseFrom] = $pick('database', null, null);
+
         return [
             'runtime' => $runtime,
             'docroot' => $docroot,
@@ -260,7 +437,44 @@ class GitAppManager extends AppManager
             'container_port' => (int) $containerPort,
             'containerfile' => $containerfile,
             'command' => $command === null ? null : (string) $command,
+            'database' => $this->resolveDatabaseSpec($database, $databaseFrom),
         ];
+    }
+
+    /**
+     * Turn a --db value (or a manifest's "database") into the engine the app
+     * will run, or null when it is not getting one.
+     *
+     * @return array{engine: string, image: string}|null
+     */
+    protected function resolveDatabaseSpec(mixed $value, string $from): ?array
+    {
+        $disabled = $value === null
+            || $value === false
+            || (is_string($value) && in_array(strtolower(trim($value)), ['', '0', 'no', 'off', 'none', 'false'], true));
+
+        if ($disabled) {
+            $this->notices[] = 'Database: none. Pass --db to add one (default '
+                . DatabaseEngine::named(DatabaseEngine::DEFAULT_GIT_ENGINE)->image . ').';
+
+            return null;
+        }
+
+        $engine = DatabaseEngine::fromSpec(is_bool($value) ? true : (string) $value);
+
+        $this->notices[] = "Database: {$engine->image} ($from).";
+
+        return ['engine' => $engine->name, 'image' => $engine->image];
+    }
+
+    /**
+     * App name as a SQL identifier. MySQL and MariaDB accept a hyphen in a
+     * database name only when it is quoted everywhere it is referenced, which
+     * neither the image's entrypoint nor most apps do.
+     */
+    protected function databaseIdentifier(string $appName): string
+    {
+        return str_replace('-', '_', $appName);
     }
 
     /**
@@ -534,16 +748,18 @@ class GitAppManager extends AppManager
      */
     protected function writeGitAppConfig(string $appName, string $targetPath, array $source): void
     {
+        // The database describes the app's own stack, not where its code came
+        // from, so it does not belong under `source`.
+        $database = $source['database'] ?? null;
+        unset($source['database']);
+
         $config = [
             'name' => $appName,
             'version' => '1.0.0',
             'description' => 'Git-sourced app from ' . $source['url'],
             'source' => array_merge(['kind' => 'git'], $source),
             'features' => [
-                // Postgres is the only database service the compose builder
-                // knows how to emit, and these apps generally want MySQL —
-                // so an app brings its own database until that is addressed.
-                'database' => false,
+                'database' => $database !== null,
                 'eda' => false,
                 'certbot' => false,
                 'keycloak' => false,
@@ -552,6 +768,19 @@ class GitAppManager extends AppManager
                 'app' => ['port' => (string) $this->generatePort($appName)],
             ],
         ];
+
+        if ($database !== null) {
+            // Note what is absent: no password. For a git app the credential
+            // exists only in the vault, and is resolved when the compose file
+            // is generated. This file is read, copied and mounted far more
+            // freely than the vault is (NIST 800-53 IA-5).
+            $config['database'] = [
+                'engine' => $database['engine'],
+                'image' => $database['image'],
+                'name' => $this->databaseIdentifier($appName) . '_db',
+                'user' => $this->databaseIdentifier($appName) . '_user',
+            ];
+        }
 
         file_put_contents(
             $targetPath . '/app.nimbus.json',
@@ -567,14 +796,15 @@ class GitAppManager extends AppManager
      * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
-    protected function buildAppService(string $appName, array $config): array
+    protected function buildAppService(string $appName, array $config, ?PasswordSet $passwords = null): array
     {
         $source = $config['source'] ?? [];
         $runtime = $source['runtime'] ?? self::DEFAULT_RUNTIME;
         $defaults = self::RUNTIME_DEFAULTS[$runtime] ?? self::RUNTIME_DEFAULTS[self::DEFAULT_RUNTIME];
         $repo = $source['repo'] ?? $appName;
+        $webroot = $source['webroot'] ?? $defaults['webroot'];
 
-        return [
+        $service = [
             'build' => [
                 'context' => './.installer/repos/' . $repo,
                 'dockerfile' => $source['containerfile'] ?? 'Containerfile',
@@ -584,8 +814,153 @@ class GitAppManager extends AppManager
                 ($config['containers']['app']['port'] ?? '8080')
                     . ':' . ($source['container_port'] ?? $defaults['container_port']),
             ],
-            'networks' => [$appName . '-net'],
         ];
+
+        $environment = $this->resolveAppEnvironment($appName, $config, $passwords);
+
+        if ($environment !== []) {
+            $service['environment'] = $environment;
+
+            // Delivered twice on purpose. Real environment variables cover
+            // anything reading getenv(), and the .env file covers tooling that
+            // insists on the file itself (wp-cli, composer scripts, dotenv's
+            // required() check). Bedrock's dotenv repository is immutable, so
+            // the environment wins and the file only fills gaps — the two can
+            // never fight.
+            $service['volumes'] = [$this->dotEnvMount($appName, $webroot)];
+        }
+
+        $service['networks'] = [$appName . '-net'];
+
+        return $service;
+    }
+
+    /**
+     * Bind mount putting the app's generated .env at the root of its code.
+     *
+     * A single-file mount, not a directory: the file is generated and holds
+     * resolved credentials, so it stays in the Nimbus-owned instance directory
+     * rather than being written into the git working tree the user commits
+     * from.
+     */
+    protected function dotEnvMount(string $appName, string $webroot): string
+    {
+        return './.installer/apps/' . $appName . '/.env:' . rtrim($webroot, '/') . '/.env:Z';
+    }
+
+    /**
+     * Everything the app container should see in its environment: what Nimbus
+     * derives from the app's own config, overlaid with the app's stored env
+     * and then its vault-held secrets.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, string>
+     */
+    protected function resolveAppEnvironment(string $appName, array $config, ?PasswordSet $passwords): array
+    {
+        $derived = [];
+
+        if (($config['features']['database'] ?? false) && $passwords !== null) {
+            $engine = DatabaseEngine::fromConfig($config);
+
+            $derived = [
+                // Reachable under this name on the app's compose network
+                'DB_HOST' => $engine->containerName($appName),
+                'DB_PORT' => (string) $engine->port(),
+                'DB_NAME' => $config['database']['name'] ?? $this->databaseIdentifier($appName) . '_db',
+                'DB_USER' => $config['database']['user'] ?? $this->databaseIdentifier($appName) . '_user',
+                'DB_PASSWORD' => $passwords->databasePassword,
+            ];
+        }
+
+        return $this->getEnvManager()->resolve($appName, $derived, $this->getSecretsManager());
+    }
+
+    /**
+     * Whether this app has an environment to deliver at all — a database to
+     * connect to, stored config, or secrets in the vault.
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function hasAppEnvironment(string $appName, array $config): bool
+    {
+        return ($config['features']['database'] ?? false)
+            || $this->getEnvManager()->all($appName) !== []
+            || $this->getSecretsManager()->all($appName) !== [];
+    }
+
+    /**
+     * Write the app's .env before the compose file that mounts it.
+     *
+     * It has to exist first: podman creates a *directory* at a bind-mount
+     * source that is missing, and the app would then find a directory where
+     * its .env belongs.
+     *
+     * @param array<string, mixed> $config
+     */
+    protected function generatePodmanCompose(string $appName, array $config): void
+    {
+        $environment = $this->resolveAppEnvironment(
+            $appName,
+            $config,
+            $this->extractPasswordsFromConfig($appName)
+        );
+
+        if ($environment !== []) {
+            $this->getEnvManager()->writeDotEnv($appName, $environment);
+        }
+
+        parent::generatePodmanCompose($appName, $config);
+    }
+
+    /**
+     * Git apps keep no password in app.nimbus.json — the vault holds the only
+     * copy — so re-resolve rather than reading it back out of the config.
+     */
+    protected function extractPasswordsFromConfig(string $appName): ?PasswordSet
+    {
+        $config = $this->loadAppConfig($appName);
+
+        if (!($config['features']['database'] ?? false)) {
+            return parent::extractPasswordsFromConfig($appName);
+        }
+
+        $this->assertVaultAvailable($appName, 'its database password is stored there');
+
+        return $this->resolveAppPasswords($appName);
+    }
+
+    /**
+     * Wait for the database to be *healthy*, not merely started.
+     *
+     * The thing being started here is someone else's application rather than
+     * the framework: WordPress and Laravel both fail their first request
+     * outright when the database is still initializing, and a plain depends_on
+     * only waits for the container to exist.
+     *
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     */
+    protected function buildComposeConfig(string $appName, array $config, \Nimbus\Password\PasswordSet $passwords = null): array
+    {
+        $compose = parent::buildComposeConfig($appName, $config, $passwords);
+
+        $appService = $appName . '-app';
+        $dependsOn = $compose['services'][$appService]['depends_on'] ?? [];
+        $database = $appName . '-db';
+
+        if (in_array($database, $dependsOn, true)) {
+            $conditions = [];
+            foreach ($dependsOn as $dependency) {
+                $conditions[$dependency] = [
+                    'condition' => $dependency === $database ? 'service_healthy' : 'service_started',
+                ];
+            }
+
+            $compose['services'][$appService]['depends_on'] = $conditions;
+        }
+
+        return $compose;
     }
 
     /**
@@ -605,11 +980,22 @@ class GitAppManager extends AppManager
         $webroot = $source['webroot'] ?? $defaults['webroot'];
         $repoHostDir = './.installer/repos/' . ($source['repo'] ?? $appName);
 
+        $volumes = [$repoHostDir . ':' . $webroot . ':Z'];
+
+        // Listed after the repo mount so the file lands on top of the tree
+        // that was just mounted over the webroot, not underneath it. Only
+        // whether there is an environment matters here, not what is in it —
+        // resolving the values would mean reading credentials this method has
+        // no use for.
+        if ($this->hasAppEnvironment($appName, $config)) {
+            $volumes[] = $this->dotEnvMount($appName, $webroot);
+        }
+
         return [
             'version' => '3.8',
             'services' => [
                 $appName . '-app' => [
-                    'volumes' => [$repoHostDir . ':' . $webroot . ':Z'],
+                    'volumes' => $volumes,
                     'entrypoint' => [
                         '/bin/sh',
                         '-c',
@@ -619,6 +1005,30 @@ class GitAppManager extends AppManager
                 $appName . '-code-server' => $this->buildCodeServerService($appName, $config, $repoHostDir),
             ],
         ];
+    }
+
+    /**
+     * Dev mode serves the clone directly, and `bin/nimbus dev` can be the
+     * first command run after create with no install in between — so the .env
+     * the overlay mounts is written here as well, not only at install time.
+     *
+     * @return array<string, mixed>
+     */
+    public function generateDevCompose(string $appName): array
+    {
+        $result = parent::generateDevCompose($appName);
+
+        $environment = $this->resolveAppEnvironment(
+            $appName,
+            $this->loadAppConfig($appName),
+            $this->extractPasswordsFromConfig($appName)
+        );
+
+        if ($environment !== []) {
+            $this->getEnvManager()->writeDotEnv($appName, $environment);
+        }
+
+        return $result;
     }
 
     /**

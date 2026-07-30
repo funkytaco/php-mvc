@@ -112,8 +112,10 @@ class GitAppManagerTest extends TestCase
         // be repurposed for git apps.
         $this->assertArrayNotHasKey('type', $config);
 
-        // The compose builder only knows how to emit Postgres today.
+        // Databases are opt-in for git apps; see GitAppDatabaseTest for the
+        // --db path.
         $this->assertFalse($config['features']['database']);
+        $this->assertArrayNotHasKey('database', $config);
 
         $this->assertArrayHasKey('shop', json_decode(
             file_get_contents($this->baseDir . '/.installer/apps.json'),

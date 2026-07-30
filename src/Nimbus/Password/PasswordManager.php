@@ -2,6 +2,7 @@
 
 namespace Nimbus\Password;
 
+use Nimbus\Database\DatabaseEngine;
 use Nimbus\Vault\VaultManager;
 
 /**
@@ -11,13 +12,33 @@ class PasswordManager
 {
     private VaultManager $vault;
     private string $baseDir;
-    
+
     public function __construct(VaultManager $vault, string $baseDir)
     {
         $this->vault = $vault;
         $this->baseDir = $baseDir;
     }
-    
+
+    /**
+     * Which engine this app's database runs, so containers, environment
+     * variables and data directories are probed under the right names.
+     *
+     * Apps with no declared engine — every app created before engines were a
+     * concept — resolve to Postgres, which is what used to be hardcoded here.
+     */
+    private function engineFor(string $appName): DatabaseEngine
+    {
+        $configFile = $this->baseDir . '/.installer/apps/' . $appName . '/app.nimbus.json';
+
+        if (!file_exists($configFile)) {
+            return DatabaseEngine::named(DatabaseEngine::DEFAULT_ENGINE);
+        }
+
+        $config = json_decode((string) file_get_contents($configFile), true);
+
+        return DatabaseEngine::fromConfig(is_array($config) ? $config : []);
+    }
+
     /**
      * Main entry point - determines password strategy for app creation
      */
@@ -90,35 +111,34 @@ class PasswordManager
         
         // Then check for data directory files
         $dataDir = $this->baseDir . '/data/' . $appName;
-        
+
         if (!is_dir($dataDir)) {
             return false;
         }
-        
-        // Check for PostgreSQL-specific files
-        $pgFiles = ['PG_VERSION', 'postgresql.conf', 'pg_hba.conf'];
-        foreach ($pgFiles as $file) {
+
+        // Check for files this engine writes into its data directory
+        foreach ($this->engineFor($appName)->dataFiles() as $file) {
             if (file_exists($dataDir . '/' . $file)) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     /**
      * Check if app has running containers with existing passwords
      */
     private function hasRunningContainers(string $appName): bool
     {
         $containersToCheck = [
-            $appName . '-postgres',
+            $this->engineFor($appName)->containerName($appName),
             $appName . '-app'
         ];
-        
+
         foreach ($containersToCheck as $containerName) {
             $inspectCmd = "podman inspect $containerName --format '{{.State.Status}}' 2>/dev/null";
-            $status = trim(shell_exec($inspectCmd) ?: '');
+            $status = trim($this->runCommand($inspectCmd) ?: '');
 
             if ($status === 'running') {
                 return true;
@@ -139,18 +159,48 @@ class PasswordManager
             return false;
         }
         
-        // Check if compose file contains database password
-        $content = file_get_contents($composeFile);
-        return strpos($content, 'POSTGRES_PASSWORD:') !== false;
+        // Check if compose file contains a database password, under whichever
+        // engine's variable name. Every known name is checked rather than just
+        // this app's configured engine so detection still works when the app's
+        // config is gone but its generated stack is still on disk.
+        $content = (string) file_get_contents($composeFile);
+
+        foreach (DatabaseEngine::supported() as $engineName) {
+            if (strpos($content, DatabaseEngine::named($engineName)->passwordVar() . ':') !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
-    
+
+    /**
+     * The engine to record on a resolved PasswordSet: what the app declares
+     * today, falling back to whatever the vault recorded when the app has no
+     * config on disk (restoring into an empty instance directory).
+     *
+     * @param array<string, mixed> $credentials
+     */
+    private function engineNameFor(string $appName, array $credentials): string
+    {
+        $configFile = $this->baseDir . '/.installer/apps/' . $appName . '/app.nimbus.json';
+
+        if (file_exists($configFile)) {
+            return $this->engineFor($appName)->name;
+        }
+
+        $recorded = $credentials['database']['engine'] ?? null;
+
+        return is_string($recorded) && $recorded !== '' ? $recorded : DatabaseEngine::DEFAULT_ENGINE;
+    }
+
     /**
      * Restore passwords from vault
      */
     private function restoreFromVault(string $appName): PasswordSet
     {
-        $credentials = $this->vault->restoreAppCredentials($appName);
-        
+        $credentials = $this->vault->restoreAppCredentials($appName) ?? [];
+
         return new PasswordSet(
             databasePassword: $credentials['database']['password'] ?? '',
             keycloakAdminPassword: $credentials['keycloak']['admin_password'] ?? '',
@@ -158,23 +208,35 @@ class PasswordManager
             keycloakClientSecret: $credentials['keycloak']['client_secret'] ?? '',
             strategy: PasswordStrategy::VAULT_RESTORE,
             baseDir: $this->baseDir,
-            appName: $appName
+            appName: $appName,
+            databaseRootPassword: $credentials['database']['root_password'] ?? '',
+            databaseEngine: $this->engineNameFor($appName, $credentials)
         );
     }
-    
+
     /**
      * Extract passwords from existing running containers or compose files
      */
     private function extractFromExistingData(string $appName): PasswordSet
     {
+        $engine = $this->engineFor($appName);
+        $dbContainer = $engine->containerName($appName);
+
         // First try to extract from running containers
-        $dbPassword = $this->extractPasswordFromContainer($appName . '-postgres', 'POSTGRES_PASSWORD');
+        $dbPassword = $this->extractPasswordFromContainer($dbContainer, $engine->passwordVar());
+        $dbRootPassword = $engine->usesRootPassword()
+            ? $this->extractPasswordFromContainer($dbContainer, $engine->rootPasswordVar())
+            : null;
         $keycloakAdminPassword = $this->extractPasswordFromContainer($appName . '-keycloak', 'KEYCLOAK_ADMIN_PASSWORD');
+        // Keycloak brings its own Postgres regardless of what the app runs
         $keycloakDbPassword = $this->extractPasswordFromContainer($appName . '-keycloak-db', 'POSTGRES_PASSWORD');
-        
+
         // If containers aren't running, try to extract from compose file
         if (!$dbPassword) {
-            $dbPassword = $this->extractPasswordFromComposeFile($appName, 'POSTGRES_PASSWORD');
+            $dbPassword = $this->extractPasswordFromComposeFile($appName, $engine->passwordVar());
+        }
+        if ($engine->usesRootPassword() && !$dbRootPassword) {
+            $dbRootPassword = $this->extractPasswordFromComposeFile($appName, $engine->rootPasswordVar());
         }
         if (!$keycloakAdminPassword) {
             $keycloakAdminPassword = $this->extractPasswordFromComposeFile($appName, 'KEYCLOAK_ADMIN_PASSWORD');
@@ -193,15 +255,21 @@ class PasswordManager
             keycloakClientSecret: $keycloakClientSecret ?: $this->generatePassword(32),
             strategy: PasswordStrategy::EXISTING_DATA,
             baseDir: $this->baseDir,
-            appName: $appName
+            appName: $appName,
+            databaseRootPassword: $engine->usesRootPassword()
+                ? ($dbRootPassword ?: $this->generatePassword())
+                : '',
+            databaseEngine: $engine->name
         );
     }
-    
+
     /**
      * Generate new passwords for app
      */
     private function generateNewPasswords(string $appName): PasswordSet
     {
+        $engine = $this->engineFor($appName);
+
         return new PasswordSet(
             databasePassword: $this->generatePassword(),
             keycloakAdminPassword: $this->generatePassword(),
@@ -209,7 +277,9 @@ class PasswordManager
             keycloakClientSecret: $this->generatePassword(32),
             strategy: PasswordStrategy::GENERATE_NEW,
             baseDir: $this->baseDir,
-            appName: $appName
+            appName: $appName,
+            databaseRootPassword: $engine->usesRootPassword() ? $this->generatePassword() : '',
+            databaseEngine: $engine->name
         );
     }
     
@@ -257,10 +327,12 @@ class PasswordManager
                 keycloakClientSecret: $keycloakClientSecret,
                 strategy: PasswordStrategy::NO_MODIFICATIONS,
                 baseDir: $this->baseDir,
-                appName: $appName
+                appName: $appName,
+                databaseRootPassword: $existingPasswords->databaseRootPassword,
+                databaseEngine: $existingPasswords->databaseEngine
             );
         }
-        
+
         // If no config exists, fall back to existing data extraction
         return new PasswordSet(
             databasePassword: $existingPasswords->databasePassword,
@@ -269,7 +341,9 @@ class PasswordManager
             keycloakClientSecret: $existingPasswords->keycloakClientSecret,
             strategy: PasswordStrategy::NO_MODIFICATIONS,
             baseDir: $this->baseDir,
-            appName: $appName
+            appName: $appName,
+            databaseRootPassword: $existingPasswords->databaseRootPassword,
+            databaseEngine: $existingPasswords->databaseEngine
         );
     }
     
@@ -279,7 +353,7 @@ class PasswordManager
     private function extractPasswordFromContainer(string $containerName, string $envVar): ?string
     {
         $inspectCmd = "podman inspect $containerName --format '{{json .Config.Env}}' 2>/dev/null";
-        $output = shell_exec($inspectCmd);
+        $output = $this->runCommand($inspectCmd);
         
         if (!$output) {
             return null;
@@ -338,6 +412,16 @@ class PasswordManager
         return $config['keycloak']['client_secret'] ?? null;
     }
     
+    /**
+     * Single seam every shell-out goes through, so tests can resolve password
+     * strategy without reaching podman — and without their result depending on
+     * which containers happen to be running on the machine.
+     */
+    protected function runCommand(string $command): ?string
+    {
+        return shell_exec($command);
+    }
+
     /**
      * Generate secure password
      */
