@@ -371,11 +371,10 @@ class ContainerTask extends BaseTask
         $this->interactiveHelper->displayKeycloakCredentials($appName);
 
         try {
-            $this->interactiveHelper->displayAppCommands(
-                $appName,
-                $this->appManager->loadAppConfig($appName),
-                $this->appManager
-            );
+            $config = $this->appManager->loadAppConfig($appName);
+
+            $this->interactiveHelper->displayCredentials($appName, $config);
+            $this->interactiveHelper->displayAppCommands($appName, $config, $this->appManager);
         } catch (\Throwable $e) {
             // A viewable app with an unreadable config is worth not crashing over
         }

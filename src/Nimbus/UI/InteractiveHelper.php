@@ -7,6 +7,7 @@ use Nimbus\App\AppManager;
 use Nimbus\App\AppManagerFactory;
 use Nimbus\Template\TemplateConfig;
 use Nimbus\UI\StepList;
+use Nimbus\Vault\VaultManager;
 use Composer\IO\IOInterface;
 
 class InteractiveHelper extends BaseTask
@@ -499,34 +500,102 @@ class InteractiveHelper extends BaseTask
     public function displayDevModeInfo(string $appName): void
     {
         try {
-            $manager = new AppManager();
+            $manager = AppManagerFactory::forApp($appName);
             $config = $manager->loadAppConfig($appName);
+        } catch (\Throwable $e) {
+            return;  // Non-fatal: dev mode info is advisory
+        }
 
-            $port = $config['containers']['codeserver']['port'] ?? null;
-            $password = $config['containers']['codeserver']['password'] ?? null;
+        // features.dev is written by generateDevCompose, so it already records
+        // "this app has a code-server sidecar". Reporting on one for an app
+        // that never entered dev mode announced a container that does not
+        // exist, and sent people to nimbus:up, which does not start one.
+        if (!($config['features']['dev'] ?? false)) {
+            return;
+        }
 
-            $state = trim(shell_exec("podman inspect $appName-code-server --format '{{.State.Status}}' 2>/dev/null") ?? '');
-            $running = $state === 'running';
+        $port = $config['containers']['codeserver']['port'] ?? null;
 
-            echo PHP_EOL;
-            echo self::ansiFormat('INFO', "🖥️  VS Code in browser (code-server):");
+        $state = trim(shell_exec("podman inspect $appName-code-server --format '{{.State.Status}}' 2>/dev/null") ?? '');
+        $running = $state === 'running';
 
-            if (!empty($port) && !empty($password)) {
-                echo "  URL: http://localhost:$port" . PHP_EOL;
-                echo "  Password: $password" . PHP_EOL;
-            } else {
-                echo "  URL: assigned when dev mode first starts" . PHP_EOL;
-                echo "  Password: generated when dev mode first starts" . PHP_EOL;
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', '🖥️  VS Code in browser (code-server):');
+        echo '  URL: ' . (!empty($port) ? "http://localhost:$port" : '(assigned on first dev start)') . PHP_EOL;
+        echo "  Password: composer nimbus:config $appName" . PHP_EOL;
+
+        if ($running) {
+            echo "  Stop: composer nimbus:down $appName" . PHP_EOL;
+        } else {
+            echo self::ansiFormat(
+                'NOTICE',
+                "code-server is not running — start dev mode with: bin/nimbus dev $appName"
+            );
+        }
+
+        $served = ($config['source']['kind'] ?? null) === 'git'
+            ? "the repository clone in .installer/repos/" . ($config['source']['repo'] ?? '')
+            : "the app's own .installer/apps/$appName dir";
+
+        echo self::ansiFormat('INFO', "💡 Dev mode serves $served — edits apply live, isolated per app.");
+    }
+
+    /**
+     * What credentials this app has and which command reveals each.
+     *
+     * Values are deliberately never printed: `nimbus:view` is the command
+     * people run while screen-sharing or paste into an issue.
+     *
+     * @param array<string, mixed> $config
+     */
+    public function displayCredentials(string $appName, array $config): void
+    {
+        $entry = null;
+
+        try {
+            $vault = new VaultManager();
+            if ($vault->isInitialized()) {
+                $entry = $vault->restoreAppCredentials($appName);
             }
+        } catch (\Throwable $e) {
+            $entry = null;  // an unreadable vault is not worth failing view over
+        }
 
-            if ($running) {
-                echo "  Stop:  composer nimbus:down $appName" . PHP_EOL;
-            } else {
-                echo self::ansiFormat('NOTICE', "NOTE: code-server is NOT running — the URL above won't respond until you start it: composer nimbus:up $appName");
+        // Gated on what the app actually uses, not on what the vault happens
+        // to hold: passwords are generated for every service whether or not
+        // the app enabled it, so presence in the vault says nothing about
+        // whether a credential is live.
+        $rows = [];
+
+        if ($config['features']['database'] ?? false) {
+            if (!empty($entry['database']['password'])) {
+                $rows[] = ['database password', "composer nimbus:vault-view $appName"];
             }
-            echo self::ansiFormat('INFO', "💡 Dev mode serves the app's own .installer/apps/ dir — edits apply live, isolated per app.");
-        } catch (\Exception $e) {
-            // Non-fatal: dev mode info is advisory
+            if (!empty($entry['database']['root_password'])) {
+                $rows[] = ['database root password', "composer nimbus:vault-view $appName"];
+            }
+        }
+        if (!empty($entry['nimbus'])) {
+            $rows[] = ['environment secrets', "composer nimbus:env $appName --show-secrets"];
+        }
+        if (($config['features']['keycloak'] ?? false) && !empty($entry['keycloak'])) {
+            $rows[] = ['keycloak admin + client secret', "composer nimbus:vault-view $appName"];
+        }
+        if (!empty($config['containers']['codeserver']['password'])) {
+            $rows[] = ['code-server password', "composer nimbus:config $appName"];
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        $width = max(array_map(static fn (array $row): int => strlen($row[0]), $rows));
+
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', '🔐 Credentials (values are never printed here):');
+
+        foreach ($rows as [$label, $command]) {
+            printf("  %-{$width}s  %s\n", $label, $command);
         }
     }
     
