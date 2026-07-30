@@ -130,18 +130,18 @@ class ContainerTask extends BaseTask
         
         try {
             $runningApps = $this->appManager->getRunningApps();
-            
+            $targetApp = $args[0] ?? null;
+
             if (empty($runningApps)) {
                 echo self::ansiFormat('INFO', 'No running apps found.');
+                $this->reportNothingToStop($targetApp);
                 return;
             }
-            
-            $targetApp = $args[0] ?? null;
-            
+
             if ($targetApp) {
                 $app = array_filter($runningApps, fn($a) => $a['name'] === $targetApp);
                 if (empty($app)) {
-                    echo self::ansiFormat('ERROR', "App '$targetApp' is not running or not found.");
+                    $this->reportNothingToStop($targetApp);
                     return;
                 }
                 $app = array_values($app)[0];
@@ -308,6 +308,8 @@ class ContainerTask extends BaseTask
             return;
         }
 
+        $this->waitForContainers($appName);
+
         echo PHP_EOL;
         echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
         echo PHP_EOL;
@@ -319,6 +321,56 @@ class ContainerTask extends BaseTask
         // when the scanner image has not been pulled, so it can never turn a
         // working `up` into a slow or failing one.
         (new ScanTask())->scanApp($appName, true);
+    }
+
+    /**
+     * There was nothing to stop — say where things actually stand instead of
+     * leaving a dead end.
+     *
+     * A named app that exists gets its full view (status, next steps), since
+     * "already stopped" begs exactly the questions the view answers; a name
+     * that matches nothing gets pointed at the app list.
+     */
+    private function reportNothingToStop(?string $targetApp): void
+    {
+        if ($targetApp === null) {
+            echo self::ansiFormat('INFO', 'See what exists with: composer nimbus:list');
+            return;
+        }
+
+        if (!$this->appManager->appExists($targetApp)) {
+            echo self::ansiFormat('ERROR', "App '$targetApp' not found.");
+            echo self::ansiFormat('INFO', 'See what exists with: composer nimbus:list');
+            return;
+        }
+
+        echo self::ansiFormat('INFO', "'$targetApp' is already stopped.");
+        echo PHP_EOL;
+        $this->showAppView($targetApp);
+    }
+
+    /**
+     * Give the stack a moment to actually be up before reporting on it.
+     *
+     * `podman-compose up -d` returns once containers are created, not once
+     * they are running, so a view printed immediately catches the stack mid
+     * wake-up. Polling the same state nimbus:status reads beats a fixed pause:
+     * it returns the instant everything is running, and gives up after the
+     * timeout instead of hanging on a genuinely wedged container.
+     */
+    private function waitForContainers(string $appName, int $timeoutSeconds = 15): void
+    {
+        $deadline = time() + $timeoutSeconds;
+
+        do {
+            if (($this->appManager->describeApp($appName)['state'] ?? null) === 'running') {
+                return;
+            }
+
+            sleep(1);
+        } while (time() < $deadline);
+
+        echo self::ansiFormat('INFO', 'Containers are still starting — the view below may catch them warming up.');
     }
 
     /**
@@ -489,15 +541,21 @@ class ContainerTask extends BaseTask
         
         if ($results['stopped']) {
             echo self::ansiFormat('SUCCESS', "App '$appName' stopped successfully!");
-            
+
             if ($results['removed']) {
                 echo self::ansiFormat('INFO', "✓ Containers removed");
             }
             if ($results['cleaned']) {
                 echo self::ansiFormat('INFO', "✓ Images removed");
             }
+
+            // Same report `up` ends with — here it shows the stopped state and
+            // gates `up` as the next step, so "how do I get it back" is
+            // answered on the spot.
+            echo PHP_EOL;
+            $this->showAppView($appName);
         }
-        
+
         if ($results['output'] && (strpos($results['output'], 'Error') !== false || strpos($results['output'], 'error') !== false)) {
             echo self::ansiFormat('WARNING', "Output:");
             echo $results['output'];
