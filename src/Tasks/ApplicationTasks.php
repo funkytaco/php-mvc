@@ -672,12 +672,15 @@ class ApplicationTasks {
         try {
             $manager = new \Nimbus\App\AppManager();
             $apps = $manager->listApps();
-            
-            if (empty($apps)) {
+
+            // An explicitly named app is still worth looking at even with an
+            // empty registry: containers can outlive their registry entry, and
+            // they keep the name unusable until something removes them.
+            if (empty($apps) && empty($args)) {
                 echo self::ansiFormat('INFO', 'No apps found to delete.');
                 return;
             }
-            
+
             // If no argument provided, ask for app name or show list
             if (empty($args)) {
                 echo self::ansiFormat('INFO', 'Available apps:');
@@ -710,7 +713,27 @@ class ApplicationTasks {
             
             // Check if app exists
             if (!isset($apps[$appName])) {
-                echo self::ansiFormat('ERROR', "App '$appName' not found!");
+                $orphans = $manager->findOrphans($appName);
+
+                if (empty($orphans)) {
+                    echo self::ansiFormat('ERROR', "App '$appName' not found!");
+                    return;
+                }
+
+                echo self::ansiFormat('WARNING', "App '$appName' is not registered, but it still owns:");
+                foreach ($orphans as $orphan) {
+                    echo "  - $orphan" . PHP_EOL;
+                }
+                echo self::ansiFormat('INFO', 'These reserve the name and stop the app being recreated.');
+                echo PHP_EOL;
+
+                if (!$io->askConfirmation('Clean them up? [y/N]: ', false)) {
+                    echo self::ansiFormat('INFO', 'Deletion cancelled');
+                    return;
+                }
+
+                $manager->deleteApp($appName);
+                echo self::ansiFormat('SUCCESS', "Leftovers for '$appName' removed — the name is free again.");
                 return;
             }
             

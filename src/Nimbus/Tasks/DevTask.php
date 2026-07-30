@@ -53,16 +53,41 @@ class DevTask extends BaseTask
         }
 
         try {
-            $result = AppManagerFactory::forApp($appName)->generateDevCompose($appName);
+            $manager = AppManagerFactory::forApp($appName);
+            $result = $manager->generateDevCompose($appName);
+            $config = $manager->loadAppConfig($appName);
+
+            $isGit = ($config['source']['kind'] ?? null) === 'git';
+            $served = $isGit
+                ? '.installer/repos/' . ($config['source']['repo'] ?? '') . '/'
+                : ".installer/apps/$appName/";
 
             echo self::ansiFormat('SUCCESS', "Dev overlay written: " . basename($result['file']));
-            echo self::ansiFormat('INFO', "Dev mode serves this app's own directory: .installer/apps/$appName/ — edit it locally or in code-server; changes are live, apps stay isolated, and edits survive installs.");
+            echo self::ansiFormat('INFO', "Dev mode serves $served — edit it locally or in code-server; changes are live, apps stay isolated, and edits survive installs.");
             echo self::ansiFormat('INFO', "Start it with: composer nimbus:up $appName");
-            echo self::ansiFormat('INFO', "🖥  code-server (VS Code web): http://localhost:{$result['port']}  password: {$result['password']}");
-            echo self::ansiFormat('INFO', "💡 Share your edits with future apps via: bin/nimbus commit $appName (copies them to the shared template)");
+            echo self::ansiFormat('INFO', "🖥  code-server (VS Code web): http://localhost:{$result['port']}");
+            echo self::ansiFormat('INFO', '   Password: ' . self::codeServerPasswordCommand($appName, $config));
+
+            if (!$isGit) {
+                echo self::ansiFormat('INFO', "💡 Share your edits with future apps via: bin/nimbus commit $appName (copies them to the shared template)");
+            }
         } catch (\Exception $e) {
             echo self::ansiFormat('ERROR', 'Failed to generate dev overlay: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * The command that reveals an app's code-server password, wherever it is
+     * kept. Printing the value here would put a credential that grants a
+     * browser shell into terminal scrollback and CI logs.
+     *
+     * @param array<string, mixed> $config
+     */
+    public static function codeServerPasswordCommand(string $appName, array $config): string
+    {
+        return !empty($config['containers']['codeserver']['password'])
+            ? "composer nimbus:config $appName"
+            : "composer nimbus:vault-view $appName";
     }
 
     public function commit(Event $event): void

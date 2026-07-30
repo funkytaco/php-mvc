@@ -356,11 +356,12 @@ class InteractiveHelper extends BaseTask
      */
     public function displayAppCommands(string $appName, array $config, ?AppManager $manager = null): void
     {
+        // Read-only introspection. Anything that *does* something — scanning,
+        // starting a sidecar — is a step below, where it can be gated.
         $inspect = [
             ["composer nimbus:config $appName", 'app.nimbus.json as written on disk'],
             ["composer nimbus:env $appName", 'resolved environment (secrets masked)'],
             ["composer nimbus:vault-view $appName", 'the credentials behind it'],
-            ["composer nimbus:scan $appName", 'security scan (throwaway container)'],
         ];
 
         $width = max(array_map(static fn (array $row): int => strlen($row[0]), $inspect));
@@ -442,11 +443,19 @@ class InteractiveHelper extends BaseTask
                 "bin/nimbus dev $appName",
                 $devEnabled,
                 $devEnabled
-                    ? 'dev mode set up — code-server is part of this stack'
-                    : 'optional — live-edit the repo instead of baking it in',
+                    ? 'dev mode set up — code-server editor is part of this stack'
+                    : 'optional — adds a code-server editor and live-edits the repo',
                 true
             );
         }
+
+        // Repeatable, so never "done" — but always worth offering.
+        $steps->add(
+            "composer nimbus:scan $appName",
+            false,
+            'optional — security scan in a throwaway container',
+            true
+        );
 
         return $steps;
     }

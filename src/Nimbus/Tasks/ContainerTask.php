@@ -285,7 +285,7 @@ class ContainerTask extends BaseTask
 
         if ($app['is_running'] && $app['health_status'] === 'healthy') {
             echo self::ansiFormat('INFO', "App '$appName' is already running and healthy!");
-            $this->showAppStatus($app);
+            $this->showAppView($appName);
             return;
         }
 
@@ -299,15 +299,16 @@ class ContainerTask extends BaseTask
             echo $output;
         }
 
+        // Probed rather than printed: the richer per-container listing in the
+        // view below supersedes this table, but its presence is still what
+        // says the stack came up.
         $statusOutput = shell_exec("podman-compose $composeFlags ps --format table 2>/dev/null");
+
         if ($statusOutput) {
             echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
-            echo $statusOutput;
-            
-            // Display comprehensive app information
-            $this->displayAppDetails($appName);
+            echo PHP_EOL;
 
-            $this->interactiveHelper->displayKeycloakCredentials($appName);
+            $this->showAppView($appName);
 
             // Advisory security pass over the generated stack. Runs as its own
             // throwaway container that is not part of the app, and stays quiet
@@ -347,6 +348,18 @@ class ContainerTask extends BaseTask
             return;
         }
 
+        $this->showAppView($appName);
+    }
+
+    /**
+     * Everything nimbus:view reports about one app.
+     *
+     * Shared with nimbus:up so a successful start ends with the app's URLs,
+     * credentials and remaining steps rather than a bare container table —
+     * and so the two can never drift into showing different things.
+     */
+    private function showAppView(string $appName): void
+    {
         echo self::ansiFormat('INFO', "📦 Containers for '$appName':");
         foreach ($this->appManager->describeContainers($appName) as $c) {
             if (!$c['exists']) {

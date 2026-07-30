@@ -119,6 +119,58 @@ class ViewSectionsTest extends TestCase
         $this->assertStringNotContainsString('database password', $output);
     }
 
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function commandsOutput(array $config): string
+    {
+        $this->writeConfig($config);
+        $stored = json_decode((string) file_get_contents($this->baseDir . '/.installer/apps/demo/app.nimbus.json'), true);
+
+        return $this->capture(fn () => (new InteractiveHelper())->displayAppCommands('demo', $stored));
+    }
+
+    /**
+     * Scanning runs a container and produces a report — an action, so it
+     * belongs among the steps rather than in the read-only Inspect list.
+     */
+    public function testScanIsOfferedAsAnOptionalStepNotAsIntrospection(): void
+    {
+        $output = $this->commandsOutput(['source' => ['kind' => 'git'], 'features' => ['database' => true]]);
+
+        [$inspect, $steps] = explode('Next steps:', $output, 2);
+
+        $this->assertStringNotContainsString('nimbus:scan', $inspect);
+        $this->assertStringContainsString('composer nimbus:scan demo', $steps);
+        $this->assertStringContainsString('security scan', $steps);
+    }
+
+    public function testDevModeIsOfferedAsAddingACodeServerUntilItExists(): void
+    {
+        $before = $this->commandsOutput(['source' => ['kind' => 'git'], 'features' => ['database' => true, 'dev' => false]]);
+        $this->assertStringContainsString('adds a code-server', $before);
+
+        $after = $this->commandsOutput(['source' => ['kind' => 'git'], 'features' => ['database' => true, 'dev' => true]]);
+        $this->assertStringContainsString('code-server editor is part of this stack', $after);
+    }
+
+    /**
+     * Optional steps must never take the "run this next" marker from a
+     * required one.
+     */
+    public function testOptionalStepsDoNotClaimTheNextAction(): void
+    {
+        $output = $this->commandsOutput(['source' => ['kind' => 'git'], 'features' => ['database' => true]]);
+
+        $steps = explode('Next steps:', $output, 2)[1];
+        $lines = array_values(array_filter(explode("\n", $steps)));
+
+        // install is still the required next action, ahead of dev and scan
+        $this->assertStringContainsString('nimbus:install demo', $lines[0]);
+        $this->assertStringContainsString('← run this next', $lines[0]);
+        $this->assertSame(1, substr_count($steps, '← run this next'));
+    }
+
     public function testNothingIsPrintedWhenThereAreNoCredentials(): void
     {
         $this->writeConfig(['features' => ['database' => false]]);

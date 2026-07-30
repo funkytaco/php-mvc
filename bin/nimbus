@@ -128,8 +128,12 @@ app_url() {
         $port = $cfg["containers"]["app"]["port"] ?? "?";
         echo "App URL:         http://localhost:$port\n";
         if (!empty($cfg["containers"]["codeserver"]["port"]) && $argv[2] === "dev") {
-            echo "code-server URL: http://localhost:" . $cfg["containers"]["codeserver"]["port"]
-               . "  (password: " . ($cfg["containers"]["codeserver"]["password"] ?? "?") . ")\n";
+            echo "code-server URL: http://localhost:" . $cfg["containers"]["codeserver"]["port"] . "\n";
+            // The password is not printed: it grants a browser shell over the
+            // app source, and for apps with a vault it is not in this file at
+            // all (which is what used to render as "password: ?").
+            $where = !empty($cfg["containers"]["codeserver"]["password"]) ? "config" : "vault-view";
+            echo "code-server password: composer nimbus:$where $app\n";
         }
     ' "$1" "${2:-nodev}"
 }

@@ -333,6 +333,62 @@ class AppManager
     }
 
     /**
+     * Generated compose files that exist for an app, base first.
+     *
+     * Unlike getComposeFiles(), this never generates anything — teardown must
+     * not recreate the files it is about to delete.
+     *
+     * @return list<string>
+     */
+    protected function existingComposeFiles(string $appName): array
+    {
+        return array_values(array_filter(
+            [
+                $this->baseDir . '/' . $appName . '-compose.yml',
+                $this->baseDir . '/' . $appName . '-compose.dev.yml',
+            ],
+            'file_exists'
+        ));
+    }
+
+    /**
+     * Leftovers an app name still owns despite not being registered.
+     *
+     * Containers outlive the registry entry whenever a delete is interrupted,
+     * or (historically) when teardown missed one. Because create refuses a
+     * name whose containers exist, those leftovers reserve the name for good
+     * unless something can still be asked to clean them up.
+     *
+     * @return list<string>
+     */
+    public function findOrphans(string $appName): array
+    {
+        $found = $this->existingComposeFiles($appName);
+
+        $existing = $this->runCommand("podman ps -a --format '{{.Names}}' 2>/dev/null");
+        if (!empty($existing)) {
+            $names = array_filter(array_map('trim', explode("\n", trim($existing))));
+            $found = array_merge(
+                $found,
+                array_values(array_intersect($this->ownedContainerNames($appName), $names))
+            );
+        }
+
+        if (is_dir($this->installerDir . '/' . $appName)) {
+            $found[] = $this->installerDir . '/' . $appName;
+        }
+
+        return array_values($found);
+    }
+
+    protected function removeComposeFiles(string $appName): void
+    {
+        foreach ($this->existingComposeFiles($appName) as $file) {
+            unlink($file);
+        }
+    }
+
+    /**
      * Whether the generated runtime files this app needs to start are on disk.
      */
     public function isInstalled(string $appName): bool
@@ -864,6 +920,63 @@ class AppManager
      * surfaces at 'nimbus:up', after create and install have succeeded,
      * as "the container name X is already in use".
      */
+    /**
+     * Every suffix this generator can ever append — features are added after
+     * create (nimbus:add-eda / add-keycloak / dev), so listing only the
+     * containers enabled today would let a later feature collide with
+     * something that was already there.
+     *
+     * @var list<string>
+     */
+    private const CONTAINER_SUFFIXES = [
+        '-app',
+        '-postgres',
+        '-db',
+        '-eda',
+        '-keycloak',
+        '-keycloak-db',
+        '-keycloak-setup',
+        '-code-server',
+    ];
+
+    /**
+     * Every container name this generator can produce for an app.
+     *
+     * Create and delete read the same list on purpose: refusing to create an
+     * app because a name is taken, while leaving that same name behind on
+     * delete, makes the app impossible to recreate.
+     *
+     * @return list<string>
+     */
+    protected function ownedContainerNames(string $appName): array
+    {
+        return array_map(fn (string $suffix): string => $appName . $suffix, self::CONTAINER_SUFFIXES);
+    }
+
+    /**
+     * Remove any container still carrying one of this app's names.
+     *
+     * `compose down` only tears down what the compose files it is handed
+     * declare, and the code-server sidecar lives in the dev overlay — so a
+     * teardown given only the base file left it running, which then blocked
+     * recreating the app. This also catches containers orphaned by an earlier
+     * partial delete, where the config that would name them is already gone.
+     */
+    protected function removeAppContainers(string $appName): void
+    {
+        $existing = $this->runCommand("podman ps -a --format '{{.Names}}' 2>/dev/null");
+
+        if (empty($existing)) {
+            return;  // podman unavailable or nothing to remove
+        }
+
+        $existing = array_filter(array_map('trim', explode("\n", trim($existing))));
+
+        foreach (array_intersect($this->ownedContainerNames($appName), $existing) as $container) {
+            $this->runCommand('podman rm -f ' . escapeshellarg($container) . ' 2>&1');
+        }
+    }
+
     protected function assertNoContainerNameCollision(string $appName): void
     {
         $existing = $this->runCommand("podman ps -a --format '{{.Names}}' 2>/dev/null");
@@ -873,15 +986,7 @@ class AppManager
 
         $existing = array_filter(array_map('trim', explode("\n", trim($existing))));
 
-        // Every suffix this generator can ever append — features are added
-        // after create (nimbus:add-eda / add-keycloak / dev), so checking
-        // only the containers enabled today would let a later feature
-        // collide with something that was already there.
-        $wanted = array_map(
-            fn ($suffix) => $appName . $suffix,
-            ['-app', '-postgres', '-db', '-eda', '-keycloak', '-keycloak-db', '-keycloak-setup', '-code-server']
-        );
-        $conflicts = array_values(array_intersect($wanted, $existing));
+        $conflicts = array_values(array_intersect($this->ownedContainerNames($appName), $existing));
 
         if (!empty($conflicts)) {
             throw new \RuntimeException(
@@ -1968,9 +2073,13 @@ class AppManager
                     file_put_contents($appsFile, json_encode($registry, JSON_PRETTY_PRINT));
                 }
             }
-            if (file_exists($composeFile)) {
-                unlink($composeFile);
-            }
+
+            // Containers can outlive the directory — an interrupted delete, or
+            // one that only tore down the base compose file. Left behind, they
+            // make the app name unusable and nothing else reclaims it.
+            $this->removeAppContainers($appName);
+            $this->removeComposeFiles($appName);
+
             $dataDir = $this->baseDir . '/data/' . $appName;
             if (is_dir($dataDir)) {
                 $this->deleteDirectory($dataDir);
@@ -1978,14 +2087,24 @@ class AppManager
             return true;
         }
 
-        // Stop and remove containers first
-        if (file_exists($composeFile)) {
-            $downCommand = "podman-compose -f $composeFile down";
+        // Stop and remove containers first. Every generated compose file has to
+        // be passed, not just the base one: the dev overlay is where the
+        // code-server sidecar is declared, and a teardown that omits it leaves
+        // that container running.
+        $composeFiles = $this->existingComposeFiles($appName);
+
+        if ($composeFiles !== []) {
+            $downCommand = 'podman-compose -f ' . implode(' -f ', $composeFiles) . ' down';
             if ($options['remove_volumes'] ?? false) {
                 $downCommand .= ' --volumes';
             }
             $this->runCommand($downCommand . ' 2>&1');
         }
+
+        // Belt and braces: compose down is best-effort (it can fail, or the
+        // overlay can be missing while its container is not), and a survivor
+        // blocks recreating the app under the same name.
+        $this->removeAppContainers($appName);
 
         // Remove images if requested
         if ($options['remove_images'] ?? false) {
@@ -2023,10 +2142,8 @@ class AppManager
             file_put_contents($appsFile, json_encode($apps, JSON_PRETTY_PRINT));
         }
 
-        // Remove compose file
-        if (file_exists($composeFile)) {
-            unlink($composeFile);
-        }
+        // Remove generated compose files
+        $this->removeComposeFiles($appName);
 
         // Remove data volumes
         $dataDir = $this->baseDir . '/data/' . $appName;
