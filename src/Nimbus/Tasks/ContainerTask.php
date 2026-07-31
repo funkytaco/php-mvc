@@ -294,21 +294,39 @@ class ContainerTask extends BaseTask
 
         echo self::ansiFormat('INFO', "Running: $buildCommand");
 
-        // passthru, not shell_exec: a build streams progress for minutes, and
-        // it reports the exit status. Success used to be inferred from
-        // `podman-compose ps --format table` having output — but that command
-        // prints nothing here, so a perfectly good build fell straight through
-        // and told the user nothing.
-        passthru($buildCommand . ' 2>&1', $exitCode);
+        // Streamed live (a build runs for minutes) AND captured, because the
+        // captured text is what failure diagnosis reads. Success used to be
+        // inferred from `podman-compose ps --format table` having output —
+        // but that command prints nothing here, so a perfectly good build fell
+        // straight through and told the user nothing.
+        [$exitCode, $output] = $this->runStreamingCommand($buildCommand . ' 2>&1');
 
         if ($exitCode !== 0) {
+            echo PHP_EOL;
             echo self::ansiFormat('ERROR', "Failed to start '$appName' — podman-compose exited $exitCode.");
+            $this->printDiagnosis(self::diagnoseStartFailure($appName, $output));
             echo self::ansiFormat('INFO', "Inspect the stack with: composer nimbus:view $appName");
 
             return;
         }
 
-        $this->waitForContainers($appName);
+        if (!$this->waitForContainers($appName)) {
+            // podman-compose's exit code is not reliable (1.0.6 keeps going
+            // after a failed build), so "it said 0" is not proof of life —
+            // the containers actually running is.
+            $diagnosis = self::diagnoseStartFailure($appName, $output);
+
+            if ($diagnosis !== []) {
+                echo PHP_EOL;
+                echo self::ansiFormat('ERROR', "'$appName' did not come up, although podman-compose reported success.");
+                $this->printDiagnosis($diagnosis);
+                echo self::ansiFormat('INFO', "Inspect the stack with: composer nimbus:view $appName");
+
+                return;
+            }
+
+            echo self::ansiFormat('INFO', 'Containers are still starting — the view below may catch them warming up.');
+        }
 
         echo PHP_EOL;
         echo self::ansiFormat('SUCCESS', "App '$appName' started successfully!");
@@ -358,19 +376,111 @@ class ContainerTask extends BaseTask
      * it returns the instant everything is running, and gives up after the
      * timeout instead of hanging on a genuinely wedged container.
      */
-    private function waitForContainers(string $appName, int $timeoutSeconds = 15): void
+    private function waitForContainers(string $appName, int $timeoutSeconds = 15): bool
     {
         $deadline = time() + $timeoutSeconds;
 
         do {
             if (($this->appManager->describeApp($appName)['state'] ?? null) === 'running') {
-                return;
+                return true;
             }
 
             sleep(1);
         } while (time() < $deadline);
 
-        echo self::ansiFormat('INFO', 'Containers are still starting — the view below may catch them warming up.');
+        return false;
+    }
+
+    /**
+     * Run a command echoing its output as it arrives while also keeping it,
+     * so a long build stays visible live and its text stays available for
+     * failure diagnosis.
+     *
+     * @return array{0: int, 1: string} exit code, combined output
+     */
+    private function runStreamingCommand(string $command): array
+    {
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
+
+        if (!is_resource($process)) {
+            return [1, ''];
+        }
+
+        $output = '';
+        while (($line = fgets($pipes[1])) !== false) {
+            echo $line;
+            $output .= $line;
+        }
+        fclose($pipes[1]);
+
+        return [proc_close($process), $output];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function printDiagnosis(array $lines): void
+    {
+        foreach ($lines as $line) {
+            echo '  ' . $line . PHP_EOL;
+        }
+    }
+
+    /**
+     * Translate podman-compose failure output into what actually went wrong.
+     *
+     * podman-compose (1.0.6) does not stop after a failed build: it carries on
+     * to `podman run`, which — having no locally built image to use — asks
+     * docker.io for the app's image and is denied, because that image only
+     * ever exists locally. Read bottom-up that looks like a registry problem;
+     * the cause is at the top of the log. This walks the known signatures in
+     * cause order so the report leads with the truth, and only blames the
+     * registry when an image Nimbus genuinely needed to pull was refused.
+     *
+     * Public and static so the signature table is testable against real
+     * captured output.
+     *
+     * @return list<string> explanation lines, empty when nothing is recognized
+     */
+    public static function diagnoseStartFailure(string $appName, string $output): array
+    {
+        $lines = [];
+        $appImage = $appName . '_' . $appName . '-app';
+
+        $buildFailed = preg_match('/Error: building at STEP "([^"]+)"/', $output, $step) === 1;
+
+        if ($buildFailed) {
+            $lines[] = 'The image build failed at: ' . $step[1];
+
+            if (str_contains($output, 'COPY --excludes is not supported')) {
+                $lines[] = "This podman does not support `COPY --exclude`, which the repository's Containerfile uses.";
+                $lines[] = 'Upgrade podman/buildah, or pass --containerfile= naming one that avoids that flag.';
+            }
+        }
+
+        // Registry trouble that is NOT about the app's own image — a base
+        // image pull being refused or unreachable is a real registry problem.
+        $foreign = implode("\n", array_filter(
+            explode("\n", $output),
+            static fn (string $line): bool => !str_contains($line, $appImage)
+        ));
+
+        if (preg_match('/requested access to the resource is denied|unauthorized|authentication required/i', $foreign) === 1) {
+            $lines[] = 'A registry refused access while pulling an image the stack needs.';
+            $lines[] = 'If the image is private: podman login <registry>. Otherwise the registry may be blocked by policy or a proxy.';
+        } elseif (preg_match('/dial tcp|i\/o timeout|connection refused|no such host|x509|TLS handshake/i', $foreign) === 1) {
+            $lines[] = 'The container registry could not be reached — check network, VPN or proxy settings.';
+        }
+
+        // The cascade artifact, explained last: podman trying to *pull* the
+        // app's own image means the build never produced one.
+        if (str_contains($output, 'Trying to pull') && str_contains($output, $appImage)) {
+            $lines[] = $buildFailed
+                ? "The '$appImage' registry error below the build failure is a symptom: with no locally built image, podman asked docker.io for it, and it does not exist there."
+                : "podman tried to pull '$appImage' from a registry. That image is only ever built locally — the build appears not to have produced it.";
+        }
+
+        return $lines;
     }
 
     /**
