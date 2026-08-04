@@ -126,9 +126,12 @@ class IndexController extends AbstractController
             'enable_keycloak_command' => 'composer nimbus:add-keycloak ' . $appSlug,
             'user' => $_SESSION['user'] ?? null,
             'app_name' => $appSlug,
-            'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
-            'KEYCLOAK_REALM' => $keycloakRealm,
-            'APP_PORT_KEYCLOAK' => $keycloakPort
+            // Lowercase on purpose: uppercase {{ }} tokens are create-time
+            // scaffolding placeholders, and naming runtime view data like one
+            // risks it being substituted at create (see TODO-PLACEHOLDERS.md).
+            'keycloak_admin_password' => $keycloakAdminPassword,
+            'keycloak_realm' => $keycloakRealm,
+            'keycloak_port' => $keycloakPort
         ];
         
         $html = $this->render('demo/index', $data);

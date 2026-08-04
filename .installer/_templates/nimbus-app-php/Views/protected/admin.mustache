@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} — Nimbus</title>
+    <style>
+        :root { --mono: ui-monospace, Menlo, Consolas, monospace; --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+                --bg: #e8eaed; --surface: #fafbfc; --line: #d2d7de; --ink: #1b2027; --ink-2: #5a626d;
+                --ok: #1f6b4a; --ok-soft: #e0efe7; --fault: #a32c22; --fault-soft: #f7e3e1; --accent: #97671a; }
+        * { box-sizing: border-box; margin: 0; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--ink); padding: 3rem 1.5rem; }
+        main { max-width: 40rem; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 2rem; }
+        .badge { display: inline-block; font-family: var(--mono); font-size: .75rem; padding: .2rem .6rem; border-radius: 3px; }
+        .badge.ok { background: var(--ok-soft); color: var(--ok); }
+        .badge.denied { background: var(--fault-soft); color: var(--fault); }
+        h1 { font-size: 1.4rem; margin: .75rem 0 1.25rem; }
+        p { color: var(--ink-2); line-height: 1.5; margin-bottom: 1rem; }
+        ol { color: var(--ink-2); line-height: 1.6; margin: 0 0 1.25rem 1.25rem; }
+        code { font-family: var(--mono); font-size: .85em; }
+        nav a { color: var(--accent); margin-right: 1rem; }
+    </style>
+</head>
+<body>
+<main>
+    {{#denied}}
+    <span class="badge denied">403 — role missing</span>
+    <h1>{{title}}</h1>
+    <p>You are signed in as <code>{{username}}</code>, but this page requires
+       the <code>admin</code> realm role and your session carries
+       {{#has_roles}}only: {{#roles}}<code>{{name}}</code> {{/roles}}{{/has_roles}}
+       {{^has_roles}}no realm roles at all{{/has_roles}}.</p>
+    <p>That is the demonstration: authentication and authorization are
+       separate checks. To grant the role:</p>
+    <ol>
+        <li>Open the Keycloak admin console{{#admin_console}} at <code>{{admin_console}}</code>{{/admin_console}}
+            (credentials: <code>composer nimbus:vault-view</code>)</li>
+        <li>Realm <code>{{realm}}</code> → Users → <code>{{username}}</code> → Role mapping</li>
+        <li>Assign <code>admin</code>, then sign out and back in so the new
+            role lands in a fresh token</li>
+    </ol>
+    {{/denied}}
+    {{^denied}}
+    <span class="badge ok">signed in — admin role</span>
+    <h1>{{title}}</h1>
+    <p>You are seeing this because your token carries the <code>admin</code>
+       realm role. This is where an app would put its dangerous buttons.</p>
+    {{/denied}}
+
+    <nav>
+        <a href="/">Home</a>
+        <a href="/protected">/protected</a>
+        <a href="/auth/logout?redirect=/">Sign out</a>
+    </nav>
+</main>
+</body>
+</html>

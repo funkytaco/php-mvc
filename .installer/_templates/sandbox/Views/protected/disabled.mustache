@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} — Nimbus</title>
+    <style>
+        :root { --mono: ui-monospace, Menlo, Consolas, monospace; --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+                --bg: #e8eaed; --surface: #fafbfc; --line: #d2d7de; --ink: #1b2027; --ink-2: #5a626d; --accent: #97671a; }
+        * { box-sizing: border-box; margin: 0; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--ink); padding: 3rem 1.5rem; }
+        main { max-width: 40rem; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 2rem; }
+        h1 { font-size: 1.4rem; margin: 0 0 1.25rem; }
+        p { color: var(--ink-2); line-height: 1.5; margin-bottom: 1rem; }
+        code { font-family: var(--mono); font-size: .85em; }
+        nav a { color: var(--accent); margin-right: 1rem; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>{{route}} is a protected route — but this app has no SSO</h1>
+    <p><code>{{route}}</code> demonstrates Keycloak-backed access control,
+       and this app was built without Keycloak, so there is nothing to sign
+       in with.</p>
+    <p>Enable it with <code>composer nimbus:add-keycloak {{app_name}}</code>,
+       then reinstall and restart the app.</p>
+    <nav><a href="/">Home</a></nav>
+</main>
+</body>
+</html>

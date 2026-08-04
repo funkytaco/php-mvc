@@ -48,15 +48,10 @@
     
     <div class="subpanel">
         <h4>Admin console</h4>
-        <p><strong>URL:</strong> <a href="http://localhost:{{APP_PORT_KEYCLOAK}}" target="_blank">http://localhost:{{APP_PORT_KEYCLOAK}}</a></p>
+        <p><strong>URL:</strong> <a href="http://localhost:{{keycloak_port}}" target="_blank">http://localhost:{{keycloak_port}}</a></p>
         <p><strong>Admin Username:</strong> admin</p>
-        {{#KEYCLOAK_ADMIN_PASSWORD}}
-        <p><strong>Admin Password:</strong> </p>
-        {{/KEYCLOAK_ADMIN_PASSWORD}}
-        {{^KEYCLOAK_ADMIN_PASSWORD}}
-        <p><strong>Admin Password:</strong> (use vault command below to retrieve)</p>
-        {{/KEYCLOAK_ADMIN_PASSWORD}}
-        <p><strong>Custom Realm:</strong> </p>
+        <p><strong>Admin Password:</strong> (use vault command below to retrieve — never displayed here)</p>
+        <p><strong>Custom Realm:</strong> {{keycloak_realm}}</p>
         
         <div class="note">
             <h5>Test account</h5>

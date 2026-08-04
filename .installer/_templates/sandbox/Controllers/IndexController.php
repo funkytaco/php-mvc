@@ -75,9 +75,14 @@ class IndexController extends AbstractController
             'has_keycloak' => $hasKeycloak,
             'user' => $_SESSION['user'] ?? null,
             'app_name' => '{{APP_NAME}}',
-            'KEYCLOAK_ADMIN_PASSWORD' => $keycloakAdminPassword,
-            'KEYCLOAK_REALM' => $keycloakRealm,
-            'APP_PORT_KEYCLOAK' => 8080
+            // Lowercase on purpose: uppercase {{ }} tokens are create-time
+            // scaffolding placeholders, and naming runtime view data like one
+            // risks it being substituted at create (see TODO-PLACEHOLDERS.md).
+            'keycloak_admin_password' => $keycloakAdminPassword,
+            'keycloak_realm' => $keycloakRealm,
+            // Host-published console port from app config — 8080 is only the
+            // port *inside* the container and is wrong from a browser.
+            'keycloak_port' => $config['keycloak']['host_port'] ?? 8080
         ];
         
         $html = $this->render('demo/index', $data);

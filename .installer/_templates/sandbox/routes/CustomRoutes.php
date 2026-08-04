@@ -15,6 +15,12 @@ return function ($injector, $renderer, $conn) {
         // EDA webhook proxy route
         ['POST', '/api/eda/webhook', ['App\Controllers\IndexController', 'edaWebhook']],
         
+        // Example protected routes (Keycloak) — one per protection level.
+        // /protected needs any signed-in user; /admin also needs the 'admin'
+        // realm role. Both render an explanatory page when SSO is not enabled.
+        ['GET', '/protected', ['App\Controllers\ProtectedController', 'member']],
+        ['GET', '/admin', ['App\Controllers\ProtectedController', 'admin']],
+
         // Auth routes (Keycloak)
         ['GET', '/auth/login', ['App\Controllers\AuthController', 'login']],
         ['GET', '/auth/callback', ['App\Controllers\AuthController', 'callback']],
