@@ -693,8 +693,13 @@ class ApplicationTasks {
                 }
                 echo "  [all] Delete ALL apps" . PHP_EOL;
                 
-                $choice = $io->ask('Enter app number, name, or "all": ');
-                
+                $choice = $io->ask('Enter app number, name, "all" — or Enter to cancel: ');
+
+                if (\Nimbus\Tasks\ContainerTask::isCancelChoice($choice)) {
+                    echo self::ansiFormat('INFO', 'Cancelled — nothing was deleted.');
+                    return;
+                }
+
                 if (strtolower($choice) === 'all') {
                     self::deleteAllApps($manager, $apps, $io);
                     return;

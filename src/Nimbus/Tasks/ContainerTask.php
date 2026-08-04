@@ -100,13 +100,18 @@ class ContainerTask extends BaseTask
                 $index++;
             }
             
-            $choice = $io->ask('Select app to start (number): ');
-            
+            $choice = $io->ask('Select app to start (number, Enter to cancel): ');
+
+            if (self::isCancelChoice($choice)) {
+                echo self::ansiFormat('INFO', 'Cancelled — nothing was started.');
+                return;
+            }
+
             if (!isset($choices[(int)$choice])) {
                 echo self::ansiFormat('ERROR', 'Invalid selection.');
                 return;
             }
-            
+
             $selectedApp = $choices[(int)$choice];
             $this->startApp($selectedApp);
             
@@ -171,13 +176,18 @@ class ContainerTask extends BaseTask
             
             echo "  [all] Stop all running apps" . PHP_EOL;
             
-            $choice = $io->ask('Select app to stop (number or "all"): ');
-            
+            $choice = $io->ask('Select app to stop (number, "all", Enter to cancel): ');
+
+            if (self::isCancelChoice($choice)) {
+                echo self::ansiFormat('INFO', 'Cancelled — nothing was stopped.');
+                return;
+            }
+
             if (strtolower($choice ?? '') === 'all') {
                 $this->stopAllApps($this->appManager, $runningApps, $io);
                 return;
             }
-            
+
             if (!isset($choices[(int)$choice])) {
                 echo self::ansiFormat('ERROR', 'Invalid selection.');
                 return;
@@ -339,6 +349,25 @@ class ContainerTask extends BaseTask
         // when the scanner image has not been pulled, so it can never turn a
         // working `up` into a slow or failing one.
         (new ScanTask())->scanApp($appName, true);
+    }
+
+    /**
+     * Did the user decline the prompt rather than answer it?
+     *
+     * A terminal cannot hand Escape to a line-based prompt as a cancel — it
+     * arrives as raw \x1b bytes in the answer (which is exactly what mashing
+     * Esc produces). So: strip control characters first, then treat an empty
+     * line or a quit word as "get me out of here", never as a selection.
+     */
+    public static function isCancelChoice(?string $choice): bool
+    {
+        if ($choice === null) {
+            return true;
+        }
+
+        $printable = trim((string) preg_replace('/[\x00-\x1F\x7F]/', '', $choice));
+
+        return $printable === '' || in_array(strtolower($printable), ['q', 'quit', 'cancel', 'exit'], true);
     }
 
     /**
