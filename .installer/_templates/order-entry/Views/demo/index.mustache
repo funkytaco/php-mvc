@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} — Nimbus</title>
+    <style>
+        :root {
+            --mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", "Roboto Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+            --bg: #e8eaed;
+            --surface: #fafbfc;
+            --surface-2: #f0f2f5;
+            --line: #d2d7de;
+            --line-soft: #e2e6ec;
+            --ink: #1b2027;
+            --ink-2: #5a626d;
+            --ink-3: #838b96;
+
+            --accent: #97671a;
+            --accent-soft: #f4e9d6;
+
+            --ok: #1f6b4a;
+            --ok-soft: #e0efe7;
+            --fault: #a32c22;
+            --fault-soft: #f7e3e1;
+            --warn: #8a6100;
+
+            --radius: 4px;
+            --shadow: 0 1px 2px rgba(27, 32, 39, .06), 0 8px 24px -16px rgba(27, 32, 39, .3);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #14171c;
+                --surface: #1b1f26;
+                --surface-2: #232830;
+                --line: #2e353f;
+                --line-soft: #262c34;
+                --ink: #e6e9ee;
+                --ink-2: #98a1ae;
+                --ink-3: #79828f;
+
+                --accent: #e0a84c;
+                --accent-soft: rgba(224, 168, 76, .14);
+
+                --ok: #57b98a;
+                --ok-soft: rgba(87, 185, 138, .14);
+                --fault: #e4796a;
+                --fault-soft: rgba(228, 121, 106, .14);
+                --warn: #d9a441;
+
+                --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+            }
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: var(--sans);
+            font-size: 15px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--accent); text-underline-offset: 3px; }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+
+        h1, h2, h3, h4, h5 { text-wrap: balance; margin: 0; }
+
+        /* ---- Rack unit -------------------------------------------------- */
+
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line);
+        }
+        .topbar-inner {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: .7rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            font-family: var(--mono);
+            font-size: .78rem;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: var(--ink);
+        }
+        .brand svg { display: block; color: var(--accent); }
+        .topbar-auth {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            font-family: var(--mono);
+            font-size: .76rem;
+            color: var(--ink-2);
+        }
+
+        /* ---- Page ------------------------------------------------------- */
+
+        main {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem 4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .eyebrow {
+            font-family: var(--mono);
+            font-size: .72rem;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+
+        .masthead { display: flex; flex-direction: column; gap: .5rem; }
+        .masthead h1 {
+            font-family: var(--mono);
+            font-size: clamp(1.9rem, 5vw, 2.7rem);
+            font-weight: 600;
+            letter-spacing: -.01em;
+            text-transform: uppercase;
+            line-height: 1.05;
+        }
+        .masthead p {
+            margin: 0;
+            max-width: 62ch;
+            color: var(--ink-2);
+            font-size: 1.02rem;
+        }
+
+        /* ---- Readout strip ---------------------------------------------- */
+
+        .readout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1px;
+            background: var(--line);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        .tile {
+            background: var(--surface);
+            padding: 1.15rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: .35rem;
+        }
+        .tile-label {
+            font-family: var(--mono);
+            font-size: .68rem;
+            letter-spacing: .16em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+        .tile-value {
+            font-family: var(--mono);
+            font-size: 1.65rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+            word-break: break-word;
+        }
+        .tile-value.is-muted { color: var(--ink-3); }
+
+        /* ---- Panels ----------------------------------------------------- */
+
+        .panel, .card {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .card { padding: 1.25rem 1.5rem 1.5rem; }
+        .card h2 {
+            font-family: var(--mono);
+            font-size: .82rem;
+            font-weight: 600;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            padding-bottom: .9rem;
+            margin-bottom: 1.1rem;
+            border-bottom: 1px solid var(--line-soft);
+        }
+        .card h3, .card h4, .card h5 {
+            font-family: var(--mono);
+            font-size: .76rem;
+            font-weight: 600;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--ink-2);
+            margin: 1.4rem 0 .5rem;
+        }
+        .card p, .card ul { margin: .5rem 0; }
+        .card ul { padding-left: 1.1rem; }
+
+        .panel-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: .85rem 1.5rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--line);
+        }
+        .panel-title {
+            font-family: var(--mono);
+            font-size: .82rem;
+            font-weight: 600;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+        }
+        .panel-note {
+            font-family: var(--mono);
+            font-size: .72rem;
+            color: var(--ink-3);
+        }
+        .panel-body { padding: 1.5rem; }
+
+        /* ---- Status lamps ----------------------------------------------- */
+
+        .status-indicator {
+            display: inline-block;
+            flex: none;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--ink-3);
+            margin-right: 8px;
+        }
+        .status-success { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+        .status-error { background: var(--fault); box-shadow: 0 0 0 3px var(--fault-soft); }
+        .status-warning { background: var(--warn); box-shadow: 0 0 0 3px var(--accent-soft); }
+        .status-dormant { background: transparent; border: 1.5px solid var(--ink-3); }
+
+        /* ---- Services --------------------------------------------------- */
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1px;
+            background: var(--line-soft);
+        }
+        .feature {
+            background: var(--surface);
+            padding: 1.1rem 1.5rem 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+        }
+        .feature-name {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+        .feature-state {
+            font-family: var(--mono);
+            font-size: .7rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+            padding-left: 17px;
+        }
+        .feature-state.is-online { color: var(--ok); }
+
+        /* ---- Command chips ---------------------------------------------- */
+
+        .cmd {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: .5rem .65rem;
+            text-align: left;
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--ink);
+            font: inherit;
+            cursor: pointer;
+            transition: border-color .15s ease, background-color .15s ease;
+        }
+        .cmd:hover { border-color: var(--accent); background: var(--accent-soft); }
+        .cmd code {
+            flex: 1;
+            min-width: 0;
+            overflow-x: auto;
+            white-space: pre;
+            background: none;
+            padding: 0;
+            color: var(--accent);
+            font-size: .82rem;
+        }
+        .cmd-hint {
+            flex: none;
+            font-family: var(--mono);
+            font-size: .64rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+        .cmd[data-state="copied"] { border-color: var(--ok); }
+        .cmd[data-state="copied"] .cmd-hint { color: var(--ok); }
+
+        code {
+            font-family: var(--mono);
+            font-size: .86em;
+            background: var(--surface-2);
+            border-radius: 3px;
+            padding: .1em .35em;
+        }
+
+        /* ---- Fault banner ----------------------------------------------- */
+
+        .banner {
+            display: flex;
+            flex-direction: column;
+            gap: .75rem;
+            padding: 1.1rem 1.5rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+        .banner-head {
+            display: flex;
+            align-items: center;
+            font-family: var(--mono);
+            font-size: .78rem;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--fault);
+        }
+        .banner p { margin: 0; color: var(--ink-2); max-width: 62ch; }
+
+        /* ---- Endpoint table --------------------------------------------- */
+
+        .table-wrap { overflow-x: auto; }
+        table.endpoints {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .88rem;
+        }
+        .endpoints td {
+            padding: .7rem 1.5rem;
+            border-bottom: 1px solid var(--line-soft);
+            vertical-align: baseline;
+            white-space: nowrap;
+        }
+        .endpoints tr:last-child td { border-bottom: 0; }
+        .endpoints td.desc { color: var(--ink-2); width: 100%; white-space: normal; }
+        .endpoints td.path { font-family: var(--mono); }
+        .method {
+            display: inline-block;
+            min-width: 5.2em;
+            text-align: center;
+            padding: .15rem .5rem;
+            border-radius: 3px;
+            border: 1px solid var(--line);
+            background: var(--surface-2);
+            font-family: var(--mono);
+            font-size: .68rem;
+            font-weight: 600;
+            letter-spacing: .1em;
+            color: var(--ink-2);
+        }
+        .method.post { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+        .method.put { color: var(--warn); border-color: var(--warn); background: var(--accent-soft); }
+        .method.delete { color: var(--fault); border-color: var(--fault); background: var(--fault-soft); }
+
+        /* ---- Where to edit ---------------------------------------------- */
+
+        .edits { display: flex; flex-direction: column; }
+        .edit-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            padding: .8rem 1.5rem;
+            border-bottom: 1px solid var(--line-soft);
+        }
+        .edit-row:last-child { border-bottom: 0; }
+        .edit-path {
+            font-family: var(--mono);
+            font-size: .82rem;
+            color: var(--ink-3);
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+        .edit-path b { color: var(--accent); font-weight: 500; }
+
+        /* ---- Buttons (shared with partials) ------------------------------ */
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .45rem .9rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface-2);
+            color: var(--ink);
+            font-family: var(--mono);
+            font-size: .74rem;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            text-decoration: none;
+            cursor: pointer;
+            transition: border-color .15s ease, background-color .15s ease;
+        }
+        .btn:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+        .btn-success { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+        .btn-success:hover { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+
+        /* ---- Partial surfaces (EDA / Keycloak) --------------------------- */
+
+        .eda-section, .subpanel {
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+            margin-top: 1rem;
+        }
+        .webhook-controls {
+            display: flex;
+            gap: .75rem;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 1rem 0;
+            font-family: var(--mono);
+            font-size: .76rem;
+            color: var(--ink-2);
+        }
+        .data-display {
+            background: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: var(--mono);
+            font-size: .82rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .note {
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: .9rem 1.1rem;
+            margin: 1rem 0;
+        }
+        .note-ok { border-color: var(--ok); background: var(--ok-soft); }
+        .note-warn { border-color: var(--warn); background: var(--accent-soft); }
+        .note strong { font-family: var(--mono); font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+        .note p:last-child, .note ul:last-child { margin-bottom: 0; }
+
+        footer {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 0 1.5rem 3rem;
+            font-family: var(--mono);
+            font-size: .7rem;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--ink-3);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
+        }
+
+        @media (max-width: 560px) {
+            main { padding-top: 2rem; gap: 1.5rem; }
+            .panel-body, .feature, .edit-row, .endpoints td { padding-left: 1.15rem; padding-right: 1.15rem; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <span class="brand">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <rect x="0.5" y="0.5" width="13" height="3" stroke="currentColor"></rect>
+                    <rect x="0.5" y="5.5" width="13" height="3" stroke="currentColor"></rect>
+                    <rect x="0.5" y="10.5" width="9" height="3" stroke="currentColor"></rect>
+                </svg>
+                Nimbus
+            </span>
+            <div class="topbar-auth">
+                {{#has_keycloak}}
+                    {{#user}}
+                    <span>{{user.name}}</span>
+                    <a href="/auth/logout?redirect=/" class="btn">Sign out</a>
+                    {{/user}}
+                    {{^user}}
+                    <a href="/auth/login" class="btn">Sign in</a>
+                    {{/user}}
+                {{/has_keycloak}}
+                {{^has_keycloak}}
+                <span>Sign-in unavailable — SSO not installed</span>
+                {{/has_keycloak}}
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="masthead">
+            <p class="eyebrow">PHP MVC runtime</p>
+            <h1>{{title}}</h1>
+            <p>{{message}} This page reports what the stack is running right now, and gives you the command to switch on anything that isn't.</p>
+        </section>
+
+        <section class="readout" aria-label="Application readout">
+            <div class="tile">
+                <span class="tile-label">Application</span>
+                <span class="tile-value">{{app_name}}</span>
+            </div>
+            <div class="tile">
+                <span class="tile-label">Items stored</span>
+                <span class="tile-value{{^has_database}} is-muted{{/has_database}}">{{stats.total_items}}</span>
+            </div>
+            <div class="tile">
+                <span class="tile-label">Last updated</span>
+                <span class="tile-value{{^has_database}} is-muted{{/has_database}}">{{stats.last_updated}}</span>
+            </div>
+        </section>
+
+        {{^has_database}}
+        <section class="banner">
+            <span class="banner-head"><span class="status-indicator status-error"></span>Database unreachable</span>
+            <p>The app is running, but PostgreSQL isn't answering — stored counts read zero until it comes back. Start the stack:</p>
+            <button type="button" class="cmd" data-copy="composer nimbus:up {{app_name}}" title="Copy command">
+                <code>composer nimbus:up {{app_name}}</code>
+                <span class="cmd-hint">Copy</span>
+            </button>
+        </section>
+        {{/has_database}}
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">Services</h2>
+                <span class="panel-note">Live status</span>
+            </div>
+            <div class="features">
+                {{#features}}
+                <div class="feature">
+                    <span class="feature-name">
+                        <span class="status-indicator {{#enabled}}status-success{{/enabled}}{{^enabled}}status-dormant{{/enabled}}"></span>{{name}}
+                    </span>
+                    {{#enabled}}
+                    <span class="feature-state is-online">Online</span>
+                    {{/enabled}}
+                    {{^enabled}}
+                    <span class="feature-state">Not installed</span>
+                    <button type="button" class="cmd" data-copy="{{command}}" title="Copy command">
+                        <code>{{command}}</code>
+                        <span class="cmd-hint">Copy</span>
+                    </button>
+                    {{/enabled}}
+                </div>
+                {{/features}}
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">REST API</h2>
+                <span class="panel-note">JSON · /api</span>
+            </div>
+            <div class="table-wrap">
+                <table class="endpoints">
+                    <tbody>
+                        <tr>
+                            <td><span class="method">GET</span></td>
+                            <td class="path">/api/items</td>
+                            <td class="desc">List every item</td>
+                        </tr>
+                        <tr>
+                            <td><span class="method">GET</span></td>
+                            <td class="path">/api/items/{id}</td>
+                            <td class="desc">Fetch one item</td>
+                        </tr>
+                        <tr>
+                            <td><span class="method post">POST</span></td>
+                            <td class="path">/api/items</td>
+                            <td class="desc">Create an item — name and description required</td>
+                        </tr>
+                        <tr>
+                            <td><span class="method put">PUT</span></td>
+                            <td class="path">/api/items/{id}</td>
+                            <td class="desc">Update an item</td>
+                        </tr>
+                        <tr>
+                            <td><span class="method delete">DELETE</span></td>
+                            <td class="path">/api/items/{id}</td>
+                            <td class="desc">Delete an item</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        {{#has_eda}}
+        {{> partials/eda-section}}
+        {{/has_eda}}
+
+        {{#has_keycloak}}
+        {{> partials/keycloak-section}}
+        {{/has_keycloak}}
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2 class="panel-title">Where to edit</h2>
+                <span class="panel-note">Your code</span>
+            </div>
+            <div class="edits">
+                <div class="edit-row">
+                    <span>Handle requests and shape page data</span>
+                    <span class="edit-path">app/Controllers/<b>IndexController.php</b></span>
+                </div>
+                <div class="edit-row">
+                    <span>Query and write your data</span>
+                    <span class="edit-path">app/Models/<b>DemoModel.php</b></span>
+                </div>
+                <div class="edit-row">
+                    <span>Change this page</span>
+                    <span class="edit-path">app/Views/demo/<b>index.mustache</b></span>
+                </div>
+                <div class="edit-row">
+                    <span>Add routes</span>
+                    <span class="edit-path">app/<b>CustomRoutes.php</b></span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>Nimbus framework · {{app_name}}</footer>
+
+    <script>
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-copy]');
+            if (!button) return;
+
+            var text = button.getAttribute('data-copy');
+            var hint = button.querySelector('.cmd-hint');
+
+            var confirmCopy = function () {
+                button.setAttribute('data-state', 'copied');
+                if (hint) hint.textContent = 'Copied';
+                setTimeout(function () {
+                    button.removeAttribute('data-state');
+                    if (hint) hint.textContent = 'Copy';
+                }, 1600);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(confirmCopy, function () {
+                    fallbackCopy(text, confirmCopy);
+                });
+            } else {
+                fallbackCopy(text, confirmCopy);
+            }
+        });
+
+        function fallbackCopy(text, done) {
+            var field = document.createElement('textarea');
+            field.value = text;
+            field.setAttribute('readonly', '');
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            document.body.appendChild(field);
+            field.select();
+            try { document.execCommand('copy'); done(); } catch (error) { /* clipboard unavailable */ }
+            document.body.removeChild(field);
+        }
+    </script>
+
+    {{#has_eda}}
+    {{> partials/eda-scripts}}
+    {{/has_eda}}
+</body>
+</html>

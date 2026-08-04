@@ -63,6 +63,130 @@ class TemplateTask extends BaseTask
         $task->handleScaffold($event);
     }
     
+    /**
+     * Clone an existing template under a new name.
+     */
+    public static function cloneTemplate(Event $event): void
+    {
+        $task = new self();
+        $task->handleClone($event);
+    }
+
+    private function handleClone(Event $event): void
+    {
+        $io = $event->getIO();
+        $args = $event->getArguments();
+
+        $source = $args[0] ?? $io->ask('Source template to clone: ');
+        $newName = $args[1] ?? $io->ask('Name for the new template: ');
+
+        if (ContainerTask::isCancelChoice($source) || ContainerTask::isCancelChoice($newName)) {
+            echo self::ansiFormat('INFO', 'Cancelled — nothing was cloned.');
+            return;
+        }
+
+        // Aliases resolve so `nimbus:template-clone myalias new-name` works;
+        // outside a repo root (tests) the config may be unreadable — then the
+        // literal name is simply used as-is.
+        try {
+            $source = \Nimbus\Template\TemplateConfig::getInstance()->resolveTemplate($source);
+            $aliases = \Nimbus\Template\TemplateConfig::getInstance()->getTemplateAliases();
+        } catch (\Throwable $e) {
+            $aliases = [];
+        }
+
+        if (isset($aliases[$newName])) {
+            echo self::ansiFormat('ERROR', "'$newName' is already an alias for '{$aliases[$newName]}' — pick another name or remove the alias first.");
+            return;
+        }
+
+        if (!$this->performClone((string) $source, (string) $newName)) {
+            return;
+        }
+
+        echo self::ansiFormat('SUCCESS', "Template '$newName' created from '$source'.");
+        echo self::ansiFormat('INFO', '📁 ' . $this->templatesDir . '/' . $newName);
+        echo PHP_EOL;
+        echo self::ansiFormat('INFO', 'Next steps:');
+        echo "  composer nimbus:create <app> $newName   # create an app from it" . PHP_EOL;
+        echo "  composer nimbus:template-check $newName   # verify it renders" . PHP_EOL;
+        echo "  composer nimbus:lint-check $newName" . PHP_EOL;
+    }
+
+    /**
+     * The clone itself, free of the Composer event so tests can drive it.
+     * Prints the reason and returns false on refusal; every refusal happens
+     * before anything is written.
+     */
+    public function performClone(string $source, string $newName): bool
+    {
+        $sourcePath = $this->templatesDir . '/' . $source;
+        $targetPath = $this->templatesDir . '/' . $newName;
+
+        if (!is_dir($sourcePath)) {
+            echo self::ansiFormat('ERROR', "Template '$source' not found in " . $this->templatesDir);
+            return false;
+        }
+        if (preg_match('/^[a-z0-9-]+$/', $newName) !== 1) {
+            echo self::ansiFormat('ERROR', "Invalid template name '$newName' — lowercase letters, numbers, and hyphens only.");
+            return false;
+        }
+        if (is_dir($targetPath)) {
+            echo self::ansiFormat('ERROR', "Template '$newName' already exists.");
+            return false;
+        }
+
+        $this->copyDirectory($sourcePath, $targetPath);
+
+        // The one load-bearing self-reference: created apps carry this `type`
+        // in their own app.nimbus.json, and nimbus:commit / feature scaffolding
+        // resolve the template directory from it. Left as the source's name,
+        // every app cloned from this template would commit back to the parent.
+        $configFile = $targetPath . '/app.nimbus.json';
+        if (is_file($configFile)) {
+            $config = json_decode((string) file_get_contents($configFile), true);
+            if (is_array($config)) {
+                $config['type'] = $newName;
+                file_put_contents($configFile, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            }
+        }
+
+        // Metadata for nimbus:template-check; recorded provenance either way.
+        $metaFile = $targetPath . '/template.json';
+        $meta = is_file($metaFile)
+            ? (array) json_decode((string) file_get_contents($metaFile), true)
+            : ['description' => "Cloned from $source", 'version' => '1.0.0'];
+        $meta['name'] = $newName;
+        $meta['cloned_from'] = $source;
+        file_put_contents($metaFile, json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return true;
+    }
+
+    /**
+     * Plain recursive copy. Deliberately local: the similar helper on
+     * AppManager is protected on an unrelated class.
+     */
+    private function copyDirectory(string $source, string $destination): void
+    {
+        mkdir($destination, 0755, true);
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $target = $destination . '/' . $iterator->getSubPathname();
+
+            if ($item->isDir()) {
+                mkdir($target, 0755, true);
+            } else {
+                copy($item->getPathname(), $target);
+            }
+        }
+    }
+
     private function handleScaffold(Event $event): void
     {
         $io = $event->getIO();

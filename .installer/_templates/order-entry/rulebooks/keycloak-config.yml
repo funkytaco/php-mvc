@@ -1,0 +1,53 @@
+---
+# Listens on 5001: the demo-rules rulebook already binds 5000, and two
+# ansible-rulebook processes cannot share a port. 5001 is container-internal
+# only (the app posts to <app>-eda:5001); no host publishing needed.
+- name: Keycloak Configuration Rulebook
+  hosts: all
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5001
+        url_path: /keycloak-config
+
+  rules:
+    - name: Configure Keycloak Realm and Client
+      condition: event.payload.realm is defined and event.payload.client_id is defined
+      action:
+        run_playbook:
+          name: /playbooks/configure-keycloak.yml
+          extra_vars:
+            keycloak_url: "{{ event.payload.auth_url }}"
+            realm_name: "{{ event.payload.realm }}"
+            client_id: "{{ event.payload.client_id }}"
+            client_secret: "{{ event.payload.client_secret }}"
+            # app identity/port come from the event payload (the app reads
+            # them from its own config at runtime) — no create-time
+            # placeholders here, since rulebook copies only substitute
+            # APP_NAME variants.
+            app_name: "{{ event.payload.app_name }}"
+            app_port: "{{ event.payload.app_port }}"
+            callback_url: "http://{{APP_NAME}}-app:8080/api/keycloak/configured"
+
+    - name: Handle Keycloak Health Check
+      condition: event.payload.action == "health_check"
+      action:
+        run_playbook:
+          name: /playbooks/keycloak-health.yml
+          extra_vars:
+            keycloak_url: "http://{{APP_NAME}}-keycloak:8080"
+            callback_url: "http://{{APP_NAME}}-app:8080/api/keycloak/health"
+
+    - name: Create Keycloak User
+      condition: event.payload.action == "create_user"
+      action:
+        run_playbook:
+          name: /playbooks/create-keycloak-user.yml
+          extra_vars:
+            keycloak_url: "http://{{APP_NAME}}-keycloak:8080"
+            realm_name: "{{ event.payload.realm }}"
+            username: "{{ event.payload.username }}"
+            email: "{{ event.payload.email }}"
+            first_name: "{{ event.payload.first_name }}"
+            last_name: "{{ event.payload.last_name }}"
+            temporary_password: "{{ event.payload.temporary_password | default('changeme') }}"

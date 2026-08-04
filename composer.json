@@ -76,6 +76,7 @@
         "nimbus:alias-remove": "Tasks\\ApplicationTasks::nimbusAliasRemove",
         "nimbus:alias-list": "Tasks\\ApplicationTasks::nimbusAliasList",
         "nimbus:template-scaffold": "Nimbus\\Tasks\\TemplateTask::scaffold",
+        "nimbus:template-clone": "Nimbus\\Tasks\\TemplateTask::cloneTemplate",
         "nimbus:template-check": "Nimbus\\Tasks\\TemplateTask::check",
         "nimbus:lint-check": "Nimbus\\Tasks\\LintTask::lint",
         "unlock": "Tasks\\ApplicationTasks::DeleteLockFile",

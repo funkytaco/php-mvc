@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} — Nimbus</title>
+    <style>
+        :root { --mono: ui-monospace, Menlo, Consolas, monospace; --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+                --bg: #e8eaed; --surface: #fafbfc; --line: #d2d7de; --ink: #1b2027; --ink-2: #5a626d;
+                --ok: #1f6b4a; --ok-soft: #e0efe7; --accent: #97671a; }
+        * { box-sizing: border-box; margin: 0; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--ink); padding: 3rem 1.5rem; }
+        main { max-width: 40rem; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 2rem; }
+        .badge { display: inline-block; font-family: var(--mono); font-size: .75rem; padding: .2rem .6rem; border-radius: 3px; background: var(--ok-soft); color: var(--ok); }
+        h1 { font-size: 1.4rem; margin: .75rem 0 1.25rem; }
+        p { color: var(--ink-2); line-height: 1.5; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 1.25rem; }
+        th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
+        th { color: var(--ink-2); font-weight: 500; white-space: nowrap; }
+        code { font-family: var(--mono); font-size: .85em; }
+        nav a { color: var(--accent); margin-right: 1rem; }
+    </style>
+</head>
+<body>
+<main>
+    <span class="badge">signed in — any role</span>
+    <h1>{{title}}</h1>
+    <p>You are seeing this because you have a live Keycloak session. Any
+       authenticated user of realm <code>{{realm}}</code> can reach this page —
+       no particular role is required.</p>
+
+    <table>
+        <tr><th>User</th><td>{{name}}</td></tr>
+        <tr><th>Username</th><td><code>{{username}}</code></td></tr>
+        <tr><th>Email</th><td>{{email}}</td></tr>
+        <tr><th>Roles</th><td>
+            {{#has_roles}}{{#roles}}<code>{{name}}</code> {{/roles}}{{/has_roles}}
+            {{^has_roles}}<em>none</em>{{/has_roles}}
+        </td></tr>
+    </table>
+
+    <p>Compare with <a href="/admin">/admin</a>, which additionally requires
+       the <code>admin</code> realm role.</p>
+
+    <nav>
+        <a href="/">Home</a>
+        <a href="/admin">/admin</a>
+        <a href="/auth/logout?redirect=/">Sign out</a>
+    </nav>
+</main>
+</body>
+</html>
