@@ -278,9 +278,11 @@ class CreateTask extends BaseTask
         if ($this->vaultManager->isInitialized()) {
             $vaultCredentials = $this->vaultManager->restoreAppCredentials($appName);
             if ($vaultCredentials) {
-                echo self::ansiFormat('INFO', "🔐 Found backed up credentials for '$appName' in vault!");
+                echo self::ansiFormat('VAULT', "🔐 Found backed up credentials for '$appName' in vault!");
+                // Presence only, never a fragment of the value — even a prefix
+                // in scrollback narrows a brute force (IA-5).
                 if (isset($vaultCredentials['database'])) {
-                    echo "  📊 Database password: " . substr($vaultCredentials['database']['password'], 0, 8) . "..." . PHP_EOL;
+                    echo "  📊 Database password: ✓" . PHP_EOL;
                 }
                 if (isset($vaultCredentials['keycloak'])) {
                     echo "  🔐 Keycloak passwords: ✓" . PHP_EOL;

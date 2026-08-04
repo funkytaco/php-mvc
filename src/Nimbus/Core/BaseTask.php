@@ -42,6 +42,8 @@ abstract class BaseTask
         'bold_cyan' => '1;36',
         'white' => '1;37',
         'bold_gray' => '0;37',
+        // 256-color: the basic 16 have no lime; 118 is the classic one
+        'lime' => '38;5;118',
     ];
 
     /**
@@ -78,6 +80,7 @@ abstract class BaseTask
             'EXITING' => self::$background['yellow'],
             'DANGER' => self::$foreground['bold_red'],
             'SUCCESS' => self::$foreground['bold_blue'],
+            'VAULT' => self::$foreground['lime'],
             'INSTALL' => self::$background['green'],
             'RUNNING>' => self::$foreground['white'],
             'COPYING>' => self::$foreground['white'],
