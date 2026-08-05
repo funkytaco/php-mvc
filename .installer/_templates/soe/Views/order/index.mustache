@@ -1,0 +1,153 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Requester</p>
+        <h1>Order Gateway</h1>
+        <p>A short solutioning conversation — not a shopping form. State what the application
+           needs and its context; intake matches a certified template and resolves the
+           environment profile. You are never asked to choose OS versions, security tooling,
+           certificates, firewalls, or datacenters.</p>
+    </section>
+
+    {{#has_errors}}
+    <div class="note note-fault">
+        <strong>Order not submitted</strong>
+        <ul>{{#errors}}<li>{{message}}</li>{{/errors}}</ul>
+    </div>
+    {{/has_errors}}
+
+    {{^has_catalog}}
+    <div class="note note-warn">
+        <strong>Nothing to order yet</strong>
+        <p>No catalog items have been published. An App Owner needs to publish one from the
+           Catalog Builder first.</p>
+    </div>
+    {{/has_catalog}}
+
+    {{#has_catalog}}
+    <div class="cols-2">
+        <section class="card">
+            <h2>Your request</h2>
+            <form method="POST" action="/order" id="order-form">
+                <input type="hidden" name="idempotency_key" id="idempotency_key" value="">
+
+                <div class="field">
+                    <label for="catalog_item">What do you need?</label>
+                    <select id="catalog_item" name="catalog_item" required>
+                        {{#catalog_items}}
+                        <option value="{{name}}">{{solution}} — {{name}}</option>
+                        {{/catalog_items}}
+                    </select>
+                    <span class="field-hint">Business outcomes, not components.</span>
+                </div>
+
+                <div class="field">
+                    <label for="app_name">Application / project name</label>
+                    <input type="text" id="app_name" name="app_name" required
+                           placeholder="e.g. Benefits Portal" value="{{old.app_name}}">
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="environment">Environment</label>
+                        <select id="environment" name="environment" required>
+                            {{#environments}}<option value="{{value}}">{{label}}</option>{{/environments}}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="sensitivity">Data sensitivity</label>
+                        <select id="sensitivity" name="sensitivity" required>
+                            {{#sensitivities}}<option value="{{value}}">{{label}}</option>{{/sensitivities}}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field-row">
+                    <div class="field">
+                        <label for="expected_users">Expected users</label>
+                        <input type="number" id="expected_users" name="expected_users"
+                               min="1" max="100000" value="{{#old.expected_users}}{{old.expected_users}}{{/old.expected_users}}{{^old.expected_users}}200{{/old.expected_users}}">
+                    </div>
+                    <div class="field">
+                        <label for="need_by">Need-by date</label>
+                        <input type="text" id="need_by" name="need_by"
+                               placeholder="2026-08-15" value="{{old.need_by}}">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="context">Anything else we should know?</label>
+                    <textarea id="context" name="context"
+                              placeholder="Connectivity, integrations, constraints…">{{old.context}}</textarea>
+                    <span class="field-hint">Kept verbatim as your Requirements Record.</span>
+                </div>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-accent">Submit order</button>
+                    <span class="field-hint">Creates one Helix ticket. Read-only after that.</span>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>What intake resolves</h2>
+            <p class="field-hint">Your request becomes a governed build:</p>
+            <div class="defs" id="resolve-preview">
+                <div class="def-row"><span class="def-key">Matched template</span><span class="def-val" data-field="template">—</span></div>
+                <div class="def-row"><span class="def-key">Environment profile</span><span class="def-val mono" data-field="profile">—</span></div>
+                <div class="def-row"><span class="def-key">Frameworks</span><span class="def-val" data-field="frameworks_label">—</span></div>
+                <div class="def-row"><span class="def-key">Approvals</span><span class="def-val" data-field="approvals_label">—</span></div>
+            </div>
+            <p class="field-hint">You won&rsquo;t be asked about OS versions, security tooling,
+               certificates, or datacenters — the template and profile decide those.</p>
+        </section>
+    </div>
+    {{/has_catalog}}
+</main>
+
+<script>
+(function () {
+    // A submit-time idempotency key means a double-click or a browser retry
+    // returns the existing order instead of creating a second Helix ticket.
+    var keyField = document.getElementById('idempotency_key');
+    if (keyField && !keyField.value) {
+        keyField.value = 'idem-' + Math.random().toString(36).slice(2) + '-' + Date.now();
+    }
+
+    var form = document.getElementById('order-form');
+    if (!form) { return; }
+
+    var watched = ['catalog_item', 'environment', 'sensitivity'];
+    var preview = document.getElementById('resolve-preview');
+
+    function refresh() {
+        var payload = {};
+        watched.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) { payload[id] = el.value; }
+        });
+
+        fetch('/api/orders/resolve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (body) {
+                if (!body || !body.success) { return; }
+                Object.keys(body.data).forEach(function (key) {
+                    var cell = preview.querySelector('[data-field="' + key + '"]');
+                    if (cell) { cell.textContent = body.data[key]; }
+                });
+            })
+            .catch(function () { /* preview is advisory; submit still validates server-side */ });
+    }
+
+    watched.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) { el.addEventListener('change', refresh); }
+    });
+    refresh();
+}());
+</script>
+{{> partials/page-foot}}

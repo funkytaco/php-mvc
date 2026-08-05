@@ -1,0 +1,100 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">App Owner</p>
+        <h1>Catalog Builder</h1>
+        <p>Compose a solution catalog item by picking the software your application needs.
+           Governance-injected components — OS, hardening, identity, certificate, firewall and
+           licence baselines — are added automatically and cannot be removed. You state intent;
+           policy decides the rest.</p>
+    </section>
+
+    {{#flash}}
+    <div class="note note-ok"><strong>Published</strong><p>{{flash}}</p></div>
+    {{/flash}}
+
+    {{#has_errors}}
+    <div class="note note-fault">
+        <strong>Cannot publish</strong>
+        <ul>{{#errors}}<li>{{message}}</li>{{/errors}}</ul>
+    </div>
+    {{/has_errors}}
+
+    <form method="POST" action="/catalog">
+        <div class="cols-2">
+            <section class="card">
+                <h2>1 · Pick your software</h2>
+
+                <h3>PHP module stream</h3>
+                <p class="field-hint">Choose one.</p>
+                {{#php_choices}}
+                <label class="sku">
+                    <input type="radio" name="php_stream" value="{{id}}"{{#selected}} checked{{/selected}}>
+                    <span>
+                        <span class="sku-name">{{name}}</span>
+                        {{#has_warning}}<span class="sku-warn">▲ {{warning}}</span>{{/has_warning}}
+                    </span>
+                    <span class="catbadge">App</span>
+                </label>
+                {{/php_choices}}
+
+                <h3>Web &amp; database components</h3>
+                {{#component_choices}}
+                <label class="sku">
+                    <input type="checkbox" name="components[]" value="{{id}}"{{#selected}} checked{{/selected}}>
+                    <span class="sku-name">{{name}}</span>
+                    <span class="catbadge">App</span>
+                </label>
+                {{/component_choices}}
+            </section>
+
+            <section class="card">
+                <h2>2 · Policy-injected · read-only</h2>
+                <p class="field-hint">Added by governance. These cannot be removed, and are
+                   re-derived on the server at publish time.</p>
+                {{#policy_skus}}
+                <div class="sku sku-locked">
+                    <svg class="sku-lock" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <rect x="5" y="10.5" width="14" height="9.5" rx="2.2"></rect>
+                        <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path>
+                    </svg>
+                    <span>
+                        <span class="sku-name">{{name}}</span>
+                        <span class="sku-why">{{rationale}}</span>
+                    </span>
+                    <span class="catbadge">{{category_label}}</span>
+                </div>
+                {{/policy_skus}}
+
+                <div class="field" style="margin-top:1.25rem">
+                    <label for="name">Catalog item name</label>
+                    <input type="text" id="name" name="name" placeholder="{{suggested_name}}">
+                    <span class="field-hint">Leave blank to use <span class="mono">{{suggested_name}}</span>.</span>
+                </div>
+                <div class="actions">
+                    <button type="submit" class="btn btn-accent">Publish catalog item</button>
+                </div>
+            </section>
+        </div>
+    </form>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Published solution catalog</h2>
+            <span class="panel-note">Orderable in the Order Gateway</span>
+        </div>
+        <div class="catlist">
+            {{#published}}
+            <article class="catcard">
+                <h4>{{name}} <span class="ver">{{version}}</span></h4>
+                <span class="sol">{{solution}}</span>
+                <span class="sizing">Sizing · {{sizing}}</span>
+                <div>{{#stakeholder_skus}}<span class="mini-sku">{{id}}</span>{{/stakeholder_skus}}</div>
+                <span class="foot">+ {{policy_count}} policy-injected components</span>
+            </article>
+            {{/published}}
+        </div>
+    </section>
+</main>
+{{> partials/page-foot}}

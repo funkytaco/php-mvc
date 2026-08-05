@@ -1,0 +1,71 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">System of record</p>
+        <h1>Host Build Gateway</h1>
+        <p>A workflow and tracking system of record for enterprise host builds. It captures
+           intent, creates one ticket in BMC Helix, and then reads progress back to project it
+           into role-scoped views. It tracks work; it never performs it.</p>
+    </section>
+
+    <section class="readout" aria-label="Platform readout">
+        <div class="tile">
+            <span class="tile-label">Surfaces</span>
+            <span class="tile-value">4</span>
+        </div>
+        <div class="tile">
+            <span class="tile-label">Helix writes</span>
+            <span class="tile-value">1</span>
+        </div>
+        <div class="tile">
+            <span class="tile-label">Sign-in</span>
+            <span class="tile-value {{#sso_ready}}is-ok{{/sso_ready}}{{^sso_ready}}is-muted{{/sso_ready}}">{{#sso_ready}}Ready{{/sso_ready}}{{^sso_ready}}Not installed{{/sso_ready}}</span>
+        </div>
+    </section>
+
+    {{^sso_ready}}
+    <div class="note note-warn">
+        <strong>Single sign-on is required</strong>
+        <p>Every surface is scoped to a Keycloak realm role, so this app needs SSO before
+           anyone can use it. Install it with:</p>
+        <p><code>composer nimbus:add-keycloak {{installer_name}}</code></p>
+        <p>That creates the four realm roles and a demo user for each persona.</p>
+    </div>
+    {{/sso_ready}}
+
+    {{#sso_ready}}{{^signed_in}}
+    <div class="note note-ok">
+        <strong>Sign in to continue</strong>
+        <p>Your Keycloak realm role decides which surface you land on.</p>
+        <p><a class="btn btn-accent" href="/auth/login">Sign in</a></p>
+    </div>
+    {{/signed_in}}{{/sso_ready}}
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">The four surfaces</h2>
+            <span class="panel-note">One per persona</span>
+        </div>
+        <div class="panel-body">
+            <div class="defs">
+                <div class="def-row">
+                    <span class="def-key">App Owner</span>
+                    <span class="def-val">Catalog Builder — compose catalog items from SKUs</span>
+                </div>
+                <div class="def-row">
+                    <span class="def-key">Requester</span>
+                    <span class="def-val">Order Gateway — state intent, never pick infrastructure</span>
+                </div>
+                <div class="def-row">
+                    <span class="def-key">Customer</span>
+                    <span class="def-val">Order Tracker — read-only status, owner and blockers</span>
+                </div>
+                <div class="def-row">
+                    <span class="def-key">Team Member</span>
+                    <span class="def-val">Team SOPs — your queue, your SOP, hand-off notes</span>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+{{> partials/page-foot}}

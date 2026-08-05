@@ -2,7 +2,7 @@
     "name": "{{APP_NAME}}",
     "version": "1.0.0",
     "type": "soe",
-    "description": "Host Build Order Gateway & Tracker — a workflow tracking system for enterprise host builds",
+    "description": "Host Build — Order & Tracking Gateway. A workflow and tracking system of record for enterprise host builds: it tracks work, it never performs it.",
     "features": {
         "database": true,
         "eda": false,
@@ -13,9 +13,22 @@
         "app": {
             "port": "{{APP_PORT}}"
         },
-        "db": {
-            "engine": "mariadb",
-            "version": "12"
+        "eda": {
+            "image": "quay.io/ansible/ansible-rulebook:latest",
+            "rulebooks_dir": "rulebooks"
+        },
+        "keycloak": {
+            "image": "quay.io/keycloak/keycloak:latest",
+            "port": 8080,
+            "admin_user": "admin",
+            "admin_password": "{{KEYCLOAK_ADMIN_PASSWORD}}",
+            "database": "keycloak_db"
+        },
+        "keycloak-db": {
+            "image": "postgres:14",
+            "database": "keycloak",
+            "user": "keycloak",
+            "password": "{{KEYCLOAK_DB_PASSWORD}}"
         }
     },
     "database": {
@@ -23,15 +36,37 @@
         "user": "{{DB_USER}}",
         "password": "{{DB_PASSWORD}}"
     },
+    "keycloak": {
+        "realm": "{{KEYCLOAK_REALM}}",
+        "client_id": "{{KEYCLOAK_CLIENT_ID}}",
+        "client_secret": "{{KEYCLOAK_CLIENT_SECRET}}",
+        "auth_url": "http://{{APP_NAME}}-keycloak:8080",
+        "redirect_uri": "http://localhost:{{APP_PORT}}/auth/callback"
+    },
     "assets": {
         "controllers": {
             "source": "Controllers",
             "target": "app/Controllers",
             "isFile": false
         },
-        "models": {
-            "source": "Models",
-            "target": "app/Models",
+        "services": {
+            "source": "Services",
+            "target": "app/Services",
+            "isFile": false
+        },
+        "helix": {
+            "source": "Helix",
+            "target": "app/Helix",
+            "isFile": false
+        },
+        "domain": {
+            "source": "Domain",
+            "target": "app/Domain",
+            "isFile": false
+        },
+        "persistence": {
+            "source": "Persistence",
+            "target": "app/Persistence",
             "isFile": false
         },
         "views": {
@@ -48,6 +83,11 @@
             "source": "app.config.php",
             "target": "app/app.config.php",
             "isFile": true
+        },
+        "public_assets": {
+            "source": "public/assets",
+            "target": "html/assets",
+            "isFile": false
         }
     }
 }

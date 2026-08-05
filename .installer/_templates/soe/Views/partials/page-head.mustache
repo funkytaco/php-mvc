@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{#page_title}}{{page_title}} — {{/page_title}}Host Build Gateway</title>
+    <link rel="stylesheet" href="/assets/css/soe.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="/">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <rect x="0.5" y="0.5" width="13" height="3" stroke="currentColor"></rect>
+                <rect x="0.5" y="5.5" width="13" height="3" stroke="currentColor"></rect>
+                <rect x="0.5" y="10.5" width="9" height="3" stroke="currentColor"></rect>
+            </svg>
+            Host Build
+        </a>
+        <span class="brand-sub">Track, don&rsquo;t touch</span>
+        <div class="topbar-auth">
+            {{#has_keycloak}}
+                {{#user}}
+                    <span class="persona-chip">{{persona_label}}</span>
+                    <span>{{user.name}}</span>
+                    <a href="/auth/logout?redirect=/" class="btn btn-sm">Sign out</a>
+                {{/user}}
+                {{^user}}
+                    <a href="/auth/login" class="btn btn-sm">Sign in</a>
+                {{/user}}
+            {{/has_keycloak}}
+            {{^has_keycloak}}
+                <span>SSO not installed</span>
+            {{/has_keycloak}}
+        </div>
+    </div>
+</header>
+{{#user}}
+<nav class="tabs" aria-label="Surfaces">
+    <div class="tabs-inner">
+        {{#nav}}
+        <a class="tab" href="{{path}}"{{#is_active}} aria-current="page"{{/is_active}}>{{label}}</a>
+        {{/nav}}
+    </div>
+</nav>
+{{/user}}

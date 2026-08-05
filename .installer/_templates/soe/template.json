@@ -1,6 +1,6 @@
 {
-    "description": "Cloned from nimbus-app-php",
-    "version": "1.0.0",
     "name": "soe",
-    "cloned_from": "nimbus-app-php"
+    "version": "1.0.0",
+    "description": "Host Build — Order & Tracking Gateway (SOE). Four MVP surfaces over a mock BMC Helix adapter.",
+    "cloned_from": "order-entry"
 }

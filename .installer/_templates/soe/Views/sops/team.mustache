@@ -1,0 +1,74 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Team Member · {{team.name}}</p>
+        <h1>{{team.name}} SOP</h1>
+        <p>{{team.role}}</p>
+    </section>
+
+    {{#flash}}<div class="note note-ok"><p>{{flash}}</p></div>{{/flash}}
+
+    <div class="cols-2">
+        <section class="card">
+            <h2>Queue</h2>
+            <p class="field-hint">Ready and in-progress items from Helix, oldest waiting first.
+               Ordering is by age only — this platform sets no SLA targets.</p>
+            {{#team.queue}}
+            <div class="queue-item">
+                <span class="status-indicator {{#is_blocked}}status-error{{/is_blocked}}{{^is_blocked}}status-warning{{/is_blocked}}"></span>
+                <a class="queue-ref" href="/tracker/{{order_ref}}">{{order_ref}}</a>
+                <span>{{state_label}}</span>
+                <span class="queue-wait">{{waiting}}</span>
+            </div>
+            {{/team.queue}}
+            {{^team.queue}}<p class="empty">Nothing waiting for this team.</p>{{/team.queue}}
+
+            <h3>Default SOP</h3>
+            <ol class="sop">{{#team.sop}}<li>{{step}}</li>{{/team.sop}}</ol>
+
+            <h3>Exit contract</h3>
+            <p class="field-hint">What &ldquo;done&rdquo; means. Attest completion in Helix —
+               this platform records the work, it never performs or closes it.</p>
+            <ul class="contract">{{#team.exit_contract}}<li>{{item}}</li>{{/team.exit_contract}}</ul>
+        </section>
+
+        <section class="card">
+            <h2>Notes &amp; cross-posts</h2>
+            {{#team.has_notes}}
+                {{#team.notes}}
+                <div class="sop-note{{#is_cross_post}} is-cross{{/is_cross_post}}{{#is_customer}} is-customer{{/is_customer}}">
+                    <div class="sop-note-head">
+                        <span class="sop-note-author">{{author}}</span>
+                        {{#is_cross_post}}<span class="tag is-cross">cross-post</span>{{/is_cross_post}}
+                        {{#is_customer}}<span class="tag is-customer">customer</span>{{/is_customer}}
+                        <span class="sop-note-time">{{ago}}</span>
+                    </div>
+                    <p class="sop-note-body">{{body}}</p>
+                </div>
+                {{/team.notes}}
+            {{/team.has_notes}}
+            {{^team.has_notes}}<p class="empty">No notes yet.</p>{{/team.has_notes}}
+
+            <h3>Add a note</h3>
+            <form method="POST" action="/sops/{{team.key}}/notes">
+                <div class="field">
+                    <label for="author">Post as</label>
+                    <select id="author" name="author">
+                        {{#authors}}<option value="{{key}}">{{name}}</option>{{/authors}}
+                    </select>
+                    <span class="field-hint">Choose a team to cross-post hand-off detail onto this SOP.</span>
+                </div>
+                <div class="field">
+                    <label for="body">Note</label>
+                    <textarea id="body" name="body" required
+                              placeholder="Add context, a requirement, or a hand-off detail…"></textarea>
+                </div>
+                <div class="actions">
+                    <button type="submit" class="btn btn-accent">Post note</button>
+                    <a class="btn btn-sm" href="/sops">All teams</a>
+                </div>
+            </form>
+        </section>
+    </div>
+</main>
+{{> partials/page-foot}}

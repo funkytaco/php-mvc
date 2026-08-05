@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign-in required — Host Build Gateway</title>
+    <link rel="stylesheet" href="/assets/css/soe.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="/">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <rect x="0.5" y="0.5" width="13" height="3" stroke="currentColor"></rect>
+                <rect x="0.5" y="5.5" width="13" height="3" stroke="currentColor"></rect>
+                <rect x="0.5" y="10.5" width="9" height="3" stroke="currentColor"></rect>
+            </svg>
+            Host Build
+        </a>
+    </div>
+</header>
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Access</p>
+        <h1>Sign-in required</h1>
+        <p>Every surface in this platform is scoped to a Keycloak realm role, so single
+           sign-on has to be installed before <span class="mono">{{surface}}</span> can be
+           opened. This is deliberate — role scoping is enforced on the server, not hidden
+           in the interface.</p>
+    </section>
+    <div class="note note-warn">
+        <strong>Install SSO</strong>
+        <p><code>composer nimbus:add-keycloak {{installer_name}}</code></p>
+        <p>This creates the realm, the client, the four persona roles
+           (<code>app-owner</code>, <code>requester</code>, <code>customer</code>,
+           <code>team-member</code>) and one demo user per persona.</p>
+        <p>Reveal the generated passwords with
+           <code>composer nimbus:vault-view {{installer_name}}</code>.</p>
+    </div>
+</main>
+<footer>Host Build — Order &amp; Tracking Gateway · {{installer_name}}</footer>
+</body>
+</html>

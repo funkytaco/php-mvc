@@ -1,0 +1,62 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Team Member</p>
+        <h1>Team SOPs</h1>
+        <p>Every team owns a default standard operating procedure for its part of the build,
+           and a queue of the work Helix says is theirs — oldest waiting first. Completion is
+           attested in Helix; this surface is for reading your queue and handing off context.</p>
+    </section>
+
+    {{#flash}}<div class="note note-ok"><p>{{flash}}</p></div>{{/flash}}
+
+    <div class="teamgrid">
+        {{#teams}}
+        <article class="team">
+            <div class="team-head">
+                <span class="team-abbr" aria-hidden="true">{{abbr}}</span>
+                <span>
+                    <span class="team-name">{{name}}</span><br>
+                    <span class="team-role">{{role}}</span>
+                </span>
+            </div>
+            <div class="team-body">
+                <p class="sop-h">Queue</p>
+                {{#queue}}
+                <div class="queue-item">
+                    <span class="status-indicator {{#is_blocked}}status-error{{/is_blocked}}{{^is_blocked}}status-warning{{/is_blocked}}"></span>
+                    <a class="queue-ref" href="/tracker/{{order_ref}}">{{order_ref}}</a>
+                    <span>{{state_label}}</span>
+                    <span class="queue-wait">{{waiting}}</span>
+                </div>
+                {{/queue}}
+                {{^queue}}<p class="empty">Nothing waiting.</p>{{/queue}}
+
+                <p class="sop-h" style="margin-top:1.1rem">Default SOP</p>
+                <ol class="sop">{{#sop}}<li>{{step}}</li>{{/sop}}</ol>
+
+                {{#has_notes}}
+                <div class="notes-wrap">
+                    <p class="sop-h">Notes &amp; cross-posts · {{note_count}}</p>
+                    {{#notes}}
+                    <div class="sop-note{{#is_cross_post}} is-cross{{/is_cross_post}}{{#is_customer}} is-customer{{/is_customer}}">
+                        <div class="sop-note-head">
+                            <span class="sop-note-author">{{author}}</span>
+                            {{#is_cross_post}}<span class="tag is-cross">cross-post</span>{{/is_cross_post}}
+                            {{#is_customer}}<span class="tag is-customer">customer</span>{{/is_customer}}
+                            <span class="sop-note-time">{{ago}}</span>
+                        </div>
+                        <p class="sop-note-body">{{body}}</p>
+                    </div>
+                    {{/notes}}
+                </div>
+                {{/has_notes}}
+            </div>
+            <div class="team-foot">
+                <a class="btn btn-sm" href="/sops/{{key}}">Open SOP &amp; add note</a>
+            </div>
+        </article>
+        {{/teams}}
+    </div>
+</main>
+{{> partials/page-foot}}

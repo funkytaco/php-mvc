@@ -1,0 +1,16 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Access</p>
+        <h1>Not your surface</h1>
+        <p>This surface needs the <code>{{required_role}}</code> realm role. Role scoping is
+           enforced server-side, so the data is not merely hidden — it was never serialised
+           for your persona.</p>
+    </section>
+    <div class="note note-fault">
+        <strong>Roles you hold</strong>
+        {{#has_roles}}<p>{{#held_roles}}<code>{{name}}</code> {{/held_roles}}</p>{{/has_roles}}
+        {{^has_roles}}<p>None. Assign a persona role to this user in the Keycloak admin console.</p>{{/has_roles}}
+    </div>
+</main>
+{{> partials/page-foot}}

@@ -1,0 +1,54 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Customer · read-only</p>
+        <h1>Order Tracker</h1>
+        <p>Plain-language status for your submitted orders — follow each one from received to
+           delivered, see which team owns the current step, and spot any blocker with its owner
+           and how long it has been waiting.</p>
+    </section>
+
+    {{#has_orders}}
+    <section class="switcher">
+        {{#orders}}
+        <a class="switch-chip" href="/tracker/{{order_ref}}">
+            <span class="switch-ref">{{order_ref}}</span>
+            <span class="switch-sub">{{app_name}} · {{environment}}</span>
+            <span class="switch-state">
+                {{#is_blocked}}<span class="status-indicator status-error"></span>Blocked{{/is_blocked}}
+                {{#is_delivered}}<span class="status-indicator status-success"></span>Delivered{{/is_delivered}}
+                {{^is_blocked}}{{^is_delivered}}<span class="status-indicator status-warning"></span>In progress{{/is_delivered}}{{/is_blocked}}
+            </span>
+        </a>
+        {{/orders}}
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">In flight</h2>
+            <span class="panel-note">Elapsed shown for visibility · no SLA</span>
+        </div>
+        <div class="panel-body">
+            <div class="defs">
+                {{#orders}}
+                <div class="def-row">
+                    <span class="def-key">{{order_ref}}</span>
+                    <span class="def-val">
+                        {{app_name}} · owner <strong>{{current_owner}}</strong> · elapsed {{elapsed}}
+                        {{#need_by}} · need-by <span class="mono">{{need_by}}</span>{{/need_by}}
+                    </span>
+                </div>
+                {{/orders}}
+            </div>
+        </div>
+    </section>
+    {{/has_orders}}
+
+    {{^has_orders}}
+    <section class="card">
+        <h2>No orders yet</h2>
+        <p class="empty">Nothing has been submitted. A requester can raise one from the Order Gateway.</p>
+    </section>
+    {{/has_orders}}
+</main>
+{{> partials/page-foot}}

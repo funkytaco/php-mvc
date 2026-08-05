@@ -1,0 +1,71 @@
+<div class="card">
+    <h2>Keycloak SSO</h2>
+
+    {{^user}}
+    <div class="note note-warn">
+        <strong><span class="status-indicator status-warning"></span>Not signed in</strong>
+        <p>Use the Sign in button in the top bar to authenticate.</p>
+    </div>
+
+    <div>
+        <h3>Configuration Status</h3>
+        <p>Keycloak is enabled but may need configuration. If you haven't configured Keycloak yet:</p>
+        <a href="/auth/configure" class="btn btn-success">Configure Keycloak</a>
+    </div>
+    {{/user}}
+    
+    {{#user}}
+    <div class="note note-ok">
+        <strong><span class="status-indicator status-success"></span>Signed in</strong>
+        <p>You are currently logged in as:</p>
+        <ul>
+            <li><strong>Name:</strong> {{user.name}}</li>
+            <li><strong>Email:</strong> {{user.email}}</li>
+            <li><strong>Username:</strong> {{user.username}}</li>
+        </ul>
+    </div>
+    {{/user}}
+    
+    <div>
+        <h3>Protected Resources</h3>
+        <p>When Keycloak is enabled, you can protect routes and resources based on authentication status.</p>
+        
+        <h4>Example Protected Routes:</h4>
+        <ul>
+            <li><code>/admin/*</code> - Admin panel (requires authentication)</li>
+            <li><code>/api/secure/*</code> - Secured API endpoints</li>
+            <li><code>/profile</code> - User profile page</li>
+        </ul>
+        
+        <h4>Integration Features:</h4>
+        <ul>
+            <li>Single Sign-On (SSO) across applications</li>
+            <li>Role-based access control (RBAC)</li>
+            <li>OAuth 2.0 / OpenID Connect compliance</li>
+            <li>User federation and identity brokering</li>
+        </ul>
+    </div>
+    
+    <div class="subpanel">
+        <h4>Admin console</h4>
+        <p><strong>URL:</strong> <a href="http://localhost:{{keycloak_port}}" target="_blank">http://localhost:{{keycloak_port}}</a></p>
+        <p><strong>Admin Username:</strong> admin</p>
+        <p><strong>Admin Password:</strong> (use vault command below to retrieve — never displayed here)</p>
+        <p><strong>Custom Realm:</strong> {{keycloak_realm}}</p>
+        
+        <div class="note">
+            <h5>Test account</h5>
+            <p><strong>Username:</strong> testuser</p>
+            <p><strong>Password:</strong> testpass9898</p>
+            <p><strong>Email:</strong> testuser@{{app_name}}.local</p>
+            <p><em>This user is automatically created in the custom realm for testing.</em></p>
+        </div>
+        
+        <div class="note">
+            <p><strong>Retrieve the admin password</strong></p>
+            <code>composer nimbus:vault-view {{app_name}}</code>
+            <p><strong>Or via container inspection:</strong></p>
+            <code>podman inspect {{app_name}}-keycloak --format '{{range .Config.Env}}{{println .}}{{end}}' | grep KEYCLOAK_ADMIN_PASSWORD | cut -d'=' -f2</code>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,185 @@
+{{> partials/page-head}}
+<main>
+    <section class="masthead">
+        <p class="eyebrow">Customer · read-only</p>
+        <h1>{{order.app_name}}</h1>
+        <p><span class="mono">{{order.order_ref}}</span> · {{order.environment}} ·
+           {{order.sensitivity}} sensitivity · Helix ticket
+           <span class="mono">{{order.helix_ticket_ref}}</span></p>
+    </section>
+
+    <section class="switcher">
+        {{#switcher}}
+        <a class="switch-chip" href="/tracker/{{order_ref}}"{{#is_current}} aria-current="page"{{/is_current}}>
+            <span class="switch-ref">{{order_ref}}</span>
+            <span class="switch-sub">{{app_name}} · {{environment}}</span>
+            <span class="switch-state">
+                {{#is_blocked}}<span class="status-indicator status-error"></span>{{/is_blocked}}
+                {{#is_delivered}}<span class="status-indicator status-success"></span>{{/is_delivered}}
+                {{^is_blocked}}{{^is_delivered}}<span class="status-indicator status-warning"></span>{{/is_delivered}}{{/is_blocked}}
+                {{status_label}}
+            </span>
+        </a>
+        {{/switcher}}
+    </section>
+
+    <section class="readout" aria-label="Order readout">
+        <div class="tile">
+            <span class="tile-label">Status</span>
+            <span class="tile-value{{#order.is_blocked}} is-fault{{/order.is_blocked}}{{#order.is_delivered}} is-ok{{/order.is_delivered}}">{{order.status_label}}</span>
+        </div>
+        <div class="tile">
+            <span class="tile-label">Current owner</span>
+            <span class="tile-value">{{order.current_owner}}</span>
+        </div>
+        <div class="tile">
+            <span class="tile-label">Elapsed</span>
+            <span class="tile-value">{{order.elapsed}}</span>
+        </div>
+        <div class="tile">
+            <span class="tile-label">Need by</span>
+            <span class="tile-value{{^order.need_by}} is-muted{{/order.need_by}}">{{#order.need_by}}{{order.need_by}}{{/order.need_by}}{{^order.need_by}}Not set{{/order.need_by}}</span>
+        </div>
+    </section>
+
+    {{#order.blocker}}
+    <section class="blocker" role="alert">
+        <span class="blocker-mark" aria-hidden="true">!</span>
+        <div>
+            <div class="blocker-head">Blocked · {{team}} · {{age}}</div>
+            <p class="blocker-body">{{reason}}</p>
+        </div>
+    </section>
+    {{/order.blocker}}
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Progress</h2>
+            <span class="panel-note">Read from Helix · this view never writes</span>
+        </div>
+        <div class="panel-body">
+            <div class="steps-scroll">
+                <ol class="steps">
+                    {{#order.stages}}
+                    <li class="step step-{{state}}">
+                        <span class="bar" aria-hidden="true"></span>
+                        <span class="node" aria-hidden="true">{{#is_done}}&check;{{/is_done}}{{#is_blocked}}!{{/is_blocked}}{{#is_active}}&rarr;{{/is_active}}{{#is_pending}}&middot;{{/is_pending}}</span>
+                        <span class="step-label">{{label}}</span>
+                        <span class="step-team">{{team}}</span>
+                        <span class="step-state">{{state_label}}</span>
+                    </li>
+                    {{/order.stages}}
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    {{#order.show_lanes}}
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Build-out</h2>
+            <span class="panel-note">Parallel work — all lanes join before evidence</span>
+        </div>
+        <div class="lanes">
+            {{#order.lanes}}
+            <div class="lane">
+                <span class="lane-abbr" aria-hidden="true">{{abbr}}</span>
+                <span>
+                    <span class="lane-label">{{label}}</span><br>
+                    <span class="lane-team">{{team}}</span>
+                </span>
+                <span class="lane-state is-{{state}}">{{state_label}}</span>
+            </div>
+            {{/order.lanes}}
+        </div>
+    </section>
+    {{/order.show_lanes}}
+
+    <section class="card">
+        <h2>Your request</h2>
+        <p>{{order.requirements_record}}</p>
+        <div class="defs">
+            <div class="def-row">
+                <span class="def-key">Resolved profile</span>
+                <span class="def-val mono">{{order.resolved_profile}}</span>
+            </div>
+            <div class="def-row">
+                <span class="def-key">Environment</span>
+                <span class="def-val">{{order.environment}} · {{order.sensitivity}} sensitivity</span>
+            </div>
+            <div class="def-row">
+                <span class="def-key">Expected users</span>
+                <span class="def-val">{{order.expected_users}}</span>
+            </div>
+            <div class="def-row">
+                <span class="def-key">Current owner</span>
+                <span class="def-val">{{order.current_owner}}</span>
+            </div>
+        </div>
+    </section>
+
+    {{#can_advance}}
+    <section class="card">
+        <h2>Demo control</h2>
+        <p class="field-hint">Real steps advance when teams attest completion with evidence
+           <em>in Helix</em>. This button stands in for that so the demo can move.</p>
+        <div class="actions">
+            <button type="button" class="btn btn-accent" id="advance-btn"
+                    data-order="{{order.order_ref}}">Simulate next step</button>
+            <span class="field-hint" id="advance-status"></span>
+        </div>
+    </section>
+    {{/can_advance}}
+</main>
+
+<script>
+(function () {
+    // Poll the projected view so the page tracks Helix without a reload
+    // (DESIGN-DD §9). Pauses when the tab is hidden.
+    var ORDER_REF = {{#order}}"{{order_ref}}"{{/order}};
+    var POLL_MS = 15000;
+    var timer = null;
+
+    function poll() {
+        if (document.hidden) { return; }
+        fetch('/api/orders/' + encodeURIComponent(ORDER_REF), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (body) {
+                if (!body || !body.success) { return; }
+                // Reload only when the projected status actually changed, so
+                // we do not fight the user's scroll position on every tick.
+                var current = document.body.getAttribute('data-status');
+                if (current && current !== body.data.status) { window.location.reload(); }
+                document.body.setAttribute('data-status', body.data.status);
+            })
+            .catch(function () { /* transient - next tick retries */ });
+    }
+
+    document.body.setAttribute('data-status', {{#order}}"{{status}}"{{/order}});
+    timer = setInterval(poll, POLL_MS);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) { poll(); }
+    });
+
+    var btn = document.getElementById('advance-btn');
+    if (btn) {
+        btn.addEventListener('click', function () {
+            var status = document.getElementById('advance-status');
+            btn.disabled = true;
+            status.textContent = 'Advancing…';
+            fetch('/api/dev/helix/advance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ order_ref: btn.getAttribute('data-order') })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (body) {
+                    if (body && body.success) { window.location.reload(); }
+                    else { status.textContent = (body && body.error) || 'Could not advance.'; btn.disabled = false; }
+                })
+                .catch(function () { status.textContent = 'Could not advance.'; btn.disabled = false; });
+        });
+    }
+}());
+</script>
+{{> partials/page-foot}}
