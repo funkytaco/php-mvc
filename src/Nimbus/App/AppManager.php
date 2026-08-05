@@ -1022,25 +1022,74 @@ class AppManager
      */
     protected function validateAppName(string $name): void
     {
+        $error = self::appNameError($name);
+
+        // Apps and templates share a mental namespace everywhere names are
+        // typed (create's two positional args, apps.json "template", commit),
+        // so an app named exactly like a template is a standing ambiguity —
+        // most often someone who meant `nimbus:create <app> <template>`.
+        if ($error === null && is_dir($this->baseDir . '/.installer/_templates/' . $name)) {
+            $error = "App name '$name' is the name of a template — apps and templates must not share names";
+        }
+
+        if ($error !== null) {
+            throw new \InvalidArgumentException($error);
+        }
+    }
+
+    /**
+     * Why a name is not usable as an app name, or null when it is.
+     *
+     * Public and static so the CLI can reject a bad name at the prompt,
+     * before templates are listed and half a create has been printed —
+     * validateAppName() (the throwing form, called inside the create
+     * transaction) remains the authority and uses exactly this.
+     */
+    public static function appNameError(string $name): ?string
+    {
         if (!preg_match('/^[a-z0-9][a-z0-9._-]*$/', $name)) {
-            throw new \InvalidArgumentException(
-                "App name must start with a letter or number and contain only lowercase letters, numbers, hyphens, dots, and underscores"
-            );
+            return 'App name must start with a letter or number and contain only lowercase letters, numbers, hyphens, dots, and underscores';
         }
 
         if (str_ends_with($name, '-') || str_ends_with($name, '_') || str_ends_with($name, '.')) {
-            throw new \InvalidArgumentException("App name must not end with a hyphen, underscore, or dot");
+            return 'App name must not end with a hyphen, underscore, or dot';
         }
 
         if (strlen($name) > self::MAX_APP_NAME_LENGTH) {
-            throw new \InvalidArgumentException(
-                'App name must be ' . self::MAX_APP_NAME_LENGTH . ' characters or fewer (derived container hostnames must stay within DNS limits)'
-            );
+            return 'App name must be ' . self::MAX_APP_NAME_LENGTH . ' characters or fewer (derived container hostnames must stay within DNS limits)';
         }
 
         if (in_array($name, self::RESERVED_APP_NAMES, true)) {
-            throw new \InvalidArgumentException("App name '$name' is reserved by the framework — choose another name");
+            return "App name '$name' is reserved by the framework — choose another name";
         }
+
+        return null;
+    }
+
+    /**
+     * The nearest valid app name to what was typed — "test orders" becomes
+     * "test-orders". Always returns something appNameError() accepts.
+     */
+    public static function suggestAppName(string $name): string
+    {
+        $suggestion = strtolower(trim($name));
+        $suggestion = (string) preg_replace('/[^a-z0-9._-]+/', '-', $suggestion);
+        $suggestion = (string) preg_replace('/-{2,}/', '-', $suggestion);
+        $suggestion = trim($suggestion, '._-');
+
+        if (strlen($suggestion) > self::MAX_APP_NAME_LENGTH) {
+            $suggestion = rtrim(substr($suggestion, 0, self::MAX_APP_NAME_LENGTH), '._-');
+        }
+
+        if ($suggestion === '') {
+            return 'my-app';
+        }
+
+        if (in_array($suggestion, self::RESERVED_APP_NAMES, true)) {
+            $suggestion .= '-app';
+        }
+
+        return $suggestion;
     }
     
     /**

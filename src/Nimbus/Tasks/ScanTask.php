@@ -162,13 +162,25 @@ class ScanTask extends BaseTask
 
         $source = $config['source'] ?? [];
         if (($source['kind'] ?? null) === 'git' && !empty($source['repo'])) {
+            // A clone holds only upstream code — Nimbus never writes secrets
+            // into it — so the whole tree is safe to hand the scanner.
             $context = $baseDir . '/.installer/repos/' . $source['repo'];
+            if (is_dir($context)) {
+                $targets['context'] = $context;
+            }
         } else {
-            $context = $baseDir;
-        }
-
-        if (is_dir($context)) {
-            $targets['context'] = $context;
+            // Template apps build from the repo root, but that tree also holds
+            // the vault, every app's generated .env and credential-bearing
+            // compose files. A scanner must never be handed the directory the
+            // secrets live in — mount the image definition alone. (Mounting
+            // the root also broke outright: trivy's walk dies on the vault's
+            // 0600 files.)
+            foreach (['Containerfile', 'Dockerfile'] as $containerfile) {
+                if (is_file($baseDir . '/' . $containerfile)) {
+                    $targets[$containerfile] = $baseDir . '/' . $containerfile;
+                    break;
+                }
+            }
         }
 
         $composeFile = $baseDir . '/' . $appName . '-compose.yml';

@@ -169,6 +169,23 @@ class GitAppDatabaseTest extends TestCase
         );
     }
 
+    /**
+     * Apps and templates share a mental namespace everywhere names are typed
+     * (create's two positional args, apps.json, commit) — an app named after
+     * a template is almost always someone who swapped the arguments.
+     */
+    public function testAppNameMatchingATemplateIsRefused(): void
+    {
+        mkdir($this->baseDir . '/.installer/_templates/order-entry', 0777, true);
+
+        $manager = $this->makeManager($this->bedrockish());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/name of a template/');
+
+        $manager->createFromRepo('order-entry', 'https://example.com/roots/bedrock.git');
+    }
+
     public function testDatabaseIsOffUnlessAskedFor(): void
     {
         $manager = $this->makeManager($this->bedrockish());

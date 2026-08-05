@@ -3,6 +3,7 @@
 namespace Nimbus\Tasks;
 
 use Nimbus\Core\BaseTask;
+use Nimbus\App\AppManager;
 use Nimbus\App\MVCAppManager;
 use Nimbus\App\GitAppManager;
 use Nimbus\Template\TemplateManager;
@@ -42,8 +43,11 @@ class CreateTask extends BaseTask
         $noDb = in_array('--no-db', $args, true);
         $args = array_values(array_filter($args, fn ($a) => $a !== '--no-db'));
 
-        $appName = $args[0] ?? $io->ask('App name: ');
-        
+        $appName = $this->ensureValidAppName($args[0] ?? null, $io);
+        if ($appName === null) {
+            return;
+        }
+
         if (!isset($args[1])) {
             $templates = $this->templateManager->getAvailableTemplates();
             $aliases = $this->templateManager->getAliases();
@@ -150,11 +154,15 @@ class CreateTask extends BaseTask
 
         $positional = array_values(array_filter($args, fn ($a) => !str_starts_with($a, '--')));
 
-        $appName = $positional[0] ?? $io->ask('App name: ');
+        $appName = $this->ensureValidAppName($positional[0] ?? null, $io);
+        if ($appName === null) {
+            return;
+        }
+
         $repoUrl = $positional[1] ?? $io->ask('Git repository URL (or a name under .installer/repos/): ');
 
-        if (!$appName || !$repoUrl) {
-            echo self::ansiFormat('ERROR', 'Both an app name and a repository are required.');
+        if (!$repoUrl) {
+            echo self::ansiFormat('ERROR', 'A repository is required.');
             return;
         }
 
@@ -251,6 +259,78 @@ class CreateTask extends BaseTask
         } catch (\Throwable $e) {
             echo self::ansiFormat('ERROR', 'Failed to create app: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Everything wrong with an app name from where the CLI stands: the
+     * static vocabulary rules, plus the template-name collision only a
+     * template scan can see. Mirrors what validateAppName() enforces inside
+     * the create transaction.
+     */
+    private function appNameProblem(string $name): ?string
+    {
+        $error = AppManager::appNameError($name);
+
+        if ($error === null && $this->templateManager->templateExists($name)) {
+            $error = "App name '$name' is the name of a template — apps and templates must not share names";
+        }
+
+        return $error;
+    }
+
+    /**
+     * A usable app name, or null when there won't be one.
+     *
+     * Validated at the moment it is obtained — the old flow accepted
+     * "test orders", listed templates, asked which to use, printed the
+     * creating banner, and only then threw. When the name came from an
+     * argument the answer is immediate (scripted callers must never hang on
+     * a prompt); at the prompt, an invalid name re-asks with the nearest
+     * valid name as the accept-with-Enter default.
+     *
+     * @param mixed $given the argv value, or null to prompt
+     * @param \Composer\IO\IOInterface $io
+     */
+    private function ensureValidAppName(mixed $given, $io): ?string
+    {
+        $fromArgs = $given !== null;
+        $name = $fromArgs ? (string) $given : (string) $io->ask('App name: ');
+
+        if (!$fromArgs && ContainerTask::isCancelChoice($name)) {
+            echo self::ansiFormat('INFO', 'Cancelled — no app was created.');
+            return null;
+        }
+
+        $attempts = 0;
+
+        while (($error = $this->appNameProblem($name)) !== null) {
+            $isTemplateCollision = str_contains($error, 'name of a template');
+            $suggestion = $isTemplateCollision ? $name . '-app' : AppManager::suggestAppName($name);
+
+            echo self::ansiFormat('ERROR', $error . " (got '$name')");
+
+            if ($isTemplateCollision) {
+                echo self::ansiFormat('INFO', "To create an app FROM that template: composer nimbus:create <app-name> $name");
+            }
+
+            if ($fromArgs || ++$attempts > 3) {
+                echo self::ansiFormat('INFO', "Closest valid name: $suggestion");
+                return null;
+            }
+
+            $answer = trim((string) $io->ask("App name [$suggestion]: "));
+
+            if ($answer === '') {
+                $name = $suggestion;
+            } elseif (ContainerTask::isCancelChoice($answer)) {
+                echo self::ansiFormat('INFO', 'Cancelled — no app was created.');
+                return null;
+            } else {
+                $name = $answer;
+            }
+        }
+
+        return $name;
     }
 
     /**

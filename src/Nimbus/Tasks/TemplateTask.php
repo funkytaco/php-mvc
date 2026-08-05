@@ -127,16 +127,23 @@ class TemplateTask extends BaseTask
             echo self::ansiFormat('ERROR', "Template '$source' not found in " . $this->templatesDir);
             return false;
         }
-        if (preg_match('/^[a-z0-9-]+$/', $newName) !== 1) {
-            echo self::ansiFormat('ERROR', "Invalid template name '$newName' — lowercase letters, numbers, and hyphens only.");
+        if (($error = \Nimbus\Template\TemplateManager::templateNameError($newName)) !== null) {
+            echo self::ansiFormat('ERROR', $error . " (got '$newName')");
+            echo self::ansiFormat('INFO', 'Closest valid name: ' . \Nimbus\Template\TemplateManager::suggestTemplateName($newName));
             return false;
         }
         if (is_dir($targetPath)) {
             echo self::ansiFormat('ERROR', "Template '$newName' already exists.");
             return false;
         }
+        // The mirror of app creation refusing template names: without this,
+        // the same ambiguity is simply re-creatable from the other side.
+        if (is_dir(dirname($this->templatesDir) . '/apps/' . $newName)) {
+            echo self::ansiFormat('ERROR', "'$newName' is the name of an existing app — apps and templates must not share names.");
+            return false;
+        }
 
-        $this->copyDirectory($sourcePath, $targetPath);
+        (new \Nimbus\Template\TemplateManager($this->templatesDir))->copyTemplate($source, $targetPath);
 
         // The one load-bearing self-reference: created apps carry this `type`
         // in their own app.nimbus.json, and nimbus:commit / feature scaffolding
@@ -163,30 +170,6 @@ class TemplateTask extends BaseTask
         return true;
     }
 
-    /**
-     * Plain recursive copy. Deliberately local: the similar helper on
-     * AppManager is protected on an unrelated class.
-     */
-    private function copyDirectory(string $source, string $destination): void
-    {
-        mkdir($destination, 0755, true);
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
-
-        foreach ($iterator as $item) {
-            $target = $destination . '/' . $iterator->getSubPathname();
-
-            if ($item->isDir()) {
-                mkdir($target, 0755, true);
-            } else {
-                copy($item->getPathname(), $target);
-            }
-        }
-    }
-
     private function handleScaffold(Event $event): void
     {
         $io = $event->getIO();
@@ -203,14 +186,20 @@ class TemplateTask extends BaseTask
             return;
         }
         
-        // Validate template name
-        if (!preg_match('/^[a-z0-9-]+$/', $templateName)) {
-            echo self::ansiFormat('ERROR', 'Template name must contain only lowercase letters, numbers, and hyphens.');
+        // Same rule clone enforces — one vocabulary, one place
+        if (($error = \Nimbus\Template\TemplateManager::templateNameError($templateName)) !== null) {
+            echo self::ansiFormat('ERROR', $error . " (got '$templateName')");
+            echo self::ansiFormat('INFO', 'Closest valid name: ' . \Nimbus\Template\TemplateManager::suggestTemplateName($templateName));
             return;
         }
         
+        if (is_dir(dirname($this->templatesDir) . '/apps/' . $templateName)) {
+            echo self::ansiFormat('ERROR', "'$templateName' is the name of an existing app — apps and templates must not share names.");
+            return;
+        }
+
         $templatePath = $this->templatesDir . '/' . $templateName;
-        
+
         // Check if template already exists
         if (is_dir($templatePath)) {
             echo self::ansiFormat('ERROR', "Template '$templateName' already exists.");

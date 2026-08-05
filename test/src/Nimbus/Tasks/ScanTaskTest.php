@@ -177,6 +177,49 @@ class ScanTaskTest extends TestCase
         $this->assertStringNotContainsString('Findings are advisory', $output);
     }
 
+    /**
+     * Template apps build from the repo root — but that tree holds the vault,
+     * every app's .env and every credential-bearing compose file. The scanner
+     * gets the image definition alone, never the directory secrets live in.
+     * (Mounting the root also died outright on the vault's 0600 files.)
+     */
+    public function testTemplateAppScanNeverMountsTheRepoRoot(): void
+    {
+        mkdir($this->baseDir . '/.installer/apps/demo', 0777, true);
+        mkdir($this->baseDir . '/.installer/vault', 0700, true);
+        file_put_contents($this->baseDir . '/.installer/vault/credentials.yml', 'ENCRYPTED');
+        file_put_contents($this->baseDir . '/Dockerfile', "FROM php:8.3-apache\n");
+        file_put_contents($this->baseDir . '/demo-compose.yml', "version: 3.8\n");
+        file_put_contents(
+            $this->baseDir . '/.installer/apps/demo/app.nimbus.json',
+            json_encode(['name' => 'demo', 'features' => ['database' => true]])
+        );
+
+        $commands = [];
+        $task = $this->makeTask($commands);
+
+        ob_start();
+        $task->scanApp('demo');
+        ob_get_clean();
+
+        $run = null;
+        foreach ($task->commands as $command) {
+            if (str_contains($command, 'podman run')) {
+                $run = $command;
+            }
+        }
+
+        $this->assertNotNull($run, 'a scan should have run');
+
+        // The image definition and compose file, as single-file mounts
+        $this->assertStringContainsString('/Dockerfile:/scan/Dockerfile:ro', $run);
+        $this->assertStringContainsString('demo-compose.yml:/scan/compose:ro', $run);
+
+        // Never the tree the secrets live in
+        $this->assertStringNotContainsString($this->baseDir . ':/scan', $run);
+        $this->assertStringNotContainsString('vault', $run);
+    }
+
     public function testScannerImageIsPinned(): void
     {
         $commands = [];

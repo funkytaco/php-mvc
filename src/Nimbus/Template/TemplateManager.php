@@ -125,6 +125,41 @@ class TemplateManager
     /**
      * Copy a template to create a new app
      */
+    /**
+     * Why a name is not usable as a template name, or null when it is.
+     *
+     * The counterpart of AppManager::appNameError() — scaffold and clone both
+     * gate on this, so the rule lives here once instead of as inline regexes
+     * in each command.
+     */
+    public static function templateNameError(string $name): ?string
+    {
+        if (!preg_match('/^[a-z0-9][a-z0-9-]*$/', $name)) {
+            return 'Template name must start with a letter or number and contain only lowercase letters, numbers, and hyphens';
+        }
+
+        if (str_ends_with($name, '-')) {
+            return 'Template name must not end with a hyphen';
+        }
+
+        return null;
+    }
+
+    /**
+     * The nearest valid template name to what was typed — "Order Entry"
+     * becomes "order-entry". Always returns something templateNameError()
+     * accepts.
+     */
+    public static function suggestTemplateName(string $name): string
+    {
+        $suggestion = strtolower(trim($name));
+        $suggestion = (string) preg_replace('/[^a-z0-9-]+/', '-', $suggestion);
+        $suggestion = (string) preg_replace('/-{2,}/', '-', $suggestion);
+        $suggestion = trim($suggestion, '-');
+
+        return $suggestion === '' ? 'my-template' : $suggestion;
+    }
+
     public function copyTemplate(string $templateName, string $targetPath): void
     {
         if (!$this->templateExists($templateName)) {

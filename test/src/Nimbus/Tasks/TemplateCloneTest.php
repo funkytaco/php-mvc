@@ -153,6 +153,57 @@ class TemplateCloneTest extends TestCase
         $this->assertFileDoesNotExist($this->templatesDir . '/order-entry/app.nimbus.json');
     }
 
+    /**
+     * The mirror of app creation refusing template names — without it the
+     * same ambiguity is re-creatable from this side.
+     *
+     * Needs the real sibling layout (.installer/_templates next to
+     * .installer/apps), which the class-level fixture doesn't have, so it
+     * builds its own.
+     */
+    public function testCloningToAnExistingAppNameIsRefused(): void
+    {
+        $base = sys_get_temp_dir() . '/test_nimbus_collide_' . uniqid();
+        mkdir($base . '/.installer/_templates/fixture-src', 0777, true);
+        mkdir($base . '/.installer/apps/foolio', 0777, true);
+        file_put_contents(
+            $base . '/.installer/_templates/fixture-src/app.nimbus.json',
+            json_encode(['type' => 'fixture-src'])
+        );
+
+        try {
+            $task = new TemplateTask($base . '/.installer/_templates');
+
+            ob_start();
+            $result = $task->performClone('fixture-src', 'foolio');
+            $output = preg_replace('/\033\[[0-9;]*m/', '', (string) ob_get_clean()) ?? '';
+
+            $this->assertFalse($result);
+            $this->assertStringContainsString('existing app', $output);
+            $this->assertDirectoryDoesNotExist($base . '/.installer/_templates/foolio');
+        } finally {
+            $this->removeDirectory($base);
+        }
+    }
+
+    private function removeDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($items as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+
+        rmdir($dir);
+    }
+
     public function testRefusalWritesNothing(): void
     {
         $this->clone('fixture-src', 'Bad_Name');

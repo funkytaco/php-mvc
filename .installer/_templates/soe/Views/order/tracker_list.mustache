@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Tracker</title>
+    <link rel="stylesheet" href="/assets/css/soe.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Order Tracker</h1>
+            <p class="subtitle">Track your host build orders</p>
+        </header>
+
+        <main class="main">
+            <div class="actions-bar">
+                <a href="/order" class="btn btn-primary">+ New Order</a>
+            </div>
+
+            {{#orders}}
+            <a href="/tracker/{{order_ref}}" class="order-card">
+                <div class="order-card-header">
+                    <span class="order-ref monospace">{{order_ref}}</span>
+                    <span class="order-app">{{app_name}}</span>
+                </div>
+                <div class="order-card-meta">
+                    <span class="env-badge" data-env="{{environment}}">{{environment}}</span>
+                    <span class="sens-badge" data-sens="{{sensitivity}}">{{sensitivity}}</span>
+                    <span class="state-badge" data-state="{{state}}">{{state}}</span>
+                </div>
+                <small class="order-card-date">{{created_at}}</small>
+            </a>
+            {{/orders}}
+
+            {{^orders}}
+            <div class="empty-state">
+                <p>No orders yet.</p>
+                <a href="/order" class="btn btn-primary">Create your first order</a>
+            </div>
+            {{/orders}}
+        </main>
+    </div>
+</body>
+</html>
