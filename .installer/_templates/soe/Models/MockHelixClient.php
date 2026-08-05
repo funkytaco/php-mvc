@@ -185,9 +185,9 @@ final class MockHelixClient implements HelixClientInterface
             'orderRef' => $row['order_ref'],
             'status' => $row['status'],
             'currentQueue' => $row['current_queue'],
-            'queues' => json_decode($row['queues_json'], true) ?? [],
-            'blocker' => json_decode($row['blocker_json'], true),
-            'history' => json_decode($row['history_json'], true) ?? [],
+            'queues' => json_decode($row['queues_json'] ?? '[]', true) ?? [],
+            'blocker' => $row['blocker_json'] ? json_decode($row['blocker_json'], true) : null,
+            'history' => json_decode($row['history_json'] ?? '[]', true) ?? [],
             'createdAt' => $row['created_at']
         ];
     }

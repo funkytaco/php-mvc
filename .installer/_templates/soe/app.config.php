@@ -6,7 +6,7 @@ return [
     'controllers' => 'Controllers',
     'models' => 'Models',
     'pdo' => [
-        'dsn' => 'mysql:host={{APP_NAME}}-db;port=3306;dbname={{DB_NAME}}',
+        'dsn' => 'pgsql:host={{APP_NAME}}-db;port=5432;dbname={{DB_NAME}}',
         'username' => '{{DB_USER}}',
         'password' => '{{DB_PASSWORD}}'
     ],

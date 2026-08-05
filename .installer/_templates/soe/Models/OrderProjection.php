@@ -87,8 +87,8 @@ final class OrderProjection
         // Elapsed time since submission
         $createdAt = strtotime($ticket['createdAt'] ?? 'now');
         $elapsedSeconds = time() - $createdAt;
-        $elapsedDays = floor($elapsedSeconds / 86400);
-        $elapsedHours = floor(($elapsedSeconds % 86400) / 3600);
+        $elapsedDays = (int) floor($elapsedSeconds / 86400);
+        $elapsedHours = (int) floor(($elapsedSeconds % 86400) / 3600);
 
         return [
             'orderId' => $order['id'] ?? null,

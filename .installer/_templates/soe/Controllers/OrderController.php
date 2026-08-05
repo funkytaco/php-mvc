@@ -65,10 +65,16 @@ final class OrderController extends AbstractController
             return;
         }
 
+        // Parse form data from $_POST or request body
         $data = $this->getRequestData();
 
+        // Fallback to $_POST if getRequestData didn't work
+        if (empty($data) && !empty($_POST)) {
+            $data = $_POST;
+        }
+
         if (!$this->validate($data, ['app_name', 'environment', 'sensitivity'])) {
-            $_SESSION['order_error'] = 'Missing required fields: app_name, environment, sensitivity';
+            $_SESSION['order_error'] = 'Missing required fields: app_name, environment, sensitivity. Received: ' . json_encode(array_keys($data));
             $this->redirect('/order');
             return;
         }
