@@ -55,10 +55,9 @@ REALM_EXISTS=$(curl -s -o /dev/null -w "%{http_code}" \
 if [ "$REALM_EXISTS" -ne 404 ]; then
     echo "Realm ${REALM_NAME} already exists. Skipping configuration."
     # Best-effort completion marker. This script runs in a throwaway alpine
-# sidecar, not inside the Keycloak container, so the data directory usually
-# does not exist here — never let that fail the run.
-[ -d /opt/keycloak/data ] && touch /opt/keycloak/data/configured.marker
-exit 0
+    # sidecar, not inside the Keycloak container, so the data directory usually
+    # does not exist here — never let that fail the run.
+    [ -d /opt/keycloak/data ] && touch /opt/keycloak/data/configured.marker
     exit 0
 fi
 
@@ -202,16 +201,19 @@ EOF
 }
 
 echo "Creating one demo user per persona (password: ${DEMO_PASSWORD})"
-create_user_with_role "owner"     "Ada"   "Owner"     "app-owner"
-create_user_with_role "requester" "Ravi"  "Requester" "requester"
-create_user_with_role "customer"  "Cass"  "Customer"  "customer"
-create_user_with_role "teamlead"  "Toni"  "Team"      "team-member"
+create_user_with_role "owner"     "Some"   "Owner"     "app-owner"
+create_user_with_role "requester" "Some"  "Requester" "requester"
+create_user_with_role "customer"  "Some"  "Customer"  "customer"
+create_user_with_role "teamlead"  "Team"  "Lead"      "team-member"
+create_user_with_role "teammember"  "Team"  "Member"      "team-member"
+
+
 
 echo ""
 echo "Keycloak auto-configuration complete."
 echo "  Sign in at http://localhost:${APP_PORT}/ with any of:"
-echo "    owner / requester / customer / teamlead"
-echo "  Password for all four: ${DEMO_PASSWORD}"
+echo "    owner / requester / customer / teamlead / teammember"
+echo "  Password for all five: ${DEMO_PASSWORD}"
 echo ""
 
 # Best-effort completion marker. This script runs in a throwaway alpine

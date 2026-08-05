@@ -529,21 +529,26 @@ class MVCAppManager extends AppManager
     {
         $templatePath = $this->templatePathForApp($appName);
 
-        // template-relative source => app-relative target. These differ for
-        // playbooks: templates keep them at playbooks/, but the EDA container
-        // mounts <app>/eda/playbooks at /playbooks (see buildComposeConfig),
-        // so they must be copied into eda/ or the rulebook's run_playbook
-        // action fails at runtime with "Could not find a playbook".
+        // template-relative source => app-relative target.
         $edaFiles = [
             'init-entrypoint.sh' => 'init-entrypoint.sh',
             'inventory/inventory.yml' => 'inventory/inventory.yml',
-            'playbooks/api-notification.yml' => 'eda/playbooks/api-notification.yml',
-            // Keycloak auto-configuration: run_playbook by the
-            // keycloak-config.yml rulebook, so they must live in the
-            // mounted eda/playbooks dir or the rules fail at runtime.
-            'playbooks/configure-keycloak.yml' => 'eda/playbooks/configure-keycloak.yml',
-            'playbooks/keycloak-health.yml' => 'eda/playbooks/keycloak-health.yml',
         ];
+
+        // EVERY playbook the template ships, discovered rather than allow-listed.
+        // This used to name three files explicitly, which meant a template that
+        // added a playbook had it silently dropped — the copy loop below is
+        // file_exists-guarded, so nothing was ever reported.
+        //
+        // The source/target differ on purpose: templates keep playbooks at
+        // playbooks/, but the EDA container mounts <app>/eda/playbooks at
+        // /playbooks (see buildComposeConfig), so they must land under eda/ or
+        // a rulebook's run_playbook action fails at runtime with
+        // "Could not find a playbook".
+        foreach (glob($templatePath . '/playbooks/*.yml') ?: [] as $playbookPath) {
+            $playbook = basename($playbookPath);
+            $edaFiles['playbooks/' . $playbook] = 'eda/playbooks/' . $playbook;
+        }
 
         $edaDirs = ['eda/rulebooks', 'eda/playbooks', 'inventory', 'logs'];
 

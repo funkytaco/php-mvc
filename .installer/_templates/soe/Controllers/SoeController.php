@@ -12,8 +12,10 @@ use App\Persistence\CatalogRepository;
 use App\Persistence\OrderRepository;
 use App\Persistence\SkuRepository;
 use App\Persistence\SopNoteRepository;
+use App\Persistence\SopRunRepository;
 use App\Services\CatalogService;
 use App\Services\OrderIntakeService;
+use App\Services\SopRunnerService;
 use App\Services\SopService;
 use Nimbus\Controller\AbstractController;
 use PDO;
@@ -41,10 +43,12 @@ abstract class SoeController extends AbstractController
     protected ?CatalogRepository $catalogRepo = null;
     protected ?SkuRepository $skus = null;
     protected ?SopNoteRepository $sopNotes = null;
+    protected ?SopRunRepository $sopRuns = null;
     protected ?AuditLog $audit = null;
     protected ?OrderIntakeService $intake = null;
     protected ?CatalogService $catalog = null;
     protected ?SopService $sops = null;
+    protected ?SopRunnerService $sopRunner = null;
 
     protected function initialize(): void
     {
@@ -64,11 +68,18 @@ abstract class SoeController extends AbstractController
             $this->catalogRepo = new CatalogRepository($this->db);
             $this->skus = new SkuRepository($this->db);
             $this->sopNotes = new SopNoteRepository($this->db);
+            $this->sopRuns = new SopRunRepository($this->db);
             $this->audit = new AuditLog($this->db);
 
             $this->intake = new OrderIntakeService($this->helix, $this->orders, $this->catalogRepo, $this->audit);
             $this->catalog = new CatalogService($this->skus, $this->catalogRepo, $this->audit);
-            $this->sops = new SopService($this->helix, $this->sopNotes, $this->audit);
+            $this->sops = new SopService($this->helix, $this->sopNotes, $this->audit, $this->sopRuns);
+            $this->sopRunner = new SopRunnerService(
+                $this->sopRuns,
+                $this->audit,
+                $this->installerName(),
+                $this->edaEnabled()
+            );
         } catch (\Throwable $e) {
             // PDO connects lazily; a down database must not fatal the process.
             error_log('SOE initialisation failed: ' . $e->getMessage());
@@ -81,6 +92,14 @@ abstract class SoeController extends AbstractController
         $config = $this->getConfig();
 
         return filter_var($config['keycloak']['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /** Whether this app has the EDA sidecar that runs SOP rulebooks. */
+    protected function edaEnabled(): bool
+    {
+        $config = $this->getConfig();
+
+        return filter_var($config['has_eda'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     protected function persona(): Persona
@@ -97,14 +116,19 @@ abstract class SoeController extends AbstractController
     }
 
     /**
-     * Gate a surface on a Keycloak realm role.
+     * Gate a surface on one or more Keycloak realm roles. A string admits one
+     * role; an array admits any of them. `admin` always passes (Persona::can).
      *
      * Returns true when the request may proceed. When it returns false it has
      * already emitted a response (SSO-required page, login redirect, or 403)
      * and the caller must return immediately.
+     *
+     * @param string|array<int,string> $requiredRole
      */
-    protected function guard(string $requiredRole, string $path): bool
+    protected function guard(string|array $requiredRole, string $path): bool
     {
+        $roles = (array) $requiredRole;
+
         if (!$this->keycloakEnabled()) {
             http_response_code(503);
             echo $this->render('protected/sso-required', [
@@ -122,10 +146,10 @@ abstract class SoeController extends AbstractController
             return false;
         }
 
-        if (!$this->persona()->can($requiredRole)) {
+        if (!$this->persona()->canAny(...$roles)) {
             http_response_code(403);
             echo $this->render('protected/forbidden', array_merge($this->baseData($path), [
-                'required_role' => $requiredRole,
+                'required_role' => implode(' or ', $roles),
                 'held_roles' => array_map(
                     static fn (string $r): array => ['name' => $r],
                     $this->persona()->roles()

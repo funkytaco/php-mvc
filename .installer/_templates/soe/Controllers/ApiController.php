@@ -22,9 +22,11 @@ final class ApiController extends SoeController
 {
     /**
      * JSON equivalent of SoeController::guard() — never redirects, never
-     * renders HTML.
+     * renders HTML. A string admits one role; an array admits any of them.
+     *
+     * @param string|array<int,string> $requiredRole
      */
-    private function apiGuard(string $requiredRole): bool
+    private function apiGuard(string|array $requiredRole): bool
     {
         if (!$this->keycloakEnabled()) {
             $this->json(['success' => false, 'error' => 'SSO is not installed for this app.'], 503);
@@ -36,7 +38,7 @@ final class ApiController extends SoeController
 
             return false;
         }
-        if (!$this->persona()->can($requiredRole)) {
+        if (!$this->persona()->canAny(...(array) $requiredRole)) {
             $this->json(['success' => false, 'error' => 'Forbidden for this persona.'], 403);
 
             return false;
@@ -89,10 +91,10 @@ final class ApiController extends SoeController
         $this->json(['success' => true, 'data' => $this->intake->resolve($this->getRequestData())]);
     }
 
-    /** GET /api/orders — the tracker's order switcher, customer-scoped. */
+    /** GET /api/orders — the tracker's order switcher; customer-safe payload, every persona. */
     public function orders(): void
     {
-        if (!$this->apiGuard(Persona::CUSTOMER)) {
+        if (!$this->apiGuard(Persona::ALL_PERSONAS)) {
             return;
         }
 
@@ -119,7 +121,7 @@ final class ApiController extends SoeController
      */
     public function order(string $ref): void
     {
-        if (!$this->apiGuard(Persona::CUSTOMER)) {
+        if (!$this->apiGuard(Persona::ALL_PERSONAS)) {
             return;
         }
 
@@ -145,14 +147,20 @@ final class ApiController extends SoeController
         ]);
     }
 
-    /** GET /api/sops/{team} — a team's SOP, queue and notes. */
+    /**
+     * GET /api/sops/{team}[?order=ORD-1042] — a team's SOP, queue and notes.
+     * With ?order, each step also carries its run state for that order, which
+     * is what the SOP page polls while a rulebook is running.
+     */
     public function sop(string $team): void
     {
         if (!$this->apiGuard(Persona::TEAM_MEMBER)) {
             return;
         }
 
-        $data = $this->sops->team($team);
+        $orderRef = trim((string) ($_GET['order'] ?? ''));
+        $data = $this->sops->team($team, $orderRef !== '' ? $orderRef : null);
+
         if ($data === null) {
             $this->json(['success' => false, 'error' => 'Unknown team: ' . $team], 404);
 
@@ -160,6 +168,54 @@ final class ApiController extends SoeController
         }
 
         $this->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * POST /api/sops/runs/{id}/complete — the EDA completion callback.
+     *
+     * DELIBERATELY NOT PERSONA-GUARDED. This request comes from the EDA
+     * container's playbook, which has no browser session and therefore no
+     * Keycloak role. It authenticates with the single-use per-run token
+     * minted in SopRunnerService::run() and compared with hash_equals(), so
+     * the endpoint is unforgeable without having received that token.
+     *
+     * It must never return data — only an acknowledgement — so an attacker
+     * probing run ids learns nothing.
+     */
+    public function completeRun(string $runId): void
+    {
+        if (!$this->dbAvailable()) {
+            $this->json(['success' => false, 'error' => 'Database unavailable.'], 503);
+
+            return;
+        }
+
+        $data = $this->getRequestData();
+        $token = (string) ($data['token'] ?? '');
+
+        if ($token === '') {
+            $this->json(['success' => false, 'error' => 'Missing callback token.'], 401);
+
+            return;
+        }
+
+        $result = $this->sopRunner->complete(
+            (int) $runId,
+            $token,
+            (string) ($data['status'] ?? 'failed'),
+            isset($data['result']) ? (string) $data['result'] : null
+        );
+
+        // A bad token and an unknown run answer identically, so run ids
+        // cannot be enumerated.
+        if (!$result['ok']) {
+            $code = $result['message'] === 'Run already finished.' ? 409 : 401;
+            $this->json(['success' => false, 'error' => $result['message']], $code);
+
+            return;
+        }
+
+        $this->json(['success' => true]);
     }
 
     /** POST /api/sops/{team}/notes — add a note or cross-post (FR-TASK-05). */
@@ -195,7 +251,7 @@ final class ApiController extends SoeController
 
             return;
         }
-        if (!$this->apiGuard(Persona::CUSTOMER)) {
+        if (!$this->apiGuard(Persona::ALL_PERSONAS)) {
             return;
         }
 

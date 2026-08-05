@@ -13,7 +13,8 @@ use PDO;
  * the Helix ticket's own history, this makes a build's full story
  * reconstructable from the audit trail alone.
  */
-final class AuditLog
+// Not final: tests substitute a double for this collaborator.
+class AuditLog
 {
     public function __construct(private PDO $pdo)
     {

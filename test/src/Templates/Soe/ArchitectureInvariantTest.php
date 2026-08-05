@@ -187,6 +187,47 @@ final class ArchitectureInvariantTest extends TestCase
     }
 
     /**
+     * The Order Tracker is read-only and open to EVERY persona. Its page
+     * guard, nav tab, and backing API endpoints must gate on the full persona
+     * set, not a single role — a regression to Persona::CUSTOMER silently
+     * locks three personas out of /tracker.
+     */
+    public function testTrackerAdmitsEveryPersona(): void
+    {
+        $persona = (string) file_get_contents(self::TEMPLATE . '/Domain/Persona.php');
+
+        foreach (['APP_OWNER', 'REQUESTER', 'CUSTOMER', 'TEAM_MEMBER'] as $role) {
+            $this->assertMatchesRegularExpression(
+                '/ALL_PERSONAS\s*=\s*\[[^\]]*self::' . $role . '\b/s',
+                $persona,
+                "Persona::ALL_PERSONAS must include self::$role."
+            );
+        }
+
+        $this->assertMatchesRegularExpression(
+            "/'\\/tracker'.*ALL_PERSONAS/",
+            $persona,
+            'The Order Tracker nav tab must be visible to every persona.'
+        );
+
+        $tracker = (string) file_get_contents(self::TEMPLATE . '/Controllers/TrackerController.php');
+        $this->assertSame(
+            2,
+            substr_count($tracker, 'guard(Persona::ALL_PERSONAS'),
+            'Both tracker page actions (index, detail) must gate on Persona::ALL_PERSONAS.'
+        );
+
+        $api = (string) file_get_contents(self::TEMPLATE . '/Controllers/ApiController.php');
+        foreach (['public function orders(', 'public function order(', 'public function advance('] as $method) {
+            $this->assertStringContainsString(
+                'apiGuard(Persona::ALL_PERSONAS)',
+                substr($api, (int) strpos($api, $method), 400),
+                "$method backs the tracker and must admit every persona."
+            );
+        }
+    }
+
+    /**
      * The bug that made the last build unusable: views link a stylesheet the
      * assets map never installs, so every page renders unstyled while still
      * returning 200 to a smoke test.

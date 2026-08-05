@@ -33,7 +33,14 @@
                 {{^queue}}<p class="empty">Nothing waiting.</p>{{/queue}}
 
                 <p class="sop-h" style="margin-top:1.1rem">Default SOP</p>
-                <ol class="sop">{{#sop}}<li>{{step}}</li>{{/sop}}</ol>
+                <ol class="sop">
+                    {{#sop}}
+                    <li>
+                        {{step}}
+                        {{#has_rulebook}}<span class="bound-rulebook mono">{{rulebook}}</span>{{/has_rulebook}}
+                    </li>
+                    {{/sop}}
+                </ol>
 
                 {{#has_notes}}
                 <div class="notes-wrap">

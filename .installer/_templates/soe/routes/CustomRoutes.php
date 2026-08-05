@@ -32,6 +32,10 @@ return function ($injector, $renderer, $conn) {
         ['GET',  '/sops/{team}',         ['App\Controllers\TaskController', 'team']],
         ['POST', '/sops/{team}/notes',   ['App\Controllers\TaskController', 'addNote']],
 
+        // SOP automation: bind a rulebook to a step, and run it for one order.
+        ['POST', '/sops/{team}/steps/{stepIndex:\d+}/bind', ['App\Controllers\TaskController', 'bindRulebook']],
+        ['POST', '/sops/{team}/steps/{stepIndex:\d+}/run',  ['App\Controllers\TaskController', 'runStep']],
+
         // ---- JSON API (DESIGN-DD §8) -------------------------------------
         ['GET',  '/api/catalog',            ['App\Controllers\ApiController', 'catalog']],
         ['POST', '/api/orders/resolve',     ['App\Controllers\ApiController', 'resolve']],
@@ -39,6 +43,10 @@ return function ($injector, $renderer, $conn) {
         ['GET',  '/api/orders/{ref}',       ['App\Controllers\ApiController', 'order']],
         ['GET',  '/api/sops/{team}',        ['App\Controllers\ApiController', 'sop']],
         ['POST', '/api/sops/{team}/notes',  ['App\Controllers\ApiController', 'addNote']],
+
+        // EDA completion callback. Authenticated by a single-use per-run token,
+        // NOT by a Keycloak session — the caller is the EDA container.
+        ['POST', '/api/sops/runs/{runId:\d+}/complete', ['App\Controllers\ApiController', 'completeRun']],
 
         // Dev/demo only — gated on app_env inside the controller (DESIGN-DD §4).
         ['POST', '/api/dev/helix/advance',  ['App\Controllers\ApiController', 'advance']],

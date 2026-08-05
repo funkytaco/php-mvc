@@ -20,6 +20,14 @@ final class Persona
     public const CUSTOMER = 'customer';
     public const TEAM_MEMBER = 'team-member';
 
+    /** Every persona role — surfaces open to all personas gate on this set. */
+    public const ALL_PERSONAS = [
+        self::APP_OWNER,
+        self::REQUESTER,
+        self::CUSTOMER,
+        self::TEAM_MEMBER,
+    ];
+
     /** Persona → the surface it lands on (spec §3). */
     public const HOME = [
         self::APP_OWNER => '/catalog',
@@ -73,10 +81,26 @@ final class Persona
         return $this->has($requiredRole) || $this->has('admin');
     }
 
+    /**
+     * True when this persona holds ANY of the given roles (or `admin`).
+     * Multi-persona surfaces — currently only the read-only Order Tracker —
+     * gate on this instead of can().
+     */
+    public function canAny(string ...$roles): bool
+    {
+        foreach ($roles as $role) {
+            if ($this->can($role)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** The first persona role held, used to pick a landing surface. */
     public function primary(): ?string
     {
-        foreach ([self::APP_OWNER, self::REQUESTER, self::CUSTOMER, self::TEAM_MEMBER] as $role) {
+        foreach (self::ALL_PERSONAS as $role) {
             if ($this->has($role)) {
                 return $role;
             }
@@ -109,15 +133,15 @@ final class Persona
     public function navigation(string $currentPath): array
     {
         $tabs = [
-            ['path' => '/catalog', 'label' => 'Catalog Builder', 'role' => self::APP_OWNER],
-            ['path' => '/order',   'label' => 'Order Gateway',   'role' => self::REQUESTER],
-            ['path' => '/tracker', 'label' => 'Order Tracker',   'role' => self::CUSTOMER],
-            ['path' => '/sops',    'label' => 'Team SOPs',       'role' => self::TEAM_MEMBER],
+            ['path' => '/catalog', 'label' => 'Catalog Builder', 'roles' => [self::APP_OWNER]],
+            ['path' => '/order',   'label' => 'Order Gateway',   'roles' => [self::REQUESTER]],
+            ['path' => '/tracker', 'label' => 'Order Tracker',   'roles' => self::ALL_PERSONAS],
+            ['path' => '/sops',    'label' => 'Team SOPs',       'roles' => [self::TEAM_MEMBER]],
         ];
 
         $out = [];
         foreach ($tabs as $tab) {
-            if (!$this->can($tab['role'])) {
+            if (!$this->canAny(...$tab['roles'])) {
                 continue;
             }
             $tab['is_active'] = str_starts_with($currentPath, $tab['path']);

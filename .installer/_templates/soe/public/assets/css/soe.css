@@ -709,6 +709,98 @@ ul.contract li::before {
 .queue-ref { font-family: var(--mono); font-weight: 600; }
 .queue-wait { margin-left: auto; font-family: var(--mono); font-size: .7rem; color: var(--ink-3); }
 
+/* ---- SOP steps with rulebook automation ------------------------------- */
+
+.order-picker { margin-bottom: 1.5rem; max-width: 22rem; }
+
+ol.sop-steps { margin: 0; padding: 0; list-style: none; }
+.sop-step {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    padding: .9rem 0;
+    border-bottom: 1px solid var(--line-soft);
+    border-left: 2px solid transparent;
+    padding-left: .75rem;
+    margin-left: -.75rem;
+}
+.sop-step:last-child { border-bottom: 0; }
+.sop-step.is-completed { border-left-color: var(--ok); }
+.sop-step.is-failed { border-left-color: var(--fault); }
+.sop-step.is-running { border-left-color: var(--accent); }
+
+.sop-step-num {
+    flex: none;
+    font-family: var(--mono);
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--accent);
+    padding-top: .15rem;
+    min-width: 1.5rem;
+}
+.sop-step-body { flex: 1; min-width: 12rem; }
+.sop-step-text { margin: 0; font-size: .92rem; color: var(--ink); }
+
+.sop-step-run {
+    margin: .35rem 0 0;
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    flex-wrap: wrap;
+    font-size: .8rem;
+}
+.run-state {
+    font-family: var(--mono);
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: .1rem .4rem;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--ink-3);
+}
+.run-completed { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.run-failed { color: var(--fault); border-color: var(--fault); background: var(--fault-soft); }
+.run-running, .run-queued { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.run-meta { color: var(--ink-3); font-family: var(--mono); font-size: .72rem; }
+.run-result { color: var(--ink-2); flex-basis: 100%; font-size: .8rem; }
+
+.sop-step-controls {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.inline-form { display: flex; align-items: center; gap: .4rem; flex-direction: row; }
+.inline-form select {
+    padding: .3rem .5rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: .72rem;
+    max-width: 11rem;
+}
+.bound-rulebook {
+    font-size: .7rem;
+    color: var(--accent);
+    padding: .15rem .4rem;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--accent-soft);
+}
+.btn[disabled] { opacity: .55; cursor: default; }
+.btn[disabled]:hover { border-color: var(--line); background: var(--surface-2); color: var(--ink); }
+
+@media (max-width: 720px) {
+    .sop-step { flex-wrap: wrap; }
+    .sop-step-controls { justify-content: flex-start; width: 100%; padding-left: 2.4rem; }
+}
+
 .notes-wrap { margin-top: 1rem; border-top: 1px solid var(--line-soft); padding-top: .9rem; }
 .sop-note {
     border-left: 2px solid var(--line);

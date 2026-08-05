@@ -1,0 +1,27 @@
+---
+# {{APP_NAME}} — SOP task automation
+#
+# Listens for the app's "sop.run" event and runs the playbook the team bound
+# to that SOP step. Every value the playbook needs travels in the payload, so
+# this rulebook never has to know anything about the app's data model.
+- name: {{APP_NAME}} SOP rules
+  hosts: localhost
+  sources:
+    - ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
+        endpoint: /endpoint
+
+  rules:
+    - name: Run a bound SOP rulebook for one order
+      condition: event.payload.event == "sop.run"
+      action:
+        run_playbook:
+          name: "/playbooks/sop-demo.yml"
+          extra_vars:
+            run_id: "{{ event.payload.run_id }}"
+            team: "{{ event.payload.team }}"
+            step_index: "{{ event.payload.step_index }}"
+            order_ref: "{{ event.payload.order_ref }}"
+            callback_url: "{{ event.payload.callback_url }}"
+            callback_token: "{{ event.payload.callback_token }}"

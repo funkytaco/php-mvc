@@ -6,13 +6,27 @@
         <p>{{team.role}}</p>
     </section>
 
-    {{#flash}}<div class="note note-ok"><p>{{flash}}</p></div>{{/flash}}
+    {{#flash}}
+    <div class="note {{#flash_is_error}}note-fault{{/flash_is_error}}{{^flash_is_error}}note-ok{{/flash_is_error}}">
+        <p>{{flash}}</p>
+    </div>
+    {{/flash}}
 
-    <div class="cols-2">
-        <section class="card">
-            <h2>Queue</h2>
-            <p class="field-hint">Ready and in-progress items from Helix, oldest waiting first.
-               Ordering is by age only — this platform sets no SLA targets.</p>
+    {{^eda_enabled}}
+    <div class="note note-warn">
+        <strong>Automation unavailable</strong>
+        <p>SOP steps can run an Event-Driven Ansible rulebook, but EDA is not
+           installed for this app. Add it with:</p>
+        <p><code>composer nimbus:add-eda {{installer_name}}</code></p>
+    </div>
+    {{/eda_enabled}}
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Queue</h2>
+            <span class="panel-note">Oldest waiting first · no SLA</span>
+        </div>
+        <div class="panel-body">
             {{#team.queue}}
             <div class="queue-item">
                 <span class="status-indicator {{#is_blocked}}status-error{{/is_blocked}}{{^is_blocked}}status-warning{{/is_blocked}}"></span>
@@ -22,14 +36,106 @@
             </div>
             {{/team.queue}}
             {{^team.queue}}<p class="empty">Nothing waiting for this team.</p>{{/team.queue}}
+        </div>
+    </section>
 
-            <h3>Default SOP</h3>
-            <ol class="sop">{{#team.sop}}<li>{{step}}</li>{{/team.sop}}</ol>
+    <section class="panel">
+        <div class="panel-head">
+            <h2 class="panel-title">Standard operating procedure</h2>
+            <span class="panel-note">
+                {{#has_order}}Running against <span class="mono">{{order_ref}}</span>{{/has_order}}
+                {{^has_order}}No order selected{{/has_order}}
+            </span>
+        </div>
 
-            <h3>Exit contract</h3>
-            <p class="field-hint">What &ldquo;done&rdquo; means. Attest completion in Helix —
-               this platform records the work, it never performs or closes it.</p>
+        <div class="panel-body">
+            {{#has_order}}
+            <form method="GET" action="/sops/{{team.key}}" class="order-picker">
+                <div class="field">
+                    <label for="order">Work on order</label>
+                    <select id="order" name="order" onchange="this.form.submit()">
+                        {{#order_choices}}
+                        <option value="{{order_ref}}"{{#selected}} selected{{/selected}}>{{order_ref}}</option>
+                        {{/order_choices}}
+                    </select>
+                    <span class="field-hint">Runs and completion are recorded per order, so two
+                        builds never share a checkmark.</span>
+                </div>
+                <noscript><button type="submit" class="btn btn-sm">Switch</button></noscript>
+            </form>
+            {{/has_order}}
+
+            {{^has_order}}
+            <p class="empty">This team has nothing in its queue, so there is no order to run a
+               step against. The procedure below is still the team's standing SOP.</p>
+            {{/has_order}}
+
+            <ol class="sop-steps">
+                {{#team.sop}}
+                <li class="sop-step{{#is_completed}} is-completed{{/is_completed}}{{#is_failed}} is-failed{{/is_failed}}{{#is_running}} is-running{{/is_running}}">
+                    <span class="sop-step-num">{{number}}</span>
+
+                    <div class="sop-step-body">
+                        <p class="sop-step-text">{{step}}</p>
+
+                        {{#has_run}}
+                        <p class="sop-step-run">
+                            <span class="run-state run-{{status}}">{{status_label}}</span>
+                            <span class="run-meta">{{ran_ago}}{{#actor}} · {{actor}}{{/actor}}</span>
+                            {{#result}}<span class="run-result">{{result}}</span>{{/result}}
+                        </p>
+                        {{/has_run}}
+                    </div>
+
+                    <div class="sop-step-controls">
+                        <form method="POST" action="/sops/{{team.key}}/steps/{{index}}/bind" class="inline-form">
+                            <input type="hidden" name="order_ref" value="{{order_ref}}">
+                            <select name="rulebook" aria-label="Rulebook for step {{number}}">
+                                <option value="">— no rulebook —</option>
+                                {{#rulebooks}}
+                                <option value="{{file}}">{{file}}</option>
+                                {{/rulebooks}}
+                            </select>
+                            <button type="submit" class="btn btn-sm">{{#has_rulebook}}Rebind{{/has_rulebook}}{{^has_rulebook}}Bind{{/has_rulebook}}</button>
+                        </form>
+
+                        {{#has_rulebook}}
+                        <span class="bound-rulebook mono">{{rulebook}}</span>
+                        {{/has_rulebook}}
+
+                        {{#can_run}}
+                        <form method="POST" action="/sops/{{team.key}}/steps/{{index}}/run" class="inline-form">
+                            <input type="hidden" name="order_ref" value="{{order_ref}}">
+                            <button type="submit" class="btn btn-sm btn-accent"{{#is_running}} disabled{{/is_running}}>
+                                {{#is_running}}Running…{{/is_running}}{{^is_running}}Run{{/is_running}}
+                            </button>
+                        </form>
+                        {{/can_run}}
+                    </div>
+                </li>
+                {{/team.sop}}
+            </ol>
+        </div>
+    </section>
+
+    <div class="cols-2">
+        <section class="card">
+            <h2>Exit contract</h2>
+            <p class="field-hint">What &ldquo;done&rdquo; means for this team. Attest completion in
+               Helix — this platform records the work, it never closes it on your behalf.</p>
             <ul class="contract">{{#team.exit_contract}}<li>{{item}}</li>{{/team.exit_contract}}</ul>
+
+            {{#recent_runs}}{{#id}}{{/id}}{{/recent_runs}}
+            <h3>Recent runs</h3>
+            {{#recent_runs}}
+            <div class="queue-item">
+                <span class="status-indicator {{#result}}status-success{{/result}}{{^result}}status-warning{{/result}}"></span>
+                <span class="queue-ref">{{order_ref}}</span>
+                <span class="mono">{{rulebook}}</span>
+                <span class="queue-wait">{{status}}</span>
+            </div>
+            {{/recent_runs}}
+            {{^recent_runs}}<p class="empty">No rulebook has been run yet.</p>{{/recent_runs}}
         </section>
 
         <section class="card">
@@ -71,4 +177,29 @@
         </section>
     </div>
 </main>
+
+<script>
+(function () {
+    // While a rulebook run is in flight, poll the team's projected state and
+    // reload once nothing is running any more. Cheap, and it means the page
+    // settles on its own instead of leaving a stale "Running..." button.
+    var TEAM = "{{team.key}}";
+    var ORDER = "{{order_ref}}";
+    if (!ORDER || !document.querySelector('.sop-step.is-running')) { return; }
+
+    var url = '/api/sops/' + encodeURIComponent(TEAM) + '?order=' + encodeURIComponent(ORDER);
+
+    var timer = setInterval(function () {
+        if (document.hidden) { return; }
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (body) {
+                if (!body || !body.success) { return; }
+                var stillRunning = body.data.sop.some(function (s) { return s.is_running; });
+                if (!stillRunning) { clearInterval(timer); window.location.reload(); }
+            })
+            .catch(function () { /* transient — next tick retries */ });
+    }, 3000);
+}());
+</script>
 {{> partials/page-foot}}

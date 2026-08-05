@@ -129,6 +129,56 @@ CREATE TABLE IF NOT EXISTS sop_notes (
 
 CREATE INDEX IF NOT EXISTS idx_sop_notes_team ON sop_notes(team);
 
+-- ---------------------------------------------------------------------------
+-- SOP automation: rulebook bindings and run history
+--
+-- A team's SOP step TEXT stays governed in App\Services\SopService::TEAMS —
+-- it is the certified procedure and is not user-editable. What a team member
+-- may do is bind an Event-Driven Ansible rulebook to a step and run it against
+-- a specific order from their queue.
+--
+-- These are NOT fulfillment-state tables (Golden Rule 3). Helix still owns
+-- whether the build advanced; the Tracker still projects from the Helix ticket
+-- and never reads these. This is the team's own record of automation they
+-- chose to run — write ledger bucket 3.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS sop_step_bindings (
+    id          SERIAL PRIMARY KEY,
+    team        VARCHAR(48) NOT NULL,
+    step_index  INTEGER     NOT NULL,   -- 0-based index into SopService::TEAMS[team]['sop']
+    rulebook    VARCHAR(96) NOT NULL,
+    created_by  VARCHAR(96) NOT NULL DEFAULT 'system',
+    created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (team, step_index)
+);
+
+CREATE TABLE IF NOT EXISTS sop_step_runs (
+    id             SERIAL PRIMARY KEY,
+    team           VARCHAR(48) NOT NULL,
+    step_index     INTEGER     NOT NULL,
+    order_ref      VARCHAR(32) NOT NULL,   -- runs are always against one order
+    rulebook       VARCHAR(96) NOT NULL,
+    status         VARCHAR(16) NOT NULL DEFAULT 'queued', -- queued|running|completed|failed
+    actor          VARCHAR(96) NOT NULL DEFAULT 'system',
+    result         TEXT,
+    -- Per-run bearer token. The completion callback arrives from the EDA
+    -- container, which has no browser session, so it authenticates with this
+    -- instead. Single-use and unguessable, so the endpoint cannot be forged.
+    callback_token VARCHAR(64) NOT NULL,
+    started_at     TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at    TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sop_runs_lookup ON sop_step_runs(team, step_index, order_ref);
+CREATE INDEX IF NOT EXISTS idx_sop_runs_status ON sop_step_runs(status);
+
+-- One demo binding so the EDA path is demonstrable out of the box:
+-- Virtualization step 2 ("Provision the VM in vCenter to the certified template").
+INSERT INTO sop_step_bindings (team, step_index, rulebook, created_by)
+VALUES ('virt', 2, 'sop-demo.yml', 'system')
+ON CONFLICT (team, step_index) DO NOTHING;
+
 -- Immutable app-side action log (AGENTS.md "Audit", FR-SM-01/03).
 CREATE TABLE IF NOT EXISTS audit_log (
     id          SERIAL PRIMARY KEY,

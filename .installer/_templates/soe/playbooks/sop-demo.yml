@@ -1,0 +1,44 @@
+---
+# {{APP_NAME}} — demo SOP task playbook
+#
+# ===========================================================================
+# THIS PLAYBOOK DELIBERATELY PERFORMS NO INFRASTRUCTURE WORK.
+#
+# soe/AGENTS.md Golden Rule 1 is "track, don't touch": the platform records
+# and coordinates work, it does not provision, install or configure anything,
+# and it holds no infrastructure credentials. This playbook therefore logs,
+# waits, and reports the step complete — proving the whole path (app -> EDA
+# -> playbook -> callback) without crossing that line.
+#
+# Replacing the body with real build work is a SPEC decision, not a config
+# change: amend AGENTS.md Golden Rule 1 and SPEC-DD NG1 first.
+# ===========================================================================
+- name: {{APP_NAME}} SOP demo task
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  tasks:
+    - name: Announce the run
+      ansible.builtin.debug:
+        msg: "SOP run {{ run_id }} — team {{ team }} step {{ step_index }} for order {{ order_ref }}"
+
+    - name: Stand in for the team's real procedure
+      ansible.builtin.pause:
+        seconds: 3
+
+    - name: Report completion back to the app
+      ansible.builtin.uri:
+        url: "{{ callback_url }}"
+        method: POST
+        body_format: json
+        body:
+          token: "{{ callback_token }}"
+          status: completed
+          result: "Demo rulebook completed at {{ ansible_date_time.iso8601 }} (no infrastructure was touched)"
+        status_code: 200
+      register: callback_result
+
+    - name: Log the acknowledgement
+      ansible.builtin.debug:
+        msg: "App acknowledged run {{ run_id }}: HTTP {{ callback_result.status }}"

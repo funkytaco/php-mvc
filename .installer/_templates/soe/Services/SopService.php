@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Helix\HelixClientInterface;
 use App\Persistence\AuditLog;
 use App\Persistence\SopNoteRepository;
+use App\Persistence\SopRunRepository;
 
 /**
  * Team SOPs and the Task View (FR-TASK-01…06, DESIGN-DD §7).
@@ -119,6 +120,7 @@ final class SopService
         private HelixClientInterface $helix,
         private SopNoteRepository $notes,
         private AuditLog $audit,
+        private SopRunRepository $runs,
     ) {
     }
 
@@ -134,14 +136,20 @@ final class SopService
 
         $out = [];
         foreach (self::TEAMS as $key => $team) {
-            $out[] = $this->assembleTeam($key, $team, $tickets, $notesByTeam[$key] ?? []);
+            $out[] = $this->assembleTeam($key, $team, $tickets, $notesByTeam[$key] ?? [], null);
         }
 
         return $out;
     }
 
-    /** @return array<string,mixed>|null */
-    public function team(string $key): ?array
+    /**
+     * One team. When $orderRef is given, each SOP step also carries the state
+     * of its most recent rulebook run against THAT order — runs are per-order
+     * so two builds never share a checkmark.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function team(string $key, ?string $orderRef = null): ?array
     {
         if (!isset(self::TEAMS[$key])) {
             return null;
@@ -151,7 +159,8 @@ final class SopService
             $key,
             self::TEAMS[$key],
             $this->helix->listTickets(),
-            $this->notes->forTeam($key)
+            $this->notes->forTeam($key),
+            $orderRef
         );
     }
 
@@ -161,14 +170,17 @@ final class SopService
      * @param array<int,array<string,mixed>> $notes
      * @return array<string,mixed>
      */
-    private function assembleTeam(string $key, array $team, array $tickets, array $notes): array
+    private function assembleTeam(string $key, array $team, array $tickets, array $notes, ?string $orderRef): array
     {
+        $bindings = $this->runs->bindingsFor($key);
+        $latestRuns = $orderRef !== null ? $this->runs->latestRunsFor($key, $orderRef) : [];
+
         return [
             'key' => $key,
             'name' => $team['name'],
             'role' => $team['role'],
             'abbr' => $team['abbr'],
-            'sop' => array_map(static fn (string $s): array => ['step' => $s], $team['sop']),
+            'sop' => $this->buildSteps($team['sop'], $bindings, $latestRuns, $orderRef !== null),
             'exit_contract' => array_map(static fn (string $c): array => ['item' => $c], $team['exit_contract']),
             'queue' => $this->queueFor($team['queue'], $tickets),
             'notes' => array_map(static fn (array $n): array => [
@@ -182,6 +194,63 @@ final class SopService
             'note_count' => count($notes),
             'has_notes' => $notes !== [],
         ];
+    }
+
+    /**
+     * SOP steps decorated with their rulebook binding and, when an order is in
+     * context, the state of the latest run against that order.
+     *
+     * The step TEXT stays governed — it comes from self::TEAMS, not the
+     * database — so a team can automate a step without rewriting the certified
+     * procedure.
+     *
+     * @param array<int,string>              $steps
+     * @param array<int,string>              $bindings   step index => rulebook
+     * @param array<int,array<string,mixed>> $latestRuns step index => run row
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildSteps(array $steps, array $bindings, array $latestRuns, bool $haveOrder): array
+    {
+        $out = [];
+
+        foreach (array_values($steps) as $i => $text) {
+            $rulebook = $bindings[$i] ?? null;
+            $run = $latestRuns[$i] ?? null;
+            $status = $run['status'] ?? null;
+
+            $out[] = [
+                'index' => $i,
+                'number' => str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+                'step' => $text,
+
+                'rulebook' => $rulebook,
+                'has_rulebook' => $rulebook !== null,
+
+                // Runnable only when a rulebook is bound AND we know which
+                // order to run it for.
+                'can_run' => $rulebook !== null && $haveOrder,
+
+                'status' => $status,
+                'has_run' => $run !== null,
+                'is_completed' => $status === SopRunRepository::COMPLETED,
+                'is_failed' => $status === SopRunRepository::FAILED,
+                'is_running' => in_array($status, [SopRunRepository::QUEUED, SopRunRepository::RUNNING], true),
+                'status_label' => match ($status) {
+                    SopRunRepository::COMPLETED => 'Completed',
+                    SopRunRepository::FAILED => 'Failed',
+                    SopRunRepository::RUNNING => 'Running',
+                    SopRunRepository::QUEUED => 'Queued',
+                    default => null,
+                },
+                'result' => $run['result'] ?? null,
+                'ran_ago' => $run !== null
+                    ? self::ago((string) ($run['finished_at'] ?? $run['started_at']))
+                    : null,
+                'actor' => $run['actor'] ?? null,
+            ];
+        }
+
+        return $out;
     }
 
     /**

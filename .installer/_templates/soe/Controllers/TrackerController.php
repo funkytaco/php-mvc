@@ -9,7 +9,7 @@ use App\Domain\Persona;
 use App\Domain\Serializer\CustomerSerializer;
 
 /**
- * Order Tracker — Customer, read-only (spec §5.3, FR-TRK-01…08).
+ * Order Tracker — read-only, open to every persona (spec §5.3, FR-TRK-01…08).
  *
  * FR-TRK-08: every value shown here is a projection of a Helix ticket read.
  * This controller performs NO writes of any kind — not to Helix, not to the
@@ -23,7 +23,7 @@ final class TrackerController extends SoeController
 {
     public function index(): void
     {
-        if (!$this->guard(Persona::CUSTOMER, '/tracker')) {
+        if (!$this->guard(Persona::ALL_PERSONAS, '/tracker')) {
             return;
         }
         if (!$this->dbAvailable()) {
@@ -42,7 +42,7 @@ final class TrackerController extends SoeController
 
     public function detail(string $ref): void
     {
-        if (!$this->guard(Persona::CUSTOMER, '/tracker')) {
+        if (!$this->guard(Persona::ALL_PERSONAS, '/tracker')) {
             return;
         }
         if (!$this->dbAvailable()) {
