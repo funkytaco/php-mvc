@@ -141,7 +141,7 @@ class TemplateConfig
     private function getDefaultConfig(): array
     {
         return [
-            'default_template' => 'nimbus-app-php',
+            'default_template' => 'soe',
             'template_aliases' => [],
             'available_templates' => [],
             'last_scanned' => null
