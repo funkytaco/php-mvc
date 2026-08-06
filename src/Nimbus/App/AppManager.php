@@ -41,7 +41,9 @@ class AppManager
      * (podman, podman-compose, git). Tests override this to assert on the
      * commands that would run without touching the host.
      *
-     * The static checkPodmanCompose() is the one exception - it has no $this.
+     * The static host probes - checkPodmanCompose() and checkPodman() - are
+     * the exception: they have no $this. Their decision logic lives in pure
+     * statics instead, which is what tests exercise.
      */
     protected function runCommand(string $command): ?string
     {
@@ -1914,10 +1916,131 @@ class AppManager
         } else {
             $result['error'] = 'podman-compose not found. Install it with: pip3 install podman-compose';
         }
-        
+
         return $result;
     }
-    
+
+    /**
+     * Is podman actually able to answer?
+     *
+     * checkPodmanCompose() only proves the binary exists - podman-compose is a
+     * Python script that reports its version happily while the podman machine
+     * is stopped, so it cannot stand in for a liveness check. Without this,
+     * `nimbus:up` gets a Python traceback out of podman-compose and every app
+     * is listed as "not built, stopped" because the podman queries behind that
+     * listing all failed.
+     *
+     * The happy path costs one command: `podman machine list` only runs once
+     * we already know something is wrong.
+     *
+     * @return array{running:bool, error:?string, fixCommand:?string, hints:list<string>}
+     */
+    public static function checkPodman(): array
+    {
+        $infoOutput = [];
+        $infoExit = 0;
+        exec('podman info 2>&1', $infoOutput, $infoExit);
+
+        if ($infoExit === 0) {
+            return ['running' => true, 'error' => null, 'fixCommand' => null, 'hints' => []];
+        }
+
+        $machineList = shell_exec('podman machine list --format json 2>/dev/null');
+
+        return self::interpretPodmanProbe(
+            $infoExit,
+            is_string($machineList) ? $machineList : '',
+            PHP_OS === 'Darwin'
+        );
+    }
+
+    /**
+     * Turn a failed podman probe into something the user can act on.
+     *
+     * Pure - takes captured probe output rather than running anything, so the
+     * signature table is testable without a host, the same way
+     * ContainerTask::diagnoseStartFailure() is.
+     *
+     * `podman machine list` keeps working while the VM is down, which is what
+     * makes it possible to tell "stopped machine" (start it) apart from "no
+     * machine at all" (init one) apart from "machine is up but the socket is
+     * not reachable" (a connection problem, and starting nothing will fix it).
+     *
+     * @return array{running:bool, error:?string, fixCommand:?string, hints:list<string>}
+     */
+    public static function interpretPodmanProbe(
+        int $infoExit,
+        string $machineListJson,
+        bool $isDarwin
+    ): array {
+        if ($infoExit === 0) {
+            return ['running' => true, 'error' => null, 'fixCommand' => null, 'hints' => []];
+        }
+
+        $decoded = json_decode($machineListJson, true);
+        $machines = is_array($decoded) ? array_filter($decoded, 'is_array') : [];
+
+        if ($machines === []) {
+            return $isDarwin
+                ? [
+                    'running' => false,
+                    'error' => 'podman has no machine to connect to.',
+                    'fixCommand' => 'podman machine init && podman machine start',
+                    'hints' => ['On macOS podman runs inside a VM, which has to exist before anything can start.'],
+                ]
+                : [
+                    'running' => false,
+                    'error' => 'The podman service is not reachable.',
+                    'fixCommand' => null,
+                    'hints' => [
+                        'Try: systemctl --user start podman.socket',
+                        'Then confirm with: podman info',
+                    ],
+                ];
+        }
+
+        // Prefer the machine podman itself would use.
+        $chosen = $machines[array_key_first($machines)];
+        foreach ($machines as $machine) {
+            if (($machine['Default'] ?? false) === true) {
+                $chosen = $machine;
+                break;
+            }
+        }
+
+        $name = is_string($chosen['Name'] ?? null) ? $chosen['Name'] : '';
+
+        foreach ($machines as $machine) {
+            if (($machine['Starting'] ?? false) === true) {
+                return [
+                    'running' => false,
+                    'error' => 'The podman machine is still starting.',
+                    'fixCommand' => null,
+                    'hints' => ['Give it a few seconds and run this again.'],
+                ];
+            }
+        }
+
+        if (($chosen['Running'] ?? false) !== true) {
+            return [
+                'running' => false,
+                'error' => "podman is installed but the podman machine '$name' is not running.",
+                'fixCommand' => trim("podman machine start $name"),
+                'hints' => [],
+            ];
+        }
+
+        return [
+            'running' => false,
+            'error' => 'podman is running but its socket is not reachable.',
+            'fixCommand' => null,
+            'hints' => [
+                'Check which connection podman is using: podman system connection list',
+                'This is a connection problem - starting the machine again will not fix it.',
+            ],
+        ];
+    }
+
     /**
      * Generate podman-compose.yml file
      */

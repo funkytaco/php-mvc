@@ -8,6 +8,7 @@ use Nimbus\Core\BaseTask;
 use Nimbus\App\AppManager;
 use Nimbus\App\AppManagerFactory;
 use Nimbus\UI\InteractiveHelper;
+use Composer\IO\IOInterface;
 use Composer\Script\Event;
 
 class ContainerTask extends BaseTask
@@ -40,6 +41,10 @@ class ContainerTask extends BaseTask
         
         echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
         
+        if (!$this->ensurePodmanRunning($io)) {
+            return;
+        }
+
         try {
             $startableApps = $this->appManager->getStartableApps();
             $targetApp = $args[0] ?? null;
@@ -133,6 +138,10 @@ class ContainerTask extends BaseTask
         
         echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
         
+        if (!$this->ensurePodmanRunning($io)) {
+            return;
+        }
+
         try {
             $runningApps = $this->appManager->getRunningApps();
             $targetApp = $args[0] ?? null;
@@ -214,6 +223,10 @@ class ContainerTask extends BaseTask
         
         echo self::ansiFormat('INFO', "Using {$composeCheck['version']}");
         
+        if (!$this->ensurePodmanRunning($io)) {
+            return;
+        }
+
         $startableApps = $this->appManager->getStartableApps();
         $targetApp = $args[0] ?? null;
 
@@ -421,6 +434,64 @@ class ContainerTask extends BaseTask
     }
 
     /**
+     * Refuse to drive podman-compose at a podman that cannot answer.
+     *
+     * This runs before getStartableApps() on purpose: that call queries podman
+     * for images and container state, so against a stopped machine it reports
+     * every app as "not built, stopped" - a confident, wrong answer printed
+     * before anything has had the chance to explain why.
+     *
+     * bin/nimbus has done this in bash since the start (its Darwin `podman
+     * info` probe); this brings the Composer script path to parity.
+     */
+    private function ensurePodmanRunning(IOInterface $io): bool
+    {
+        $check = AppManager::checkPodman();
+
+        if ($check['running']) {
+            return true;
+        }
+
+        echo self::ansiFormat('ERROR', (string) $check['error']);
+        foreach ($check['hints'] as $hint) {
+            echo self::ansiFormat('INFO', '  ' . $hint);
+        }
+
+        $fix = $check['fixCommand'];
+        if ($fix === null) {
+            return false;
+        }
+
+        if (!$io->isInteractive()) {
+            echo self::ansiFormat('INFO', "Run: $fix");
+            return false;
+        }
+
+        if (!$io->askConfirmation("Start it now? [Y/n] ", true)) {
+            echo self::ansiFormat('INFO', "Run this when you are ready: $fix");
+            return false;
+        }
+
+        echo self::ansiFormat('INFO', "Running: $fix");
+        [$exitCode] = $this->runStreamingCommand($fix . ' 2>&1');
+
+        if ($exitCode !== 0) {
+            echo self::ansiFormat('ERROR', 'podman machine failed to start.');
+            return false;
+        }
+
+        $recheck = AppManager::checkPodman();
+        if (!$recheck['running']) {
+            echo self::ansiFormat('ERROR', (string) $recheck['error']);
+            return false;
+        }
+
+        echo self::ansiFormat('SUCCESS', 'podman is up.');
+
+        return true;
+    }
+
+    /**
      * Run a command echoing its output as it arrives while also keeping it,
      * so a long build stays visible live and its text stays available for
      * failure diagnosis.
@@ -487,11 +558,23 @@ class ContainerTask extends BaseTask
             }
         }
 
+        // podman itself unreachable. Checked before the registry signatures
+        // because a stopped machine reports "dial tcp … connection refused",
+        // which reads exactly like a registry that cannot be reached.
+        if (preg_match('/Cannot connect to Podman|unable to connect to Podman socket/i', $output) === 1) {
+            $lines[] = 'podman itself is not reachable — the podman machine is not running.';
+            $lines[] = 'Start it with: podman machine start';
+        }
+
         // Registry trouble that is NOT about the app's own image — a base
         // image pull being refused or unreachable is a real registry problem.
+        // Local-socket failures are dropped too: they carry the same transport
+        // vocabulary as a registry timeout but say nothing about the network.
         $foreign = implode("\n", array_filter(
             explode("\n", $output),
             static fn (string $line): bool => !str_contains($line, $appImage)
+                && !str_contains($line, 'Cannot connect to Podman')
+                && !str_contains($line, 'unable to connect to Podman socket')
         ));
 
         if (preg_match('/requested access to the resource is denied|unauthorized|authentication required/i', $foreign) === 1) {

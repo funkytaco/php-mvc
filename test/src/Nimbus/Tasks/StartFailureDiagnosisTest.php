@@ -92,6 +92,33 @@ class StartFailureDiagnosisTest extends TestCase
         $this->assertStringNotContainsString('registry refused access while pulling an image the stack needs', $text);
     }
 
+    /**
+     * A stopped podman machine reports "dial tcp … connection refused", which
+     * is the same transport vocabulary an unreachable registry produces. It
+     * used to fall through to the registry rule and send the user off to check
+     * their VPN while the actual problem was a VM that was switched off.
+     *
+     * Condensed from a real `nimbus:up soe-demo` against a stopped machine.
+     */
+    public function testStoppedPodmanMachineIsNotBlamedOnTheNetwork(): void
+    {
+        $log = <<<'LOG'
+            podman build -f ./Dockerfile -t soe-demo_soe-demo-app --build-arg APP_NAME=soe-demo .
+            Cannot connect to Podman. Please verify your connection to the Linux system using `podman system connection list`, or try `podman machine init` and `podman machine start` to manage a new Linux VM
+            Error: unable to connect to Podman socket: failed to connect: dial tcp 127.0.0.1:61768: connect: connection refused
+            exit code: 125
+            LOG;
+
+        $text = implode("\n", ContainerTask::diagnoseStartFailure('soe-demo', $log));
+
+        $this->assertStringContainsString('podman machine is not running', $text);
+        $this->assertStringContainsString('podman machine start', $text);
+
+        // The bug this pins shut
+        $this->assertStringNotContainsString('network, VPN or proxy', $text);
+        $this->assertStringNotContainsString('could not be reached', $text);
+    }
+
     public function testCleanOutputYieldsNoDiagnosis(): void
     {
         $log = "STEP 1/2: FROM php:8.3-apache\nCOMMIT shop_shop-app\nexit code: 0";

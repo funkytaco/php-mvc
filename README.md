@@ -303,6 +303,9 @@ Change out these components for others (i.e. replace [mustache.php] with [handle
   - v 0.7.3 Updated license. PDO wrapper changes.
   - v 0.7.2 Initial commit
 
+Copyright & License
+
+Copyright © 2026 Luis Gonzalez All rights reserved. This application is provided under the terms of a dual-license model: it may be freely used, modified, and distributed by open source projects and contributors under the terms of the MIT License, and it is explicitly authorized for use, deployment, and modification by U.S. federal, state, and local government entities and agencies. All other commercial or proprietary use requires explicit written permission from the copyright holder. Attribution to the original copyright holder is requested in all derivative works and distributions.
 
 
 [Bootstrap]:http://www.getbootstrap.com/
